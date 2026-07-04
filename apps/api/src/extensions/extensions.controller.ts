@@ -77,6 +77,12 @@ export class InstalledThemesController {
     return this.themes.customCss(id);
   }
 
+  @Get('installed/:id/bundle.js')
+  @Header('Content-Type', 'text/javascript')
+  bundle(@Param('id') id: string) {
+    return this.themes.bundle(id);
+  }
+
   @Post('upload')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')

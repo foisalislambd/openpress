@@ -27,6 +27,7 @@ export async function getSettings(): Promise<SiteSettings> {
       homepageType: 'latest-posts',
       homepageId: null,
       postsPerPage: 10,
+      allowRegistration: false,
     };
   }
 }
