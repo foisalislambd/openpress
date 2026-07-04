@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@source "../../../../packages/themes";
+
+/* Rendered block content ("prose") styles used by themes */
+.op-prose {
+  @apply text-base leading-relaxed text-zinc-800 dark:text-zinc-200;
+}
+.op-prose p {
+  @apply my-4;
+}
+.op-prose h1,
+.op-prose h2,
+.op-prose h3,
+.op-prose h4 {
+  @apply mt-8 mb-3 font-bold tracking-tight text-zinc-900 dark:text-zinc-50;
+}
+.op-prose h1 { @apply text-3xl; }
+.op-prose h2 { @apply text-2xl; }
+.op-prose h3 { @apply text-xl; }
+.op-prose ul { @apply my-2 list-disc pl-6; }
+.op-prose ol { @apply my-2 list-decimal pl-6; }
+.op-prose blockquote {
+  @apply my-6 border-l-4 border-indigo-500 pl-4 italic text-zinc-600 dark:text-zinc-400;
+}
+.op-prose pre {
+  @apply my-6 overflow-x-auto rounded-xl bg-zinc-900 p-4 text-sm text-zinc-100;
+}
+.op-prose code {
+  @apply rounded bg-zinc-100 px-1 py-0.5 text-sm dark:bg-zinc-800;
+}
+.op-prose pre code {
+  @apply bg-transparent p-0;
+}
+.op-prose img {
+  @apply my-6 rounded-xl;
+}
+.op-prose figcaption {
+  @apply -mt-4 mb-6 text-center text-sm text-zinc-500;
+}
+.op-prose a.op-link {
+  @apply text-indigo-600 underline underline-offset-2 hover:text-indigo-500 dark:text-indigo-400;
+}
+.op-checkitem {
+  @apply my-1 flex items-center gap-2;
+}

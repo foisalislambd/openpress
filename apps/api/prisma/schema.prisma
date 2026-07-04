@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  AUTHOR
+}
+
+enum ContentType {
+  POST
+  PAGE
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  TRASHED
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  SPAM
+  TRASHED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role      @default(AUTHOR)
+  avatarUrl    String?
+  bio          String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  contents     Content[]
+  comments     Comment[]
+  media        Media[]
+  revisions    Revision[]
+
+  @@map("users")
+}
+
+model Content {
+  id          String        @id @default(cuid())
+  type        ContentType   @default(POST)
+  status      ContentStatus @default(DRAFT)
+  title       String
+  slug        String        @unique
+  excerpt     String?
+  blocks      Json          @default("[]")
+  seo         Json          @default("{}")
+  coverImage  String?
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id])
+  categories  Category[]    @relation("ContentCategories")
+  tags        Tag[]         @relation("ContentTags")
+  comments    Comment[]
+  revisions   Revision[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([type, status])
+  @@map("contents")
+}
+
+model Revision {
+  id        String   @id @default(cuid())
+  contentId String
+  content   Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  title     String
+  blocks    Json
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@map("revisions")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  parentId    String?
+  parent      Category? @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  contents    Content[] @relation("ContentCategories")
+  createdAt   DateTime  @default(now())
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  contents  Content[] @relation("ContentTags")
+  createdAt DateTime  @default(now())
+
+  @@map("tags")
+}
+
+model Media {
+  id         String   @id @default(cuid())
+  filename   String
+  url        String
+  mimeType   String
+  size       Int
+  width      Int?
+  height     Int?
+  alt        String?
+  uploaderId String
+  uploader   User     @relation(fields: [uploaderId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@map("media")
+}
+
+model Comment {
+  id          String        @id @default(cuid())
+  contentId   String
+  content     Content       @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      User?         @relation(fields: [authorId], references: [id])
+  guestName   String?
+  guestEmail  String?
+  body        String
+  status      CommentStatus @default(PENDING)
+  parentId    String?
+  parent      Comment?      @relation("CommentTree", fields: [parentId], references: [id])
+  replies     Comment[]     @relation("CommentTree")
+  createdAt   DateTime      @default(now())
+
+  @@map("comments")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@openpress/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@blocknote/core": "^0.31.0",
+    "@blocknote/mantine": "^0.31.0",
+    "@blocknote/react": "^0.31.0",
+    "@openpress/shared": "workspace:*",
+    "@openpress/theme-default": "workspace:*",
+    "@openpress/theme-minimal": "workspace:*",
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0"
+  }
+}

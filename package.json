@@ -1,0 +1,36 @@
+{
+  "name": "openpress",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenPress - a modern, open-source WordPress alternative built with NestJS, Next.js and PostgreSQL",
+  "license": "MIT",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:local": "node scripts/local-postgres.mjs",
+    "db:migrate": "pnpm --filter @openpress/api db:migrate",
+    "db:seed": "pnpm --filter @openpress/api db:seed"
+  },
+  "devDependencies": {
+    "embedded-postgres": "^17.5.0-beta.15",
+    "turbo": "^2.5.0"
+  },
+  "packageManager": "pnpm@10.34.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@embedded-postgres/windows-x64",
+      "@embedded-postgres/darwin-arm64",
+      "@embedded-postgres/darwin-x64",
+      "@embedded-postgres/linux-x64",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
