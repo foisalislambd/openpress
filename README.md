@@ -1,85 +1,107 @@
 # OpenPress
 
-A modern, open-source alternative to WordPress — built with **NestJS**, **Next.js** and **PostgreSQL**.
+A modern, open-source alternative to WordPress — built with **NestJS**, **Next.js**, and **PostgreSQL**.
+
+[License: MIT](LICENSE)
 
 ## Features
 
-- **Block editor** — Notion/Gutenberg-style editing powered by BlockNote
-- **Posts & pages** — drafts, publishing, slugs, SEO fields, revisions
-- **Media library** — upload and manage images and files
-- **Categories, tags & comments** — with moderation
-- **Users & roles** — Admin / Editor / Author
-- **Theme system** — themes are React component packages; switch from the admin panel (ships with two themes)
-- **Plugin-ready** — the API emits hook events (`content.published`, `comment.created`, ...) that a plugin system can subscribe to
+- **Block editor** — Notion/Gutenberg-style editing (BlockNote)
+- **Posts & pages** — drafts, publish, slugs, SEO, revisions
+- **Media library** — image and file uploads
+- **Taxonomy** — categories and tags
+- **Comments** — guest and logged-in, with moderation
+- **Users & roles** — Admin, Editor, Author
+- **Theme system** — built-in default theme + upload custom themes (zip)
+- **Plugin system** — upload server-side plugins that hook into CMS events
 
-## Stack
 
-| Layer | Tech |
-| --- | --- |
-| API | NestJS 11, Prisma, PostgreSQL, JWT auth |
-| Web | Next.js 15 (App Router), React 19, Tailwind CSS 4 |
-| Editor | BlockNote |
-| Monorepo | pnpm workspaces + Turborepo |
 
-## Getting started
-
-Requirements: Node.js >= 20, pnpm.
+## Quick start
 
 ```bash
 pnpm install
 
-# 1. Start PostgreSQL (pick one):
-docker compose up -d        # with Docker (port 5432)
-pnpm db:local               # OR embedded Postgres, no Docker needed (port 55432, keep running)
-# OR use any existing PostgreSQL server
+# PostgreSQL (pick one):
+docker compose up -d          # Docker
+pnpm db:local               # embedded Postgres (port 5432)
 
-# then make sure DATABASE_URL in apps/api/.env points to your database
-
-# 2. Set up env + database (in a new terminal):
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 pnpm --filter @openpress/api exec prisma db push
 pnpm db:seed
-
-# 3. Run everything:
 pnpm dev
 ```
 
-- Public site: http://localhost:3000
-- Admin panel: http://localhost:3000/admin
-- API: http://localhost:4000/api
 
-Seeded admin login: `admin@openpress.local` / `admin12345`
-(Or register the first account from `/admin/login` — the first user automatically becomes Admin.)
+| URL                                                        | Description |
+| ---------------------------------------------------------- | ----------- |
+| [http://localhost:3000](http://localhost:3000)             | Public site |
+| [http://localhost:3000/admin](http://localhost:3000/admin) | Admin panel |
+| [http://localhost:4000/api](http://localhost:4000/api)     | REST API    |
+
+
+**Default login:** `admin@openpress.local` / `admin12345`
+
+## Documentation
+
+Full guides live in the `[docs/](docs/)` folder:
+
+
+| Guide                                                | Description                            |
+| ---------------------------------------------------- | -------------------------------------- |
+| [Installation](docs/installation.md)                 | Setup, database, environment variables |
+| [Admin guide](docs/admin-guide.md)                   | Using the dashboard                    |
+| [Themes](docs/themes.md)                             | Create and upload themes               |
+| [Plugins](docs/plugins.md)                           | Create and upload plugins              |
+| [API reference](docs/api.md)                         | REST endpoints                         |
+| [Architecture](docs/architecture.md)                 | Project structure and data flow        |
+| [Roles & permissions](docs/roles-and-permissions.md) | Admin, Editor, Author                  |
+| [Development](docs/development.md)                   | Local dev, monorepo, scripts           |
+| [Deployment](docs/deployment.md)                     | Production checklist                   |
+
+
+
 
 ## Project structure
 
 ```
-apps/
-  api/            # NestJS REST API (auth, content, media, comments, settings)
-  web/            # Next.js public site + /admin dashboard
-packages/
-  shared/         # shared TypeScript types (incl. ThemeDefinition)
-  themes/
-    default/      # built-in default theme (only theme in git)
+openpress/
+  apps/
+    api/              # NestJS REST API
+    web/              # Next.js (public site + /admin)
+  packages/
+    shared/           # shared TypeScript types
+    themes/
+      default/        # built-in theme (only theme in git)
+  docs/               # documentation
+  docker-compose.yml
 ```
 
-## Creating a theme
+**Uploaded extensions (not in git):**
 
-1. Create a zip with `theme.json` and your React components (`engine: "react-v1"`) or design tokens (`engine: "runtime-v1"`). See sample zips in your test folder.
-2. Upload via Admin → Themes.
-3. Activate it in Admin → Themes.
 
-Uploaded themes are stored in `apps/api/themes-store/` (not in git).
-Plugins are stored in `apps/api/plugins/` (not in git).
+| Type    | Location                      |
+| ------- | ----------------------------- |
+| Themes  | `apps/api/themes-store/<id>/` |
+| Plugins | `apps/api/plugins/<id>/`      |
 
-## Roadmap
 
-- Plugin system (server-side plugins subscribing to hook events, admin UI extensions)
-- Theme customizer (colors, fonts, menus)
-- S3/media storage adapters, image resizing
-- Multilingual content
+
+
+## Stack
+
+
+| Layer    | Technology                           |
+| -------- | ------------------------------------ |
+| API      | NestJS 11, Prisma, PostgreSQL, JWT   |
+| Web      | Next.js 16, React 19, Tailwind CSS 4 |
+| Editor   | BlockNote                            |
+| Monorepo | pnpm workspaces + Turborepo          |
+
+
+
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
