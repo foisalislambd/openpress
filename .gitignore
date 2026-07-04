@@ -6,3 +6,5 @@ dist/
 *.log
 uploads/
 .pgdata/
+apps/api/plugins/
+apps/api/themes-store/

@@ -14,8 +14,10 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
 } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CommentsService } from './comments.service';
@@ -26,10 +28,12 @@ class CreateCommentDto {
 
   @IsString()
   @MinLength(1)
+  @MaxLength(5000)
   body: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   guestName?: string;
 
   @IsOptional()
@@ -56,8 +60,9 @@ export class CommentsController {
     return this.comments.findForContent(contentId);
   }
 
-  // Public: guests can submit (goes to moderation)
+  // Public: guests can submit (goes to moderation). Stricter rate limit.
   @Post()
+  @Throttle({ default: { ttl: 60_000, limit: 15 } })
   create(@Body() dto: CreateCommentDto) {
     return this.comments.create(dto);
   }

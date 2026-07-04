@@ -1,5 +1,5 @@
 import { getPublicPosts, getSettings } from '@/lib/api';
-import { getTheme } from '@/lib/themes';
+import { resolveTheme } from '@/lib/themes';
 
 export default async function CategoryPage({
   params,
@@ -11,7 +11,7 @@ export default async function CategoryPage({
   const { slug } = await params;
   const { page } = await searchParams;
   const settings = await getSettings();
-  const theme = getTheme(settings.activeTheme);
+  const theme = await resolveTheme(settings.activeTheme);
   const posts = await getPublicPosts({
     category: slug,
     page: page ?? 1,

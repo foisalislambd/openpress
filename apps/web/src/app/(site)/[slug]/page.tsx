@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getComments, getPublicContentBySlug, getSettings } from '@/lib/api';
-import { getTheme } from '@/lib/themes';
+import { resolveTheme } from '@/lib/themes';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ContentPage({ params }: Props) {
   const { slug } = await params;
   const settings = await getSettings();
-  const theme = getTheme(settings.activeTheme);
+  const theme = await resolveTheme(settings.activeTheme);
 
   let content;
   try {

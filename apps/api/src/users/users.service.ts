@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './users.dto';
@@ -47,6 +51,20 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
+    // Never allow demoting the last remaining admin
+    if (dto.role && dto.role !== 'ADMIN') {
+      const target = await this.prisma.user.findUnique({ where: { id } });
+      if (target?.role === 'ADMIN') {
+        const adminCount = await this.prisma.user.count({
+          where: { role: 'ADMIN' },
+        });
+        if (adminCount <= 1) {
+          throw new BadRequestException(
+            'Cannot demote the last administrator',
+          );
+        }
+      }
+    }
     const data: Record<string, unknown> = {
       name: dto.name,
       role: dto.role,
@@ -61,7 +79,28 @@ export class UsersService {
     });
   }
 
-  remove(id: string) {
+  async remove(id: string, currentUserId: string) {
+    if (id === currentUserId) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      include: { _count: { select: { contents: true, media: true } } },
+    });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role === 'ADMIN') {
+      const adminCount = await this.prisma.user.count({
+        where: { role: 'ADMIN' },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException('Cannot delete the last administrator');
+      }
+    }
+    if (target._count.contents > 0 || target._count.media > 0) {
+      throw new BadRequestException(
+        'This user still owns content or media. Reassign or delete it first.',
+      );
+    }
     return this.prisma.user.delete({ where: { id }, select: { id: true } });
   }
 }

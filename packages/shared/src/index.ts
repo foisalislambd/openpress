@@ -129,5 +129,6 @@ export interface SiteSettings {
   homepageType: 'latest-posts' | 'static-page';
   homepageId: string | null;
   postsPerPage: number;
+  allowRegistration: boolean;
   [key: string]: unknown;
 }

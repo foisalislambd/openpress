@@ -48,6 +48,10 @@ export function getPublicContentBySlug(slug: string) {
   return get<Content>(`/content/public/slug/${encodeURIComponent(slug)}`);
 }
 
+export function getPublicContentById(id: string) {
+  return get<Content>(`/content/public/id/${encodeURIComponent(id)}`);
+}
+
 export function getComments(contentId: string) {
   return get<Comment[]>(`/comments/content/${contentId}`).catch(() => []);
 }

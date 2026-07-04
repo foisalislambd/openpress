@@ -69,16 +69,22 @@ export class ContentService {
     return content;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, publicOnly = false) {
     const content = await this.prisma.content.findUnique({
       where: { id },
       include: listInclude,
     });
-    if (!content) throw new NotFoundException('Content not found');
+    if (!content || (publicOnly && content.status !== 'PUBLISHED')) {
+      throw new NotFoundException('Content not found');
+    }
     return content;
   }
 
   async create(dto: CreateContentDto, user: JwtPayload) {
+    // Pages affect site structure; authors may only manage posts (like WordPress)
+    if (dto.type === 'PAGE' && user.role === 'AUTHOR') {
+      throw new ForbiddenException('Only editors and admins can create pages');
+    }
     const slug = await this.uniqueSlug(dto.slug || dto.title);
     const status = dto.status ?? 'DRAFT';
     const content = await this.prisma.content.create({
@@ -112,6 +118,9 @@ export class ContentService {
     const existing = await this.findOne(id);
     if (user.role === 'AUTHOR' && existing.authorId !== user.sub) {
       throw new ForbiddenException('You can only edit your own content');
+    }
+    if (existing.type === 'PAGE' && user.role === 'AUTHOR') {
+      throw new ForbiddenException('Only editors and admins can edit pages');
     }
 
     // Snapshot a revision before applying changes

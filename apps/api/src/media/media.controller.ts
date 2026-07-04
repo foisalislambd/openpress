@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -52,6 +53,22 @@ export class MediaController {
     FileInterceptor('file', {
       storage,
       limits: { fileSize: 25 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        const allowed = [
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/svg+xml',
+          'image/avif',
+          'video/mp4',
+          'video/webm',
+          'audio/mpeg',
+          'application/pdf',
+        ];
+        if (allowed.includes(file.mimetype)) cb(null, true);
+        else cb(new BadRequestException(`File type ${file.mimetype} is not allowed`), false);
+      },
     }),
   )
   upload(

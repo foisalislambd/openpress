@@ -34,6 +34,11 @@ export class ContentController {
     return this.content.findBySlug(slug, true);
   }
 
+  @Get('public/id/:id')
+  publicById(@Param('id') id: string) {
+    return this.content.findOne(id, true);
+  }
+
   // ---- Admin endpoints ----
   @Get()
   @UseGuards(JwtAuthGuard)

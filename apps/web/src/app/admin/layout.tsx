@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/comments', label: 'Comments' },
   { href: '/admin/users', label: 'Users', adminOnly: true },
   { href: '/admin/themes', label: 'Themes', adminOnly: true },
+  { href: '/admin/plugins', label: 'Plugins', adminOnly: true },
   { href: '/admin/settings', label: 'Settings', adminOnly: true },
 ];
 

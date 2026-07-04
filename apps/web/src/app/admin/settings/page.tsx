@@ -115,6 +115,19 @@ export default function SettingsPage() {
             />
           </div>
         </Card>
+        <Card className="space-y-4">
+          <h2 className="font-semibold">Membership</h2>
+          <label className="flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.allowRegistration)}
+              onChange={(e) =>
+                setSettings({ ...settings, allowRegistration: e.target.checked })
+              }
+            />
+            Anyone can register an account (new users become Authors)
+          </label>
+        </Card>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {saved ? <p className="text-sm text-green-600">Settings saved.</p> : null}
         <Button type="submit" disabled={saving}>
