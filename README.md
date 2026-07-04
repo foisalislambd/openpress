@@ -61,16 +61,17 @@ apps/
 packages/
   shared/         # shared TypeScript types (incl. ThemeDefinition)
   themes/
-    default/      # default card-based theme
-    minimal/      # typography-focused theme
+    default/      # built-in default theme (only theme in git)
 ```
 
 ## Creating a theme
 
-1. Create `packages/themes/my-theme` exporting a `ThemeDefinition` (see `packages/themes/minimal`): a `manifest` plus `Layout`, `Home`, `Post`, `Page` and `Archive` React components.
-2. Add the package to `transpilePackages` in `apps/web/next.config.ts`.
-3. Register it in `apps/web/src/lib/themes.ts`.
-4. Activate it in Admin → Themes.
+1. Create a zip with `theme.json` and your React components (`engine: "react-v1"`) or design tokens (`engine: "runtime-v1"`). See sample zips in your test folder.
+2. Upload via Admin → Themes.
+3. Activate it in Admin → Themes.
+
+Uploaded themes are stored in `apps/api/themes-store/` (not in git).
+Plugins are stored in `apps/api/plugins/` (not in git).
 
 ## Roadmap
 

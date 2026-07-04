@@ -14,7 +14,6 @@
     "@blocknote/react": "^0.31.0",
     "@openpress/shared": "workspace:*",
     "@openpress/theme-default": "workspace:*",
-    "@openpress/theme-minimal": "workspace:*",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4"
