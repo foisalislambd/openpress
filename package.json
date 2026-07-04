@@ -5,9 +5,13 @@
   "description": "OpenPress - a modern, open-source WordPress alternative built with NestJS, Next.js and PostgreSQL",
   "license": "MIT",
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
+    "dev": "turbo run dev --filter=@openpress/api --filter=@openpress/web",
+    "dev:api": "pnpm --filter @openpress/api dev",
+    "dev:web": "pnpm --filter @openpress/web dev",
+    "build": "turbo run build --filter=@openpress/api --filter=@openpress/web",
+    "build:api": "pnpm --filter @openpress/api build",
+    "build:web": "pnpm --filter @openpress/web build",
+    "lint": "turbo run lint --filter=@openpress/web",
     "db:local": "node scripts/local-postgres.mjs",
     "db:migrate": "pnpm --filter @openpress/api db:migrate",
     "db:seed": "pnpm --filter @openpress/api db:seed"

@@ -56,7 +56,7 @@ OpenPress is **not** trying to clone every WordPress feature on day one. It focu
 
 ---
 
-## Key benefits (সুবিধা)
+## Key benefits
 
 | Benefit | What you get |
 |---------|----------------|
@@ -148,15 +148,16 @@ cp apps/web/.env.example apps/web/.env
 pnpm --filter @openpress/api exec prisma db push
 pnpm db:seed
 
-# 4. Run
+# 4. Run API + frontend (Turbo — both at once)
 pnpm dev
 ```
 
-| URL | Description |
-|-----|-------------|
-| http://localhost:3000 | Public site |
-| http://localhost:3000/admin | Admin panel |
-| http://localhost:4000/api | REST API |
+| URL | Service |
+|-----|---------|
+| http://localhost:3000 | Frontend (site + admin) |
+| http://localhost:4000/api | Backend API |
+
+**Run separately:** `pnpm dev:api` · `pnpm dev:web` — see [Running dev guide](docs/running-dev.md).
 
 **Seeded login:** `admin@openpress.local` / `admin12345`
 
@@ -172,6 +173,7 @@ Detailed setup: [docs/installation.md](docs/installation.md)
 |-------|-------------|
 | [📖 Docs index](docs/README.md) | Start here |
 | [Installation](docs/installation.md) | Database, env vars, troubleshooting |
+| [Running dev (Turbo)](docs/running-dev.md) | **Backend + frontend together**, separate commands |
 | [Admin guide](docs/admin-guide.md) | Using the dashboard |
 | [Themes](docs/themes.md) | Build & upload themes (`react-v1`, `runtime-v1`) |
 | [Plugins](docs/plugins.md) | Build & upload plugins + hooks |

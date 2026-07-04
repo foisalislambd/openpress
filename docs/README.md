@@ -5,6 +5,7 @@ Welcome to the OpenPress docs. Pick a guide below.
 ## Getting started
 
 - [Installation](installation.md) — install dependencies, database, first run
+- [Running dev (Turbo)](running-dev.md) — backend + frontend together
 - [Admin guide](admin-guide.md) — posts, pages, media, settings, themes, plugins
 
 ## For developers

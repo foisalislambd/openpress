@@ -22,7 +22,9 @@ Managed by **pnpm workspaces** + **Turborepo**.
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start API + web in watch mode |
+| `pnpm dev` | **API (4000) + Web (3000)** via Turbo — [full guide](running-dev.md) |
+| `pnpm dev:api` | Backend only |
+| `pnpm dev:web` | Frontend only |
 | `pnpm build` | Build all packages |
 | `pnpm --filter @openpress/api dev` | API only |
 | `pnpm --filter @openpress/web dev` | Web only |
