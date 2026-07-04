@@ -29,8 +29,11 @@ Requirements: Node.js >= 20, pnpm.
 pnpm install
 
 # 1. Start PostgreSQL (pick one):
-docker compose up -d        # with Docker
-pnpm db:local               # OR embedded Postgres, no Docker needed (keep running)
+docker compose up -d        # with Docker (port 5432)
+pnpm db:local               # OR embedded Postgres, no Docker needed (port 55432, keep running)
+# OR use any existing PostgreSQL server
+
+# then make sure DATABASE_URL in apps/api/.env points to your database
 
 # 2. Set up env + database (in a new terminal):
 cp apps/api/.env.example apps/api/.env
