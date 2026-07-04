@@ -48,7 +48,8 @@ export async function api<T = unknown>(
   };
   const res = await fetch(`${API_URL}/api${path}`, { ...options, headers });
 
-  if (res.status === 401 && !retried && (await tryRefresh())) {
+  // 401: token expired. 403: role may have changed (refresh re-reads it from DB).
+  if ((res.status === 401 || res.status === 403) && !retried && (await tryRefresh())) {
     return api<T>(path, options, true);
   }
   if (!res.ok) {
