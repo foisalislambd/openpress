@@ -21,6 +21,10 @@ Welcome to the OpenPress docs. Pick a guide below.
 
 - [Deployment](deployment.md) — production setup and security
 
+## Open source & distribution
+
+- [Distribution](distribution.md) — MIT license, GitHub releases, self-hosting, themes, plugins, fork/rebrand
+
 ## Quick links
 
 | What | Where |

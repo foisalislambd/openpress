@@ -182,6 +182,7 @@ Detailed setup: [docs/installation.md](docs/installation.md)
 | [Roles & permissions](docs/roles-and-permissions.md) | Admin / Editor / Author |
 | [Development](docs/development.md) | Monorepo, scripts, contributing locally |
 | [Deployment](docs/deployment.md) | Production checklist |
+| [Distribution](docs/distribution.md) | Open source: releases, MIT, themes, plugins, self-hosting |
 
 ---
 
