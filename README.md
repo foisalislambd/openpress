@@ -137,7 +137,7 @@ pnpm install
 
 # 1. Database (pick one)
 docker compose up -d    # Docker → localhost:5432
-pnpm db:local           # Embedded Postgres → localhost:55432 (keep running)
+pnpm db:local           # Embedded Postgres → localhost:5432 (keep running)
 
 # 2. Environment
 cp apps/api/.env.example apps/api/.env

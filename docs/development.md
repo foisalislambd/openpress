@@ -107,4 +107,4 @@ Fix corporate proxy/CA certs for a permanent solution.
 | Web | 3000 |
 | API | 4000 |
 | Postgres (Docker) | 5432 |
-| Postgres (embedded) | 55432 |
+| Postgres (embedded) | 5432 |
