@@ -23,6 +23,10 @@ Welcome to the OpenPress docs. Pick a guide below.
 
 ## Open source & distribution
 
+- [Contributing](../CONTRIBUTING.md) — setup, workflow, PR checklist
+- [Code of Conduct](../CODE_OF_CONDUCT.md) — community standards
+- [Security](../SECURITY.md) — how to report vulnerabilities
+- [Changelog](../CHANGELOG.md) — release history
 - [Distribution](distribution.md) — MIT license, GitHub releases, self-hosting, themes, plugins, fork/rebrand
 
 ## Quick links

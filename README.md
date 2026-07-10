@@ -198,9 +198,14 @@ openpress/
 │   └── themes/
 │       └── default/         # Built-in theme (only theme in git)
 ├── docs/                    # Full documentation
+├── .github/                 # Issue & PR templates
 ├── scripts/
 │   └── local-postgres.mjs   # Dev Postgres without Docker
 ├── docker-compose.yml       # PostgreSQL for local dev
+├── CONTRIBUTING.md          # How to contribute
+├── CODE_OF_CONDUCT.md       # Community standards
+├── SECURITY.md              # Vulnerability reporting
+├── CHANGELOG.md             # Release notes
 ├── LICENSE                  # MIT
 └── README.md                # You are here
 ```
@@ -238,13 +243,13 @@ Community contributions welcome on:
 OpenPress is **open source** and grows with the community.
 
 1. **Star & fork** the repo
-2. Read [docs/development.md](docs/development.md)
+2. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md)
 3. Pick an issue or propose a feature
 4. Open a PR with a clear description
 
 **Good first contributions:** docs, default theme improvements, sample plugins, bug fixes, tests.
 
-Code of conduct: be respectful; this is a learning-friendly project.
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -275,6 +280,7 @@ You are free to use, copy, modify, merge, publish, distribute, sublicense, and/o
 <p align="center">
   <strong>OpenPress</strong> — open source CMS for the modern web.<br>
   <a href="docs/README.md">Documentation</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="docs/themes.md">Themes</a> ·
   <a href="docs/plugins.md">Plugins</a>
 </p>
