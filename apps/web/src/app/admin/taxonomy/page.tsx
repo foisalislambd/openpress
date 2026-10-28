@@ -19,6 +19,28 @@ export default function TaxonomyPage() {
 
   useEffect(load, [load]);
 
+  useEffect(() => {
+    function scrollToSection() {
+      const id = window.location.hash.replace('#', '');
+      if (id === 'categories' || id === 'tags') {
+        document.getElementById(id)?.scrollIntoView({ block: 'start' });
+      }
+    }
+    function onAdminHash(event: Event) {
+      const id = (event as CustomEvent<string>).detail;
+      if (id === 'categories' || id === 'tags') {
+        document.getElementById(id)?.scrollIntoView({ block: 'start' });
+      }
+    }
+    scrollToSection();
+    window.addEventListener('hashchange', scrollToSection);
+    window.addEventListener('op-admin-hash', onAdminHash);
+    return () => {
+      window.removeEventListener('hashchange', scrollToSection);
+      window.removeEventListener('op-admin-hash', onAdminHash);
+    };
+  }, []);
+
   async function addCategory(e: FormEvent) {
     e.preventDefault();
     if (!catName.trim()) return;
@@ -54,7 +76,7 @@ export default function TaxonomyPage() {
       <h1 className="mb-6 text-2xl font-bold">Categories &amp; Tags</h1>
       {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card id="categories" className="scroll-mt-12">
           <h2 className="mb-4 font-semibold">Categories</h2>
           <form onSubmit={addCategory} className="mb-4 flex gap-2">
             <div className="flex-1">
@@ -93,7 +115,7 @@ export default function TaxonomyPage() {
             ) : null}
           </ul>
         </Card>
-        <Card>
+        <Card id="tags" className="scroll-mt-12">
           <h2 className="mb-4 font-semibold">Tags</h2>
           <form onSubmit={addTag} className="mb-4 flex gap-2">
             <div className="flex-1">

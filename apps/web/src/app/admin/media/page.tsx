@@ -21,6 +21,25 @@ export default function MediaPage() {
 
   useEffect(load, [load]);
 
+  useEffect(() => {
+    function focusUpload() {
+      if (window.location.hash !== '#upload') return;
+      document.getElementById('upload')?.scrollIntoView({ block: 'center' });
+    }
+    function onAdminHash(event: Event) {
+      if ((event as CustomEvent<string>).detail === 'upload') {
+        document.getElementById('upload')?.scrollIntoView({ block: 'center' });
+      }
+    }
+    focusUpload();
+    window.addEventListener('hashchange', focusUpload);
+    window.addEventListener('op-admin-hash', onAdminHash);
+    return () => {
+      window.removeEventListener('hashchange', focusUpload);
+      window.removeEventListener('op-admin-hash', onAdminHash);
+    };
+  }, []);
+
   async function upload(files: FileList | null) {
     if (!files?.length) return;
     setUploading(true);
@@ -59,7 +78,7 @@ export default function MediaPage() {
             className="hidden"
             onChange={(e) => upload(e.target.files)}
           />
-          <Button disabled={uploading} onClick={() => fileRef.current?.click()}>
+          <Button id="upload" disabled={uploading} onClick={() => fileRef.current?.click()}>
             {uploading ? 'Uploading...' : 'Upload files'}
           </Button>
         </div>
