@@ -53,6 +53,16 @@ export interface Content {
   _count?: { comments: number };
 }
 
+export interface Revision {
+  id: string;
+  contentId: string;
+  title: string;
+  blocks: unknown[];
+  authorId: string;
+  createdAt: string;
+  author?: { id: string; name: string };
+}
+
 export interface Media {
   id: string;
   filename: string;

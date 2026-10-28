@@ -7,6 +7,7 @@ import type { Category, Content, Tag } from '@openpress/shared';
 import { api } from '@/lib/client-api';
 import { Button, Input, Label, Textarea } from '@/components/ui';
 import { Notice } from '@/components/admin/screen';
+import { RevisionsPanel } from '@/components/revisions-panel';
 
 const BlockEditor = dynamic(
   () => import('@/components/block-editor').then((m) => m.BlockEditor),
@@ -38,6 +39,9 @@ export function ContentEditor({
   const [tags, setTags] = useState<Tag[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [editorKey, setEditorKey] = useState(0);
+  const [revisionRefresh, setRevisionRefresh] = useState(0);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     api<Category[]>('/taxonomy/categories').then(setCategories).catch(() => {});
@@ -62,9 +66,19 @@ export function ContentEditor({
     }
   }, [contentId]);
 
+  function applyContent(content: Content) {
+    setExisting(content);
+    setTitle(content.title);
+    setSlug(content.slug);
+    setBlocks(content.blocks ?? []);
+    setEditorKey((key) => key + 1);
+    setRevisionRefresh((key) => key + 1);
+  }
+
   async function save(status?: string) {
     setSaving(true);
     setError('');
+    setNotice('');
     const payload = {
       title: title || 'Untitled',
       slug: slug || undefined,
@@ -85,6 +99,7 @@ export function ContentEditor({
         });
         setExisting(updated);
         setSlug(updated.slug);
+        setRevisionRefresh((key) => key + 1);
       } else {
         const created = await api<Content>('/content', {
           method: 'POST',
@@ -126,6 +141,8 @@ export function ContentEditor({
         </span>
       </div>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      {notice ? <Notice kind="success">{notice}</Notice> : null}
+      {contentId ? <div id="op-revision-compare" /> : null}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-3">
           <Input
@@ -134,7 +151,7 @@ export function ContentEditor({
             onChange={(e) => setTitle(e.target.value)}
             className="!px-3 !py-2 !text-[1.7em] !font-normal"
           />
-          <BlockEditor initialBlocks={blocks} onChange={setBlocks} />
+          <BlockEditor key={editorKey} initialBlocks={blocks} onChange={setBlocks} />
         </div>
         <div className="space-y-3">
           <div className="op-postbox">
@@ -173,6 +190,18 @@ export function ContentEditor({
               </div>
             </div>
           </div>
+          {contentId ? (
+            <RevisionsPanel
+              contentId={contentId}
+              title={title}
+              blocks={blocks}
+              refreshKey={revisionRefresh}
+              onRestored={(content) => {
+                applyContent(content);
+                setNotice('Revision restored. Excerpt, SEO, and taxonomy were left unchanged.');
+              }}
+            />
+          ) : null}
           {type === 'POST' ? (
             <div className="border border-[#c3c4c7] bg-white">
               <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">Categories and tags</h2>

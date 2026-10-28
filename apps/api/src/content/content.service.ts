@@ -234,6 +234,7 @@ export class ContentService {
   }
 
   async revisions(contentId: string) {
+    await this.findOne(contentId);
     return this.db.query(
       `SELECT r.id, r."contentId", r.title, r.blocks, r."authorId", r."createdAt",
               json_build_object('id', u.id, 'name', u.name) AS author
@@ -244,6 +245,30 @@ export class ContentService {
        LIMIT 20`,
       [contentId],
     );
+  }
+
+  async restoreRevision(contentId: string, revisionId: string, user: JwtPayload) {
+    const existing = await this.findOne(contentId);
+    if (user.role === 'AUTHOR' && existing.authorId !== user.sub) {
+      throw new ForbiddenException('You can only edit your own content');
+    }
+    if (user.role === 'AUTHOR' && existing.type === 'PAGE') {
+      throw new ForbiddenException('Only editors and admins can edit pages');
+    }
+
+    const revision = await this.db.one<{ title: string; blocks: unknown }>(
+      `SELECT title, blocks FROM revisions WHERE id = $1 AND "contentId" = $2`,
+      [revisionId, contentId],
+    );
+    if (!revision) throw new NotFoundException('Revision not found');
+
+    const blocks = Array.isArray(revision.blocks) ? revision.blocks : [];
+    const sameTitle = existing.title === revision.title;
+    const sameBlocks = JSON.stringify(existing.blocks ?? []) === JSON.stringify(blocks);
+    if (sameTitle && sameBlocks) return existing;
+
+    // update() snapshots the current title and blocks before writing the restored ones.
+    return this.update(contentId, { title: revision.title, blocks }, user);
   }
 
   private filters(query: QueryContentDto, publicOnly: boolean) {

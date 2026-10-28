@@ -13,6 +13,7 @@ Overview of post count, page count, and pending comments. Quick link to create a
 - **Save draft** — status `DRAFT`
 - **Publish** — status `PUBLISHED`, sets `publishedAt`
 - **View** — opens public URL when published
+- **Revisions** — each save keeps the previous title and content. On an existing post, pick two versions (or a saved version and the current editor), compare them, and restore. Restore puts the current title and content into history first. Excerpt, SEO, categories, and tags are left unchanged.
 
 ## Pages
 

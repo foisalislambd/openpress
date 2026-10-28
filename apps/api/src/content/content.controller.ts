@@ -58,6 +58,16 @@ export class ContentController {
     return this.content.revisions(id);
   }
 
+  @Post(':id/revisions/:revisionId/restore')
+  @UseGuards(JwtAuthGuard)
+  restoreRevision(
+    @Param('id') id: string,
+    @Param('revisionId') revisionId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.content.restoreRevision(id, revisionId, user);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Body() dto: CreateContentDto, @CurrentUser() user: JwtPayload) {

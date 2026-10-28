@@ -591,6 +591,44 @@
 .op-prose figcaption {
   @apply -mt-4 mb-6 text-center text-sm text-zinc-500;
 }
+#op-revision-compare {
+  scroll-margin-top: 96px;
+}
+.op-revisions {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 782px) {
+  .op-revisions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.op-revisions h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.op-revisions pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.op-diff-same {
+  display: block;
+}
+.op-diff-del {
+  display: block;
+  background: #fcf0f1;
+  color: #8a2424;
+}
+.op-diff-ins {
+  display: block;
+  background: #edfaef;
+  color: #1e4620;
+}
 .op-prose a.op-link {
   @apply text-indigo-600 underline underline-offset-2 hover:text-indigo-500 dark:text-indigo-400;
 }

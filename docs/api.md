@@ -66,7 +66,8 @@ POST /api/auth/refresh
 |--------|------|-------------|
 | GET | `/content` | List (`?type=POST&status=DRAFT&search=`) |
 | GET | `/content/:id` | Single |
-| GET | `/content/:id/revisions` | Revision history |
+| GET | `/content/:id/revisions` | Revision history (newest first, up to 20) |
+| POST | `/content/:id/revisions/:revisionId/restore` | Restore that revision's title and blocks. The current title and blocks are saved as a new revision first. Excerpt, SEO, and taxonomy stay as they are. |
 | POST | `/content` | Create |
 | PATCH | `/content/:id` | Update |
 | DELETE | `/content/:id` | Delete |
