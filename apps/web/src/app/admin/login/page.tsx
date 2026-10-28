@@ -62,9 +62,9 @@ export default function LoginPage() {
                 float: 'right',
                 minHeight: 32,
                 padding: '0 12px',
-                border: '1px solid #2271b1',
+                border: '1px solid #3858e9',
                 borderRadius: 3,
-                background: '#2271b1',
+                background: '#3858e9',
                 color: '#fff',
                 fontSize: 13,
               }}

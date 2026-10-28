@@ -133,7 +133,7 @@ export default function TaxonomyPage() {
             {tags.map((t) => (
               <span
                 key={t.id}
-                className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-sm"
+                className="inline-flex items-center gap-2 rounded-full bg-[#f0f0f0] px-3 py-1 text-[13px] text-[#1d2327]"
               >
                 {t.name}
                 <button

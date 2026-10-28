@@ -17,10 +17,10 @@ export function Button({
 }) {
   const variants = {
     primary:
-      'border-[#2271b1] bg-[#2271b1] text-white hover:border-[#135e96] hover:bg-[#135e96]',
+      'border-[#3858e9] bg-[#3858e9] text-white hover:border-[#2145e6] hover:bg-[#2145e6]',
     secondary:
-      'border-[#2271b1] bg-[#f6f7f7] text-[#2271b1] hover:border-[#0a4b78] hover:bg-[#f0f0f1] hover:text-[#0a4b78]',
-    ghost: 'border-transparent bg-transparent text-[#2271b1] hover:text-[#135e96]',
+      'border-[#3858e9] bg-[#f6f7f7] text-[#3858e9] hover:border-[#2145e6] hover:bg-[#f0f0f0] hover:text-[#2145e6]',
+    ghost: 'border-transparent bg-transparent text-[#3858e9] hover:text-[#183ad6]',
     danger: 'border-[#d63638] bg-[#d63638] text-white hover:bg-[#b32d2e]',
   };
   return (
@@ -42,7 +42,7 @@ export function Input({
   return (
     <input
       className={cn(
-        'w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-1 text-[14px] text-[#2c3338] outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]',
+        'w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-1 text-[14px] text-[#2c3338] outline-none focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9]',
         className,
       )}
       {...props}
@@ -57,7 +57,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        'w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-1 text-[14px] text-[#2c3338] outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]',
+        'w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-1 text-[14px] text-[#2c3338] outline-none focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9]',
         className,
       )}
       {...props}
@@ -72,7 +72,7 @@ export function Select({
   return (
     <select
       className={cn(
-        'max-w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-0 text-[14px] text-[#2c3338] min-h-[30px] outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]',
+        'max-w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-0 text-[14px] text-[#2c3338] min-h-[30px] outline-none focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9]',
         className,
       )}
       {...props}

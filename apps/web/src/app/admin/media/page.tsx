@@ -91,7 +91,7 @@ export default function MediaPage() {
           <div
             key={m.id}
             className="op-media-tile"
-            style={selected?.id === m.id ? { outline: '2px solid #2271b1' } : undefined}
+            style={selected?.id === m.id ? { outline: '2px solid #3858e9' } : undefined}
             onClick={() => setSelected(m)}
           >
             {m.mimeType.startsWith('image/') ? (

@@ -62,7 +62,7 @@ export function CustomizeScreen() {
   return (
     <Screen title="Customize">
       <div className="grid min-h-[70vh] gap-0 border border-[#c3c4c7] lg:grid-cols-[300px_minmax(0,1fr)]">
-        <form onSubmit={save} className="border-b border-[#c3c4c7] bg-[#eee] p-3 lg:border-b-0 lg:border-r">
+        <form onSubmit={save} className="border-b border-[#c3c4c7] bg-[#f0f0f0] p-3 lg:border-b-0 lg:border-r">
           <h2 className="mb-3">Site Identity</h2>
           <Label>Site title</Label>
           <Input

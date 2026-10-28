@@ -1,12 +1,26 @@
 @import "tailwindcss";
 
+/* wp-admin modern scheme (colors/modern): canvas, menu, submenu, accent. */
+html:has(.op-admin),
+html:has(.op-login),
+html:has(.op-admin) body,
+html:has(.op-login) body {
+  background: #f0f0f0;
+}
+
 /* wp-admin chrome: 13px system UI, set on the shell so the public site stays unchanged. */
 .op-admin {
+  --op-canvas: #f0f0f0;
+  --op-menu: #1e1e1e;
+  --op-submenu: #0c0c0c;
+  --op-accent: #3858e9;
+  background: #f0f0f0;
+  color: #3c434a;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
   font-size: 13px;
 }
 .op-admin :focus-visible {
-  outline: 2px solid #2271b1;
+  outline: 2px solid #3858e9;
   outline-offset: 1px;
 }
 
@@ -31,11 +45,11 @@
   color: #1d2327;
 }
 .op-screen a {
-  color: #2271b1;
+  color: #3858e9;
   text-decoration: none;
 }
 .op-screen a:hover {
-  color: #135e96;
+  color: #183ad6;
 }
 .op-screen .op-title-action {
   display: inline-block;
@@ -44,18 +58,18 @@
   margin-left: 4px;
   padding: 0 12px;
   min-height: 32px;
-  border: 1px solid #2271b1;
+  border: 1px solid #3858e9;
   border-radius: 2px;
   background: #f6f7f7;
-  color: #2271b1;
+  color: #3858e9;
   font-size: 13px;
   font-weight: 500;
   line-height: 30px;
   text-decoration: none;
 }
 .op-screen .op-title-action:hover {
-  border-color: #0a4b78;
-  color: #0a4b78;
+  border-color: #2145e6;
+  color: #2145e6;
 }
 .op-screen .op-header-end {
   height: 0;
@@ -85,7 +99,7 @@
   background: none;
   border: 0;
   padding: 0;
-  color: #2271b1;
+  color: #3858e9;
   cursor: pointer;
   font-size: 13px;
 }
@@ -121,7 +135,7 @@
 }
 .op-screen table.op-list td {
   padding: 8px 10px;
-  border-bottom: 1px solid #f0f0f1;
+  border-bottom: 1px solid #f0f0f0;
   font-size: 13px;
   vertical-align: top;
 }
@@ -129,12 +143,9 @@
   background: #f6f7f7;
 }
 .op-screen table.op-list .op-row-title {
-  color: #2271b1;
+  color: #3858e9;
   font-size: 14px;
   font-weight: 600;
-}
-.op-screen table.op-list tbody tr:hover {
-  background: #f0f6fc;
 }
 .op-screen .op-row-actions {
   color: #646970;
@@ -150,7 +161,7 @@
   background: none;
   border: 0;
   padding: 0;
-  color: #2271b1;
+  color: #3858e9;
   cursor: pointer;
   font-size: 13px;
 }
@@ -196,7 +207,7 @@
 }
 .op-login {
   min-height: 100vh;
-  background: #f0f0f1;
+  background: #f0f0f0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
   color: #3c434a;
 }
@@ -257,7 +268,7 @@
 }
 .op-login-nav button:hover,
 .op-login-nav a:hover {
-  color: #135e96;
+  color: #183ad6;
 }
 
 .op-menu {
@@ -270,14 +281,14 @@
   width: 20px;
   height: 20px;
   font-size: 20px;
-  color: #a7aaad;
+  color: #f0f0f0;
 }
 .op-menu a.is-current .dashicons,
 .op-menu a.is-current:hover .dashicons {
   color: #fff;
 }
 .op-menu a:hover .dashicons {
-  color: #72aee6;
+  color: #fff;
 }
 .op-menu a.is-current:hover .dashicons {
   color: #fff;
@@ -358,7 +369,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 16px 20px;
-  background: #1d2327;
+  background: #1e1e1e;
   color: #fff;
 }
 .op-welcome-header h2 {
@@ -443,8 +454,8 @@
   text-align: center;
 }
 .op-dropzone.is-over {
-  border-color: #2271b1;
-  background: #f0f6fc;
+  border-color: #3858e9;
+  background: rgba(56, 88, 233, 0.08);
 }
 .op-dropzone p {
   margin: 0 0 12px;
@@ -462,7 +473,7 @@
   height: 180px;
   align-items: center;
   justify-content: center;
-  background: #1d2327;
+  background: #1e1e1e;
   color: #fff;
 }
 .op-theme-shot .dashicons {
@@ -527,7 +538,7 @@
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid #c3c4c7;
-  background: #f0f0f1;
+  background: #f0f0f0;
 }
 .op-media-tile img {
   width: 100%;

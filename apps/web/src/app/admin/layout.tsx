@@ -40,7 +40,7 @@ export default function AdminLayout({
   }
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f0f0f1] text-[13px] text-[#50575e]">
+      <div className="flex min-h-screen items-center justify-center bg-[#f0f0f0] text-[13px] text-[#50575e]">
         Loading…
       </div>
     );

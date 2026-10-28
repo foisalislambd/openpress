@@ -136,7 +136,7 @@ export default function DashboardPage() {
           type="button"
           aria-expanded={screenOpen}
           onClick={() => setScreenOpen((open) => !open)}
-          className="border border-[#c3c4c7] bg-white px-2 py-1 text-[13px] text-[#2271b1] hover:border-[#2271b1]"
+          className="border border-[#c3c4c7] bg-white px-2 py-1 text-[13px] text-[#3858e9] hover:border-[#3858e9]"
         >
           Screen Options
         </button>
@@ -183,21 +183,21 @@ export default function DashboardPage() {
               <h3 className="mb-2 font-semibold">Get started</h3>
               <ul className="space-y-1">
                 <li>
-                  <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/posts/new">
+                  <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/posts/new">
                     <span className="dashicons dashicons-admin-post" />
                     Write a post
                   </Link>
                 </li>
                 {isStaff ? (
                   <li>
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/pages/new">
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/pages/new">
                       <span className="dashicons dashicons-admin-page" />
                       Add a page
                     </Link>
                   </li>
                 ) : null}
                 <li>
-                  <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/media/new">
+                  <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/media/new">
                     <span className="dashicons dashicons-admin-media" />
                     Upload media
                   </Link>
@@ -209,7 +209,7 @@ export default function DashboardPage() {
               <ul className="space-y-1">
                 {isStaff ? (
                   <li>
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/comments">
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/comments">
                       <span className="dashicons dashicons-admin-comments" />
                       Moderate comments
                       {pending > 0 ? ` (${pending})` : ''}
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                   </li>
                 ) : null}
                 <li>
-                  <a className="text-[#2271b1] hover:text-[#135e96]" href="/" target="_blank" rel="noreferrer">
+                  <a className="text-[#3858e9] hover:text-[#183ad6]" href="/" target="_blank" rel="noreferrer">
                     <span className="dashicons dashicons-external" />
                     View your site
                   </a>
@@ -229,13 +229,13 @@ export default function DashboardPage() {
                 <h3 className="mb-2 font-semibold">More actions</h3>
                 <ul className="space-y-1">
                   <li>
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/themes">
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/themes">
                       <span className="dashicons dashicons-admin-appearance" />
                       Choose a theme
                     </Link>
                   </li>
                   <li>
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/settings">
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/settings">
                       <span className="dashicons dashicons-admin-settings" />
                       Edit site settings
                     </Link>
@@ -253,7 +253,7 @@ export default function DashboardPage() {
             <Postbox title="At a Glance">
               <ul className="space-y-1 text-[13px]">
                 <li>
-                  <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/posts">
+                  <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/posts">
                     {posts
                       ? `${posts.total} ${posts.total === 1 ? 'Post' : 'Posts'}`
                       : '—'}
@@ -261,7 +261,7 @@ export default function DashboardPage() {
                 </li>
                 {isStaff ? (
                   <li>
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/pages">
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/pages">
                       {pages
                         ? `${pages.total} ${pages.total === 1 ? 'Page' : 'Pages'}`
                         : '—'}
@@ -270,7 +270,7 @@ export default function DashboardPage() {
                 ) : null}
                 {isStaff ? (
                   <li>
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/comments">
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/comments">
                       {pending} in moderation
                     </Link>
                   </li>
@@ -290,7 +290,7 @@ export default function DashboardPage() {
               <ul className="mb-4 space-y-2 text-[13px]">
                 {published.map((post) => (
                   <li key={post.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                    <Link className="text-[#2271b1] hover:text-[#135e96]" href={`/admin/posts/${post.id}`}>
+                    <Link className="text-[#3858e9] hover:text-[#183ad6]" href={`/admin/posts/${post.id}`}>
                       {post.title}
                     </Link>
                     <time className="text-[#50575e]" dateTime={post.publishedAt ?? post.updatedAt}>
@@ -313,7 +313,7 @@ export default function DashboardPage() {
                         </span>{' '}
                         <span className="text-[#50575e]">on</span>{' '}
                         <Link
-                          className="text-[#2271b1] hover:text-[#135e96]"
+                          className="text-[#3858e9] hover:text-[#183ad6]"
                           href="/admin/comments"
                         >
                           {comment.content?.title || 'a post'}
@@ -339,7 +339,7 @@ export default function DashboardPage() {
                 <input
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  className="w-full border border-[#8c8f94] px-2 py-1 outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]"
+                  className="w-full border border-[#8c8f94] px-2 py-1 outline-none focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9]"
                 />
               </label>
               <label className="block">
@@ -348,14 +348,14 @@ export default function DashboardPage() {
                   value={body}
                   onChange={(event) => setBody(event.target.value)}
                   rows={5}
-                  className="w-full border border-[#8c8f94] px-2 py-1 outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]"
+                  className="w-full border border-[#8c8f94] px-2 py-1 outline-none focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9]"
                 />
               </label>
               {draftError ? <p className="text-[#d63638]">{draftError}</p> : null}
               {savedId ? (
                 <p>
                   Draft saved.{' '}
-                  <Link className="text-[#2271b1] hover:text-[#135e96]" href={`/admin/posts/${savedId}`}>
+                  <Link className="text-[#3858e9] hover:text-[#183ad6]" href={`/admin/posts/${savedId}`}>
                     Edit
                   </Link>
                 </p>
@@ -363,7 +363,7 @@ export default function DashboardPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="border border-[#2271b1] bg-[#2271b1] px-3 py-1 text-white hover:bg-[#135e96] disabled:opacity-60"
+                className="border border-[#3858e9] bg-[#3858e9] px-3 py-1 text-white hover:bg-[#2145e6] disabled:opacity-60"
               >
                 {saving ? 'Saving…' : 'Save Draft'}
               </button>

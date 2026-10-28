@@ -331,14 +331,14 @@ export function AdminShell({
   }
 
   return (
-    <div className="op-admin min-h-screen bg-[#f0f0f1] text-[#1d2327]">
+    <div className="op-admin min-h-screen bg-[#f0f0f0] text-[#3c434a]">
       <header
         ref={barRef}
-        className="fixed inset-x-0 top-0 z-40 flex h-8 items-center bg-[#1d2327] text-[13px] text-[#f0f0f1]"
+        className="fixed inset-x-0 top-0 z-40 flex h-8 items-center bg-[#1e1e1e] text-[13px] text-white"
       >
         <button
           type="button"
-          className="grid h-8 w-9 place-items-center hover:bg-[#2c3338] md:hidden"
+          className="grid h-8 w-9 place-items-center hover:bg-[#0c0c0c] hover:text-[#7b90ff] md:hidden"
           aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
           onClick={() => setMobileOpen((open) => !open)}
         >
@@ -369,7 +369,7 @@ export function AdminShell({
           {user.role !== 'AUTHOR' ? (
             <Link
               href="/admin/comments"
-              className="relative flex h-8 items-center px-2 hover:bg-[#2c3338]"
+              className="relative flex h-8 items-center px-2 hover:bg-[#0c0c0c] hover:text-[#7b90ff]"
               title={pending > 0 ? `${pending} in moderation` : 'Comments'}
             >
               <Icon name="comments" />
@@ -413,7 +413,7 @@ export function AdminShell({
 
       <aside
         className={cn(
-          'fixed bottom-0 left-0 top-8 z-30 flex w-40 flex-col bg-[#1d2327] text-[#f0f0f1] transition-[width,transform] duration-150',
+          'fixed bottom-0 left-0 top-8 z-30 flex w-40 flex-col bg-[#1e1e1e] text-white transition-[width,transform] duration-150',
           folded ? 'md:w-9' : 'md:w-40',
           mobileOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
         )}
@@ -442,7 +442,7 @@ export function AdminShell({
         <button
           type="button"
           onClick={toggleFold}
-          className="hidden h-9 items-center border-t border-white/10 text-left text-[13px] text-[#c3c4c7] hover:text-[#72aee6] md:flex"
+          className="hidden h-9 items-center border-t border-white/10 text-left text-[13px] text-[#bcbcbc] hover:bg-[#3858e9] hover:text-white md:flex"
         >
           <span className={cn('grid w-9 shrink-0 place-items-center', !folded && '[&_svg]:rotate-0', folded && '[&_svg]:rotate-180')}>
             <Icon name="collapse" />
@@ -500,8 +500,8 @@ function MenuBranch({
         title={iconOnly ? entry.label : undefined}
         onClick={() => onHash(hashOf(entry.href))}
         className={cn(
-          'flex h-[34px] items-center text-[13px] no-underline hover:text-[#72aee6]',
-          sectionOn ? 'is-current bg-[#2271b1] text-white hover:text-white' : 'text-[#f0f0f1]',
+          'flex h-[34px] items-center text-[13px] text-white no-underline hover:bg-[#3858e9] hover:text-white',
+          sectionOn && 'is-current bg-[#3858e9]',
         )}
       >
         <span className="grid w-9 shrink-0 place-items-center">
@@ -524,7 +524,7 @@ function MenuBranch({
       {inline ? (
         <Submenu entry={entry} pathname={pathname} hash={hash} onHash={onHash} />
       ) : fly ? (
-        <div className="fixed z-50 min-w-40 bg-[#2c3338] py-1 shadow-lg" style={{ top: fly.top, left: fly.left }}>
+        <div className="fixed z-50 min-w-40 bg-[#0c0c0c] py-1 shadow-lg" style={{ top: fly.top, left: fly.left }}>
           <Link href={entry.href} className="block px-3 py-1.5 text-[13px] font-semibold text-white no-underline">
             {entry.label}
           </Link>
@@ -547,7 +547,7 @@ function Submenu({
   onHash: (hash: string) => void;
 }) {
   return (
-    <ul className="op-submenu bg-[#2c3338] py-1">
+    <ul className="op-submenu bg-[#0c0c0c] py-1">
       {entry.children.map((child) => {
         const on = linkActive(pathname, hash, child);
         return (
@@ -557,7 +557,7 @@ function Submenu({
               onClick={() => onHash(hashOf(child.href))}
               className={cn(
                 'block text-[13px] no-underline',
-                on ? 'is-current text-white' : 'text-[#c3c4c7] hover:text-[#72aee6]',
+                on ? 'is-current text-white' : 'text-[#bcbcbc] hover:text-[#7b90ff]',
               )}
             >
               {child.label}
@@ -590,7 +590,7 @@ function BarMenu({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex h-8 items-center gap-1 px-2 hover:bg-[#2c3338]"
+        className="flex h-8 items-center gap-1 px-2 hover:bg-[#0c0c0c] hover:text-[#7b90ff]"
       >
         {icon ? <Icon name={icon} /> : null}
         {align === 'right' ? (
@@ -603,7 +603,7 @@ function BarMenu({
       {open ? (
         <div
           className={cn(
-            'absolute top-8 z-50 min-w-44 border border-[#2c3338] bg-[#2c3338] py-1 text-[#f0f0f1] shadow-lg [&_a]:block [&_a]:px-3 [&_a]:py-1.5 [&_a]:no-underline [&_a]:hover:bg-[#2271b1] [&_button]:block [&_button]:w-full [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-left [&_button]:hover:bg-[#2271b1]',
+            'absolute top-8 z-50 min-w-44 border border-[#0c0c0c] bg-[#0c0c0c] py-1 text-[#bcbcbc] shadow-lg [&_a]:block [&_a]:px-3 [&_a]:py-1.5 [&_a]:text-[#bcbcbc] [&_a]:no-underline [&_a]:hover:text-[#7b90ff] [&_button]:block [&_button]:w-full [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-left [&_button]:text-[#bcbcbc] [&_button]:hover:text-[#7b90ff]',
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
