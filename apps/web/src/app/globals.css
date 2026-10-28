@@ -120,7 +120,7 @@ html:has(.op-login) body {
   border-collapse: collapse;
   background: #fff;
   border: 1px solid #c3c4c7;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 .op-screen table.op-list th {
   padding: 8px 10px;
@@ -174,7 +174,7 @@ html:has(.op-login) body {
   background: #fff;
   border: 1px solid #c3c4c7;
   border-left-width: 4px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 .op-screen .op-notice p {
   margin: 0.5em 0;
@@ -227,7 +227,7 @@ html:has(.op-login) body {
   padding: 26px 24px 34px;
   background: #fff;
   border: 1px solid #c3c4c7;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 .op-login label {
   display: block;
@@ -335,7 +335,7 @@ html:has(.op-login) body {
 .op-postbox {
   border: 1px solid #c3c4c7;
   background: #fff;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 .op-postbox h2 {
   margin: 0;
@@ -362,7 +362,7 @@ html:has(.op-login) body {
   margin: 16px 0;
   border: 1px solid #c3c4c7;
   background: #fff;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 .op-welcome-header {
   display: flex;
@@ -466,7 +466,7 @@ html:has(.op-login) body {
   position: relative;
   border: 1px solid #c3c4c7;
   background: #fff;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 .op-theme-shot {
   display: flex;

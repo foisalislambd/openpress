@@ -377,7 +377,7 @@ export default function DashboardPage() {
 
 function Postbox({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border border-[#c3c4c7] bg-white shadow-sm">
+    <section className="border border-[#c3c4c7] bg-white">
       <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2 text-[14px] font-semibold">
         {title}
       </h2>
