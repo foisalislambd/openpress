@@ -5,7 +5,7 @@
 ```
 openpress/
   apps/
-    api/                 # NestJS — run from here for Prisma
+    api/                 # NestJS — API and SQL migrations
     web/                 # Next.js
   packages/
     shared/              # types
@@ -28,23 +28,21 @@ Managed by **pnpm workspaces** + **Turborepo**.
 | `pnpm build` | Build all packages |
 | `pnpm --filter @openpress/api dev` | API only |
 | `pnpm --filter @openpress/web dev` | Web only |
+| `pnpm db:migrate` | Apply SQL migrations |
 | `pnpm db:seed` | Run seed script |
 | `pnpm db:local` | Embedded PostgreSQL |
-| `pnpm --filter @openpress/api exec prisma studio` | DB GUI |
-| `pnpm --filter @openpress/api exec prisma db push` | Sync schema |
 | `pnpm --filter @openpress/web exec tsc --noEmit` | Typecheck web |
 
 ## Environment
 
 Copy `.env.example` files — never commit real `.env` files.
 
-API runs from `apps/api/` — Prisma resolves `DATABASE_URL` from `apps/api/.env`.
+API runs from `apps/api/` and reads `DATABASE_URL` from `apps/api/.env`.
 
 ## Database changes
 
-1. Edit `apps/api/prisma/schema.prisma`
-2. `pnpm --filter @openpress/api exec prisma db push` (dev) or `prisma migrate dev` (migrations)
-3. `pnpm --filter @openpress/api exec prisma generate`
+1. Add a new SQL file under `apps/api/db/migrations/` (numbered, e.g. `002_add_column.sql`)
+2. `pnpm db:migrate`
 
 ## Adding a workspace package
 
@@ -88,17 +86,6 @@ pnpm --filter @openpress/api build   # Nest compile = typecheck
 Nest logs to console. Plugin logs appear as `[plugin:<id>]`.
 
 Hook events: `content.created`, `content.updated`, `content.published`, `content.deleted`, `comment.created`, `settings.updated`.
-
-## Prisma on Windows
-
-If `prisma generate` fails with certificate errors:
-
-```powershell
-$env:NODE_TLS_REJECT_UNAUTHORIZED='0'
-pnpm --filter @openpress/api exec prisma generate
-```
-
-Fix corporate proxy/CA certs for a permanent solution.
 
 ## Ports
 

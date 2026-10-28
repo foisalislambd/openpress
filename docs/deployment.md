@@ -6,8 +6,7 @@ Production checklist for OpenPress.
 
 ```bash
 pnpm install
-pnpm --filter @openpress/api exec prisma generate
-pnpm --filter @openpress/api exec prisma migrate deploy   # or db push for small setups
+pnpm db:migrate
 pnpm build
 ```
 
@@ -90,7 +89,7 @@ Either:
 
 - **API** — stateless except plugin runtime in memory; horizontal scale needs shared uploads + same plugin/theme folders or re-upload per instance
 - **Web** — standard Next.js scaling; ISR cache is 10s on public API fetches
-- **DB** — single PostgreSQL; connection pool via Prisma
+- **DB** — single PostgreSQL; connection pool via `pg`
 
 ## Docker (future)
 

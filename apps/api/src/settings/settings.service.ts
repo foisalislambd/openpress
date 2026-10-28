@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { DbService } from '../db/db.service';
 
 export const DEFAULT_SETTINGS: Record<string, unknown> = {
   siteTitle: 'OpenPress Site',
@@ -38,15 +37,16 @@ const PUBLIC_KEYS = Object.keys(DEFAULT_SETTINGS);
 @Injectable()
 export class SettingsService {
   constructor(
-    private prisma: PrismaService,
+    private db: DbService,
     private events: EventEmitter2,
   ) {}
 
   async getAll() {
-    const rows = await this.prisma.setting.findMany({
-      where: { key: { in: PUBLIC_KEYS } },
-    });
-    const stored = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    const rows = await this.db.query<{ key: string; value: unknown }>(
+      'SELECT key, value FROM settings WHERE key = ANY($1::text[])',
+      [PUBLIC_KEYS],
+    );
+    const stored = Object.fromEntries(rows.map((row) => [row.key, row.value]));
     return { ...DEFAULT_SETTINGS, ...stored };
   }
 
@@ -58,15 +58,17 @@ export class SettingsService {
       throw new BadRequestException('No valid setting keys provided');
     }
     this.validate(Object.fromEntries(entries));
-    await this.prisma.$transaction(
-      entries.map(([key, value]) =>
-        this.prisma.setting.upsert({
-          where: { key },
-          create: { key, value: value as Prisma.InputJsonValue },
-          update: { value: value as Prisma.InputJsonValue },
-        }),
-      ),
-    );
+    await this.db.tx(async (sql) => {
+      for (const [key, value] of entries) {
+        await sql.query(
+          `INSERT INTO settings (key, value, "updatedAt")
+           VALUES ($1, $2::jsonb, now())
+           ON CONFLICT (key) DO UPDATE
+           SET value = EXCLUDED.value, "updatedAt" = now()`,
+          [key, JSON.stringify(value)],
+        );
+      }
+    });
     const all = await this.getAll();
     this.events.emit('settings.updated', all);
     return all;

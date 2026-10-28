@@ -65,7 +65,7 @@ cp apps/web/.env.example apps/web/.env
 ## 4. Migrate and seed
 
 ```bash
-pnpm --filter @openpress/api exec prisma db push
+pnpm db:migrate
 pnpm db:seed
 ```
 
@@ -94,7 +94,6 @@ After the first user exists, public registration is **disabled** until you enabl
 
 | Problem | Fix |
 |---------|-----|
-| `P1000` / auth failed | Check `DATABASE_URL` matches your Postgres user/password |
+| Password authentication failed | Check `DATABASE_URL` matches your Postgres user/password |
 | Port 5432 in use | Stop the other Postgres process, or change the port in `docker-compose.yml` / `scripts/local-postgres.mjs` and update `DATABASE_URL` |
-| Prisma generate fails (TLS) | Run with `NODE_TLS_REJECT_UNAUTHORIZED=0` once, or fix corporate proxy certs |
 | Admin shows "Forbidden" | Log out and back in after role change; only **Admin** can change settings/themes |

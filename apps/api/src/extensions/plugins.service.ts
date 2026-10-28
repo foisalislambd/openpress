@@ -9,8 +9,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import AdmZip from 'adm-zip';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { join, resolve } from 'path';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { DbService } from '../db/db.service';
 
 export interface PluginManifest {
   id: string;
@@ -37,7 +36,7 @@ export class PluginsService implements OnModuleInit {
   private loaded = new Map<string, LoadedPlugin>();
 
   constructor(
-    private prisma: PrismaService,
+    private db: DbService,
     private events: EventEmitter2,
   ) {}
 
@@ -135,7 +134,7 @@ export class PluginsService implements OnModuleInit {
         },
       },
       logger: new Logger(`plugin:${id}`),
-      db: this.prisma,
+      db: this.db,
       manifest,
     };
     activate(context);
@@ -221,9 +220,10 @@ export class PluginsService implements OnModuleInit {
   }
 
   private async enabledIds(): Promise<string[]> {
-    const row = await this.prisma.setting.findUnique({
-      where: { key: ENABLED_KEY },
-    });
+    const row = await this.db.one<{ value: unknown }>(
+      'SELECT value FROM settings WHERE key = $1',
+      [ENABLED_KEY],
+    );
     return Array.isArray(row?.value) ? (row.value as string[]) : [];
   }
 
@@ -232,10 +232,12 @@ export class PluginsService implements OnModuleInit {
     const next = enabled
       ? Array.from(new Set([...current, id]))
       : current.filter((x) => x !== id);
-    await this.prisma.setting.upsert({
-      where: { key: ENABLED_KEY },
-      create: { key: ENABLED_KEY, value: next as Prisma.InputJsonValue },
-      update: { value: next as Prisma.InputJsonValue },
-    });
+    await this.db.query(
+      `INSERT INTO settings (key, value, "updatedAt")
+       VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value, "updatedAt" = now()`,
+      [ENABLED_KEY, JSON.stringify(next)],
+    );
   }
 }

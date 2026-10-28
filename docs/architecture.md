@@ -19,7 +19,7 @@ OpenPress is a **pnpm monorepo** with two apps and shared packages.
 │  Auth │ Content │ Media │ Taxonomy │ Comments │ Settings    │
 │  Extensions (themes upload, plugins loader + hooks)          │
 └─────────────────────────────┬───────────────────────────────┘
-                              │ Prisma
+                              │ SQL (`pg`)
                               ▼
                     ┌─────────────────┐
                     │   PostgreSQL    │
@@ -68,7 +68,7 @@ TypeScript types shared between web and themes: `Content`, `User`, `ThemeDefinit
 
 Only built-in theme committed to git. Exports `Layout`, `Home`, `Post`, `Page`, `Archive`, `BlockRenderer`.
 
-## Data model (Prisma)
+## Data model
 
 | Model | Purpose |
 |-------|---------|

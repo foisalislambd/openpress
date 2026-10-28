@@ -3,7 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { PrismaModule } from './prisma/prisma.module';
+import { DbModule } from './db/db.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ContentModule } from './content/content.module';
@@ -19,7 +19,7 @@ import { ExtensionsModule } from './extensions/extensions.module';
     EventEmitterModule.forRoot(),
     // Global rate limit: 120 requests/minute per IP
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
-    PrismaModule,
+    DbModule,
     AuthModule,
     UsersModule,
     ContentModule,

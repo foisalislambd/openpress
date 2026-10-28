@@ -31,7 +31,7 @@ WordPress powers a huge part of the web — but for many teams the **cost of own
 | Frontend | Themes in PHP templates | **React components** — upload full code themes |
 | API | REST exists but ecosystem is fragmented | **API-first** from day one |
 | Performance | Plugins + PHP can slow sites | SSR/SSG with Next.js, lean core |
-| Developer experience | Hooks in PHP, mixed quality | **Typed** monorepo, Prisma, modern tooling |
+| Developer experience | Hooks in PHP, mixed quality | **Typed** monorepo, SQL on PostgreSQL, modern tooling |
 | Security surface | Large plugin ecosystem risk | Smaller core; plugins are explicit server modules |
 | Hosting | Often shared hosting + wp-admin | Run on any Node + Postgres host (VPS, Docker, cloud) |
 
@@ -145,7 +145,7 @@ cp apps/web/.env.example apps/web/.env
 # Edit DATABASE_URL in apps/api/.env if needed
 
 # 3. Database setup
-pnpm --filter @openpress/api exec prisma db push
+pnpm db:migrate
 pnpm db:seed
 
 # 4. Run API + frontend (Turbo — both at once)
@@ -191,7 +191,7 @@ Detailed setup: [docs/installation.md](docs/installation.md)
 ```
 openpress/
 ├── apps/
-│   ├── api/                 # NestJS REST API, Prisma, plugins, theme store
+│   ├── api/                 # NestJS REST API, PostgreSQL, plugins, theme store
 │   └── web/                 # Next.js — public site + /admin
 ├── packages/
 │   ├── shared/              # Shared TypeScript types
@@ -216,7 +216,7 @@ openpress/
 
 | Layer | Technology |
 |-------|------------|
-| **API** | NestJS 11, Prisma ORM, PostgreSQL, JWT, EventEmitter hooks |
+| **API** | NestJS 11, PostgreSQL (`pg`), JWT, EventEmitter hooks |
 | **Web** | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
 | **Editor** | BlockNote |
 | **Build** | pnpm workspaces, Turborepo |

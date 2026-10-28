@@ -1,6 +1,6 @@
 # Plugins
 
-Plugins extend OpenPress on the **server**. They subscribe to CMS events and can use the database (Prisma).
+Plugins extend OpenPress on the **server**. They subscribe to CMS events and can query the database with SQL.
 
 ## Storage
 
@@ -63,7 +63,7 @@ module.exports = { activate };
 |----------|-------------|
 | `ctx.hooks.on(event, fn)` | Subscribe to an event |
 | `ctx.logger` | NestJS `Logger` prefixed with `plugin:<id>` |
-| `ctx.db` | Prisma client (same as API) |
+| `ctx.db` | Database helper: `query(sql, params)` and `one(sql, params)` |
 | `ctx.manifest` | Parsed `plugin.json` |
 
 ## Available hooks
@@ -98,10 +98,10 @@ function activate(ctx) {
     if (content.excerpt || content.type !== 'POST') return;
     const excerpt = textFromBlocks(content.blocks);
     if (!excerpt) return;
-    await ctx.db.content.update({
-      where: { id: content.id },
-      data: { excerpt },
-    });
+    await ctx.db.query(
+      'UPDATE contents SET excerpt = $1, "updatedAt" = now() WHERE id = $2',
+      [excerpt, content.id],
+    );
     ctx.logger.log(`Excerpt set for "${content.title}"`);
   });
 }
@@ -128,7 +128,7 @@ module.exports = { activate };
 
 ## Security
 
-Plugins run with **full server access** (database, filesystem via Prisma, event bus). Treat them like WordPress PHP plugins:
+Plugins run with **full server access** (database, filesystem, event bus). Treat them like WordPress PHP plugins:
 
 - Only install trusted zips
 - Review `index.js` before enabling in production

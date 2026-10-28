@@ -109,7 +109,7 @@ pnpm db:local
 ```bash
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-pnpm --filter @openpress/api exec prisma db push
+pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```

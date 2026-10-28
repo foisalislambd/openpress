@@ -38,7 +38,7 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 # Adjust DATABASE_URL in apps/api/.env if needed
 
-pnpm --filter @openpress/api exec prisma db push
+pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
@@ -73,7 +73,7 @@ More detail: [docs/installation.md](docs/installation.md), [docs/running-dev.md]
 
 | Area | Path |
 |------|------|
-| API (NestJS, Prisma) | `apps/api/` |
+| API (NestJS, PostgreSQL) | `apps/api/` |
 | Web (Next.js site + admin) | `apps/web/` |
 | Shared types | `packages/shared/` |
 | Default theme | `packages/themes/default/` |

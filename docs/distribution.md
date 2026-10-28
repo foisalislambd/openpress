@@ -37,7 +37,7 @@ OpenPress core is **not** published to npm as installable packages today. Distri
 
 3. **Release checklist** before tagging:
    - [ ] `pnpm build` succeeds
-   - [ ] Database migrations are committed (`apps/api/prisma/migrations/`)
+   - [ ] Database migrations are committed (`apps/api/db/migrations/`)
    - [ ] `.env.example` files are up to date
    - [ ] Docs reflect any breaking changes
    - [ ] No secrets in the repo (`.env`, JWT keys, DB passwords)
@@ -89,7 +89,7 @@ The most common way to "distribute" OpenPress is running it on a server.
 
    ```bash
    pnpm install
-   pnpm --filter @openpress/api exec prisma migrate deploy
+   pnpm db:migrate
    pnpm build
    ```
 
