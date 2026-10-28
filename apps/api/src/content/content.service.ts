@@ -34,7 +34,12 @@ export class ContentService {
 
     const where: Prisma.ContentWhereInput = {
       type: (query.type as never) ?? undefined,
-      status: publicOnly ? 'PUBLISHED' : ((query.status as never) ?? undefined),
+      // Admin "All" matches WordPress: trash is a separate view, not mixed in.
+      status: publicOnly
+        ? 'PUBLISHED'
+        : query.status
+          ? (query.status as never)
+          : { not: 'TRASHED' },
     };
     if (query.search) {
       where.OR = [

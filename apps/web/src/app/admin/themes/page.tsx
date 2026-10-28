@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SiteSettings } from '@openpress/shared';
 import { api } from '@/lib/client-api';
-import { Badge, Button, Card } from '@/components/ui';
+import { Button } from '@/components/ui';
+import { Notice, Screen } from '@/components/admin/screen';
 
 interface ThemeItem {
   id: string;
@@ -79,57 +80,54 @@ export default function ThemesPage() {
   }
 
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Themes</h1>
-        <div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".zip"
-            className="hidden"
-            onChange={(e) => upload(e.target.files)}
-          />
-          <Button disabled={busy} onClick={() => fileRef.current?.click()}>
-            Upload theme (.zip)
-          </Button>
-        </div>
+    <Screen title="Themes">
+      <div className="op-tablenav">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".zip"
+          className="hidden"
+          onChange={(e) => upload(e.target.files)}
+        />
+        <Button disabled={busy} onClick={() => fileRef.current?.click()}>
+          Add New Theme
+        </Button>
       </div>
-      <p className="mb-6 text-sm text-zinc-500">
-        Uploaded themes use the runtime engine: a zip with <code>theme.json</code>{' '}
-        (design tokens) and optional <code>style.css</code>. Code themes live in{' '}
-        <code>packages/themes/</code>.
+      <p className="op-description mb-4">
+        A theme zip needs theme.json and an optional style.css. Built-in themes live in packages/themes.
       </p>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {themes.map((t) => (
-          <Card key={t.id}>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-semibold">{t.name}</h2>
-              <div className="flex gap-2">
-                {t.builtIn ? <Badge color="zinc">Built-in</Badge> : <Badge color="indigo">Uploaded</Badge>}
-                {t.id === active ? <Badge color="green">Active</Badge> : null}
+          <div key={t.id} className="op-theme-card">
+            <div className="op-theme-shot">
+              <span className="dashicons dashicons-admin-appearance" />
+            </div>
+            <div className="op-theme-meta">
+              <h2>
+                {t.name}
+                {t.id === active ? <span className="ml-2 text-[#00a32a]">Active</span> : null}
+              </h2>
+              <p className="op-description">{t.description}</p>
+              <p className="mt-1 text-[12px] text-[#646970]">
+                By {t.author || 'Unknown'} · Version {t.version}
+              </p>
+              <div className="mt-3 flex gap-2">
+                {t.id !== active ? (
+                  <Button variant="secondary" disabled={busy} onClick={() => activate(t.id)}>
+                    Activate
+                  </Button>
+                ) : null}
+                {!t.builtIn ? (
+                  <Button variant="ghost" disabled={busy} onClick={() => remove(t.id)}>
+                    Delete
+                  </Button>
+                ) : null}
               </div>
             </div>
-            <p className="mb-1 text-sm text-zinc-600">{t.description}</p>
-            <p className="mb-4 text-xs text-zinc-400">
-              by {t.author || 'Unknown'} &middot; v{t.version}
-            </p>
-            <div className="flex gap-2">
-              {t.id !== active ? (
-                <Button variant="secondary" disabled={busy} onClick={() => activate(t.id)}>
-                  Activate
-                </Button>
-              ) : null}
-              {!t.builtIn ? (
-                <Button variant="ghost" disabled={busy} onClick={() => remove(t.id)}>
-                  Delete
-                </Button>
-              ) : null}
-            </div>
-          </Card>
+          </div>
         ))}
       </div>
-    </div>
+    </Screen>
   );
 }

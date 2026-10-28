@@ -30,7 +30,14 @@ export default function AdminLayout({
       });
   }, [isLogin, pathname, router]);
 
-  if (isLogin) return <>{children}</>;
+  if (isLogin) {
+    return (
+      <>
+        <link rel="stylesheet" href="/dashicons/css/dashicons.css" />
+        {children}
+      </>
+    );
+  }
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f0f0f1] text-[13px] text-[#50575e]">
@@ -39,5 +46,10 @@ export default function AdminLayout({
     );
   }
 
-  return <AdminShell user={user}>{children}</AdminShell>;
+  return (
+    <>
+      <link rel="stylesheet" href="/dashicons/css/dashicons.css" />
+      <AdminShell user={user}>{children}</AdminShell>
+    </>
+  );
 }

@@ -9,6 +9,528 @@
   outline: 2px solid #2271b1;
   outline-offset: 1px;
 }
+
+/* Screens inside the admin, matched to wp-admin/css (wrap, list tables, forms). */
+.op-screen {
+  color: #3c434a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.op-screen h1 {
+  display: inline-block;
+  margin: 0 8px 0 0;
+  padding: 9px 0 4px;
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: #1d2327;
+}
+.op-screen h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2327;
+}
+.op-screen a {
+  color: #2271b1;
+  text-decoration: none;
+}
+.op-screen a:hover {
+  color: #135e96;
+}
+.op-screen .op-title-action {
+  display: inline-block;
+  position: relative;
+  top: -3px;
+  margin-left: 4px;
+  padding: 0 12px;
+  min-height: 32px;
+  border: 1px solid #2271b1;
+  border-radius: 2px;
+  background: #f6f7f7;
+  color: #2271b1;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 30px;
+  text-decoration: none;
+}
+.op-screen .op-title-action:hover {
+  border-color: #0a4b78;
+  color: #0a4b78;
+}
+.op-screen .op-header-end {
+  height: 0;
+  margin: 6px 0 8px;
+  border: 0;
+  border-top: 1px solid transparent;
+}
+.op-screen .op-subsubsub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.op-screen .op-subsubsub li {
+  margin: 0;
+  padding: 0;
+}
+.op-screen .op-subsubsub li + li::before {
+  content: "|";
+  padding: 0 6px;
+  color: #c3c4c7;
+}
+.op-screen .op-subsubsub button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #2271b1;
+  cursor: pointer;
+  font-size: 13px;
+}
+.op-screen .op-subsubsub button.is-current {
+  color: #1d2327;
+  font-weight: 600;
+}
+.op-screen .op-tablenav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0;
+  height: 30px;
+}
+.op-screen table.op-list {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+.op-screen table.op-list th {
+  padding: 8px 10px;
+  border-bottom: 1px solid #c3c4c7;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  color: #2c3338;
+  text-transform: none;
+  letter-spacing: 0;
+  background: #fff;
+}
+.op-screen table.op-list td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0f0f1;
+  font-size: 13px;
+  vertical-align: top;
+}
+.op-screen table.op-list tbody tr:nth-child(odd) {
+  background: #f6f7f7;
+}
+.op-screen table.op-list .op-row-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.op-screen .op-row-actions {
+  color: #646970;
+  font-size: 13px;
+  visibility: hidden;
+}
+.op-screen tr:hover .op-row-actions,
+.op-screen tr:focus-within .op-row-actions {
+  visibility: visible;
+}
+.op-screen .op-row-actions button,
+.op-screen .op-row-actions a {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #2271b1;
+  cursor: pointer;
+  font-size: 13px;
+}
+.op-screen .op-row-actions .is-delete {
+  color: #b32d2e;
+}
+.op-screen .op-notice {
+  margin: 5px 0 15px;
+  padding: 1px 12px;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-left-width: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+.op-screen .op-notice p {
+  margin: 0.5em 0;
+}
+.op-screen .op-notice.is-success { border-left-color: #00a32a; }
+.op-screen .op-notice.is-error { border-left-color: #d63638; }
+.op-screen .op-notice.is-warning { border-left-color: #dba617; }
+.op-screen .op-notice.is-info { border-left-color: #72aee6; }
+.op-screen table.op-form {
+  width: 100%;
+  border-collapse: collapse;
+}
+.op-screen table.op-form th {
+  width: 200px;
+  padding: 15px 10px 15px 0;
+  text-align: left;
+  vertical-align: top;
+  font-weight: 400;
+  font-size: 14px;
+  color: #1d2327;
+}
+.op-screen table.op-form td {
+  padding: 12px 10px;
+  vertical-align: top;
+}
+.op-screen .op-description {
+  margin: 4px 0 0;
+  color: #646970;
+  font-style: italic;
+}
+.op-login {
+  min-height: 100vh;
+  background: #f0f0f1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  color: #3c434a;
+}
+.op-login-box {
+  width: 320px;
+  margin: 8vh auto 0;
+}
+.op-login-logo {
+  display: block;
+  margin: 0 auto 16px;
+  color: #3c434a;
+  text-align: center;
+  text-decoration: none;
+}
+.op-login form {
+  margin-top: 16px;
+  padding: 26px 24px 34px;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.op-login label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 14px;
+}
+.op-login input[type="text"],
+.op-login input[type="email"],
+.op-login input[type="password"] {
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 3px 5px;
+  min-height: 40px;
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+  font-size: 24px;
+  line-height: 1.333;
+  background: #fff;
+}
+.op-login .op-login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.op-login-nav {
+  margin: 16px 0 0;
+  padding: 0 24px;
+  font-size: 13px;
+}
+.op-login-nav button,
+.op-login-nav a {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #50575e;
+  cursor: pointer;
+  font-size: 13px;
+}
+.op-login-nav button:hover,
+.op-login-nav a:hover {
+  color: #135e96;
+}
+
+.op-menu .dashicons {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+  color: #a7aaad;
+}
+.op-menu a.is-current .dashicons,
+.op-menu a.is-current:hover .dashicons {
+  color: #fff;
+}
+.op-menu a:hover .dashicons {
+  color: #72aee6;
+}
+.op-menu a.is-current:hover .dashicons {
+  color: #fff;
+}
+.op-submenu a {
+  padding: 6px 12px;
+  line-height: 1.4;
+}
+.op-submenu a.is-current {
+  color: #fff;
+  font-weight: 600;
+}
+
+.op-screen .op-status {
+  color: #646970;
+  font-weight: 400;
+}
+.op-screen table.op-list th.op-cb,
+.op-screen table.op-list td.op-cb {
+  width: 2.2em;
+  padding-right: 0;
+  vertical-align: middle;
+}
+.op-screen table.op-list .op-col-comments {
+  width: 4em;
+  text-align: center;
+}
+.op-screen table.op-list tfoot th {
+  border-top: 1px solid #c3c4c7;
+  border-bottom: 0;
+}
+.op-bulk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.op-search {
+  display: flex;
+  gap: 4px;
+}
+.op-search input {
+  width: 200px;
+}
+.op-postbox {
+  border: 1px solid #c3c4c7;
+  background: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+.op-postbox h2 {
+  margin: 0;
+  border-bottom: 1px solid #c3c4c7;
+  background: #f6f7f7;
+  font-size: 14px;
+  font-weight: 600;
+}
+.op-postbox h2 button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: #1d2327;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.op-welcome {
+  margin: 16px 0;
+  border: 1px solid #c3c4c7;
+  background: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+.op-welcome-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #1d2327;
+  color: #fff;
+}
+.op-welcome-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 21px;
+  font-weight: 400;
+}
+.op-welcome-header p {
+  margin: 6px 0 0;
+  color: #dcdcde;
+}
+.op-welcome-header button {
+  border: 0;
+  background: none;
+  color: #c3c4c7;
+  cursor: pointer;
+}
+.op-welcome-cols {
+  display: grid;
+  gap: 20px;
+  padding: 16px 20px 20px;
+}
+@media (min-width: 782px) {
+  .op-welcome-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.op-welcome-cols h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.op-welcome-cols li {
+  margin: 0 0 6px;
+}
+.op-welcome-cols .dashicons {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  font-size: 16px;
+  color: #646970;
+  vertical-align: text-bottom;
+}
+.op-screen-meta {
+  float: right;
+  margin: 8px 0 0 8px;
+}
+.op-screen-meta > button {
+  border: 1px solid #c3c4c7;
+  background: #fff;
+  padding: 4px 8px;
+  color: #3c434a;
+  font-size: 13px;
+  cursor: pointer;
+}
+.op-screen-meta > button[aria-expanded="true"] {
+  border-bottom-color: #fff;
+}
+.op-screen-panel {
+  clear: both;
+  margin: 0 0 12px;
+  border: 1px solid #c3c4c7;
+  background: #fff;
+  padding: 8px 16px 16px;
+}
+.op-dropzone {
+  margin: 12px 0;
+  padding: 48px 16px;
+  border: 2px dashed #c3c4c7;
+  background: #fff;
+  text-align: center;
+}
+.op-dropzone.is-over {
+  border-color: #2271b1;
+  background: #f0f6fc;
+}
+.op-dropzone p {
+  margin: 0 0 12px;
+  font-size: 20px;
+  color: #1d2327;
+}
+.op-theme-card {
+  position: relative;
+  border: 1px solid #c3c4c7;
+  background: #fff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+.op-theme-shot {
+  display: flex;
+  height: 180px;
+  align-items: center;
+  justify-content: center;
+  background: #1d2327;
+  color: #fff;
+}
+.op-theme-shot .dashicons {
+  width: 64px;
+  height: 64px;
+  font-size: 64px;
+}
+.op-theme-meta {
+  padding: 12px;
+}
+.op-theme-meta h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.op-health {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid #c3c4c7;
+  background: #fff;
+}
+.op-health-mark {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 50%;
+  background: #00a32a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.op-health-mark.is-bad { background: #d63638; }
+.op-split {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+@media (min-width: 960px) {
+  .op-split { grid-template-columns: 280px minmax(0, 1fr); }
+}
+.op-split-form {
+  padding: 0 12px 12px 0;
+}
+.op-split-form h2 {
+  margin: 8px 0 12px;
+  font-size: 14px;
+}
+.op-split-form label {
+  display: block;
+  margin: 10px 0 4px;
+}
+.op-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.op-media-tile {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid #c3c4c7;
+  background: #f0f0f1;
+}
+.op-media-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.op-media-tile .op-media-actions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: none;
+  justify-content: space-between;
+  padding: 4px 6px;
+  background: rgba(29, 35, 39, 0.82);
+  color: #fff;
+  font-size: 11px;
+}
+.op-media-tile:hover .op-media-actions { display: flex; }
+.op-media-tile .op-media-actions button {
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+}
 @source "../../../../packages/themes";
 
 /* Rendered block content ("prose") styles used by themes */

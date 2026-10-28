@@ -11,6 +11,22 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   homepageId: null,
   postsPerPage: 10,
   allowRegistration: false,
+  adminEmail: '',
+  timezone: 'UTC',
+  dateFormat: 'F j, Y',
+  timeFormat: 'g:i a',
+  weekStartsOn: '1',
+  siteLanguage: 'en',
+  allowComments: true,
+  commentModeration: true,
+  commentRegistration: false,
+  thumbnailSize: 150,
+  mediumSize: 300,
+  largeSize: 1024,
+  permalinkStructure: '/%postname%/',
+  privacyPageId: null,
+  defaultCategoryId: null,
+  menus: [],
 };
 
 // Only these keys can be written via the public settings API. Internal keys

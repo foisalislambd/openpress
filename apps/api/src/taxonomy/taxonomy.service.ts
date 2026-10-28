@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import slugify from 'slugify';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,11 +13,15 @@ export class TaxonomyService {
     });
   }
 
-  createCategory(name: string, description?: string, parentId?: string) {
+  async createCategory(name: string, description?: string, parentId?: string) {
+    if (parentId) {
+      const parent = await this.prisma.category.findUnique({ where: { id: parentId } });
+      if (!parent) throw new BadRequestException('Parent category was not found');
+    }
     return this.prisma.category.create({
       data: {
         name,
-        slug: slugify(name, { lower: true, strict: true }),
+        slug: await this.uniqueSlug('category', name),
         description,
         parentId: parentId || null,
       },
@@ -46,10 +50,25 @@ export class TaxonomyService {
     });
   }
 
-  createTag(name: string) {
+  async createTag(name: string) {
     return this.prisma.tag.create({
-      data: { name, slug: slugify(name, { lower: true, strict: true }) },
+      data: { name, slug: await this.uniqueSlug('tag', name) },
     });
+  }
+
+  private async uniqueSlug(kind: 'category' | 'tag', name: string) {
+    const base = slugify(name, { lower: true, strict: true }) || 'term';
+    let slug = base;
+    let i = 1;
+    for (;;) {
+      const clash =
+        kind === 'category'
+          ? await this.prisma.category.findUnique({ where: { slug } })
+          : await this.prisma.tag.findUnique({ where: { slug } });
+      if (!clash) return slug;
+      i += 1;
+      slug = `${base}-${i}`;
+    }
   }
 
   removeTag(id: string) {

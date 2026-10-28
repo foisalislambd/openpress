@@ -1,139 +1,126 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
-import type { Content, Paginated, SiteSettings } from '@openpress/shared';
-import { api } from '@/lib/client-api';
-import { Button, Card, Input, Label, Select, Textarea } from '@/components/ui';
+import { Input, Select, Textarea } from '@/components/ui';
+import { SettingsForm } from '@/components/admin/screen';
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
-  const [pages, setPages] = useState<Content[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    api<SiteSettings>('/settings').then(setSettings).catch(() => {});
-    api<Paginated<Content>>('/content?type=PAGE&status=PUBLISHED&perPage=50')
-      .then((d) => setPages(d.items))
-      .catch(() => {});
-  }, []);
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    if (!settings) return;
-    setSaving(true);
-    setSaved(false);
-    setError('');
-    try {
-      const updated = await api<SiteSettings>('/settings', {
-        method: 'PUT',
-        body: JSON.stringify(settings),
-      });
-      setSettings(updated);
-      setSaved(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!settings) return <div className="text-zinc-400">Loading...</div>;
-
   return (
-    <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-bold">Settings</h1>
-      <form onSubmit={save} className="space-y-6">
-        <Card className="space-y-4">
-          <h2 className="font-semibold">General</h2>
-          <div>
-            <Label>Site title</Label>
-            <Input
-              value={settings.siteTitle}
-              onChange={(e) =>
-                setSettings({ ...settings, siteTitle: e.target.value })
-              }
-            />
-          </div>
-          <div>
-            <Label>Site description</Label>
-            <Textarea
-              rows={2}
-              value={settings.siteDescription}
-              onChange={(e) =>
-                setSettings({ ...settings, siteDescription: e.target.value })
-              }
-            />
-          </div>
-        </Card>
-        <Card className="space-y-4">
-          <h2 className="font-semibold">Reading</h2>
-          <div>
-            <Label>Homepage shows</Label>
-            <Select
-              value={settings.homepageType}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  homepageType: e.target.value as SiteSettings['homepageType'],
-                })
-              }
-            >
-              <option value="latest-posts">Latest posts</option>
-              <option value="static-page">A static page</option>
-            </Select>
-          </div>
-          {settings.homepageType === 'static-page' ? (
-            <div>
-              <Label>Homepage page</Label>
+    <SettingsForm title="General Settings">
+      {(settings, set) => (
+        <>
+          <tr>
+            <th scope="row">Site Title</th>
+            <td>
+              <Input
+                value={settings.siteTitle}
+                onChange={(e) => set({ siteTitle: e.target.value })}
+              />
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Tagline</th>
+            <td>
+              <Textarea
+                rows={2}
+                value={settings.siteDescription}
+                onChange={(e) => set({ siteDescription: e.target.value })}
+              />
+              <p className="op-description">In a few words, explain what this site is about.</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Administration Email Address</th>
+            <td>
+              <Input
+                type="email"
+                value={String(settings.adminEmail ?? '')}
+                onChange={(e) => set({ adminEmail: e.target.value })}
+              />
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Timezone</th>
+            <td>
               <Select
-                value={settings.homepageId ?? ''}
-                onChange={(e) =>
-                  setSettings({ ...settings, homepageId: e.target.value || null })
-                }
+                value={String(settings.timezone ?? 'UTC')}
+                onChange={(e) => set({ timezone: e.target.value })}
               >
-                <option value="">Select a page...</option>
-                {pages.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
+                {['UTC', 'Asia/Dhaka', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'America/Los_Angeles'].map(
+                  (zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ),
+                )}
               </Select>
-            </div>
-          ) : null}
-          <div>
-            <Label>Posts per page</Label>
-            <Input
-              type="number"
-              min={1}
-              max={50}
-              value={settings.postsPerPage}
-              onChange={(e) =>
-                setSettings({ ...settings, postsPerPage: Number(e.target.value) })
-              }
-            />
-          </div>
-        </Card>
-        <Card className="space-y-4">
-          <h2 className="font-semibold">Membership</h2>
-          <label className="flex items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={Boolean(settings.allowRegistration)}
-              onChange={(e) =>
-                setSettings({ ...settings, allowRegistration: e.target.checked })
-              }
-            />
-            Anyone can register an account (new users become Authors)
-          </label>
-        </Card>
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        {saved ? <p className="text-sm text-green-600">Settings saved.</p> : null}
-        <Button type="submit" disabled={saving}>
-          {saving ? 'Saving...' : 'Save settings'}
-        </Button>
-      </form>
-    </div>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Date Format</th>
+            <td>
+              <Select
+                value={String(settings.dateFormat ?? 'F j, Y')}
+                onChange={(e) => set({ dateFormat: e.target.value })}
+              >
+                <option value="F j, Y">F j, Y — October 28, 2026</option>
+                <option value="Y-m-d">Y-m-d — 2026-10-28</option>
+                <option value="m/d/Y">m/d/Y — 10/28/2026</option>
+                <option value="d/m/Y">d/m/Y — 28/10/2026</option>
+              </Select>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Time Format</th>
+            <td>
+              <Select
+                value={String(settings.timeFormat ?? 'g:i a')}
+                onChange={(e) => set({ timeFormat: e.target.value })}
+              >
+                <option value="g:i a">g:i a — 10:42 am</option>
+                <option value="H:i">H:i — 10:42</option>
+              </Select>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Week Starts On</th>
+            <td>
+              <Select
+                value={String(settings.weekStartsOn ?? '1')}
+                onChange={(e) => set({ weekStartsOn: e.target.value })}
+              >
+                <option value="0">Sunday</option>
+                <option value="1">Monday</option>
+                <option value="6">Saturday</option>
+              </Select>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Site Language</th>
+            <td>
+              <Select
+                value={String(settings.siteLanguage ?? 'en')}
+                onChange={(e) => set({ siteLanguage: e.target.value })}
+              >
+                <option value="en">English</option>
+                <option value="bn">বাংলা</option>
+              </Select>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Membership</th>
+            <td>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.allowRegistration)}
+                  onChange={(e) => set({ allowRegistration: e.target.checked })}
+                />
+                Anyone can register
+              </label>
+            </td>
+          </tr>
+        </>
+      )}
+    </SettingsForm>
   );
 }

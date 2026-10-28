@@ -186,18 +186,21 @@ export default function DashboardPage() {
               <ul className="space-y-1">
                 <li>
                   <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/posts/new">
+                    <span className="dashicons dashicons-admin-post" />
                     Write a post
                   </Link>
                 </li>
                 {isStaff ? (
                   <li>
                     <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/pages/new">
+                      <span className="dashicons dashicons-admin-page" />
                       Add a page
                     </Link>
                   </li>
                 ) : null}
                 <li>
-                  <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/media#upload">
+                  <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/media/new">
+                    <span className="dashicons dashicons-admin-media" />
                     Upload media
                   </Link>
                 </li>
@@ -209,6 +212,7 @@ export default function DashboardPage() {
                 {isStaff ? (
                   <li>
                     <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/comments">
+                      <span className="dashicons dashicons-admin-comments" />
                       Moderate comments
                       {pending > 0 ? ` (${pending})` : ''}
                     </Link>
@@ -216,6 +220,7 @@ export default function DashboardPage() {
                 ) : null}
                 <li>
                   <a className="text-[#2271b1] hover:text-[#135e96]" href="/" target="_blank" rel="noreferrer">
+                    <span className="dashicons dashicons-external" />
                     View your site
                   </a>
                 </li>
@@ -227,11 +232,13 @@ export default function DashboardPage() {
                 <ul className="space-y-1">
                   <li>
                     <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/themes">
+                      <span className="dashicons dashicons-admin-appearance" />
                       Choose a theme
                     </Link>
                   </li>
                   <li>
                     <Link className="text-[#2271b1] hover:text-[#135e96]" href="/admin/settings">
+                      <span className="dashicons dashicons-admin-settings" />
                       Edit site settings
                     </Link>
                   </li>

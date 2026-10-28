@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Comment } from '@openpress/shared';
 import { api } from '@/lib/client-api';
-import { Badge, Button, Select, statusBadgeColor } from '@/components/ui';
+import { Screen } from '@/components/admin/screen';
+
+const FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'SPAM', label: 'Spam' },
+  { value: 'TRASHED', label: 'Trash' },
+];
 
 export default function CommentsPage() {
   const [comments, setComments] = useState<Comment[]>([]);
@@ -32,67 +40,83 @@ export default function CommentsPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Comments</h1>
-        <Select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="max-w-[180px]"
-        >
-          <option value="">All</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="SPAM">Spam</option>
-          <option value="TRASHED">Trashed</option>
-        </Select>
-      </div>
-      <div className="space-y-4">
-        {comments.map((c) => (
-          <div
-            key={c.id}
-            className="rounded-xl border border-zinc-200 bg-white p-4"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm">
-                <span className="font-semibold">
-                  {c.author?.name ?? c.guestName ?? 'Anonymous'}
-                </span>
-                <span className="ml-2 text-zinc-400">
-                  on{' '}
-                  <a
-                    href={`/${c.content?.slug}`}
-                    target="_blank"
-                    className="text-indigo-600 hover:underline"
-                  >
-                    {c.content?.title}
-                  </a>
-                </span>
-              </div>
-              <Badge color={statusBadgeColor(c.status)}>{c.status}</Badge>
-            </div>
-            <p className="mb-3 text-sm text-zinc-700">{c.body}</p>
-            <div className="flex gap-2">
-              {c.status !== 'APPROVED' ? (
-                <Button variant="secondary" onClick={() => setStatus(c.id, 'APPROVED')}>
-                  Approve
-                </Button>
-              ) : null}
-              {c.status !== 'SPAM' ? (
-                <Button variant="ghost" onClick={() => setStatus(c.id, 'SPAM')}>
-                  Spam
-                </Button>
-              ) : null}
-              <Button variant="ghost" onClick={() => remove(c.id)}>
-                Delete
-              </Button>
-            </div>
-          </div>
+    <Screen title="Comments">
+      <ul className="op-subsubsub">
+        {FILTERS.map((item) => (
+          <li key={item.value || 'all'}>
+            <button
+              type="button"
+              className={filter === item.value ? 'is-current' : undefined}
+              onClick={() => setFilter(item.value)}
+            >
+              {item.label}
+            </button>
+          </li>
         ))}
-        {comments.length === 0 ? (
-          <p className="py-10 text-center text-zinc-500">No comments found.</p>
-        ) : null}
-      </div>
-    </div>
+      </ul>
+      <table className="op-list mt-3">
+        <thead>
+          <tr>
+            <th>Author</th>
+            <th>Comment</th>
+            <th>In response to</th>
+            <th>Submitted on</th>
+          </tr>
+        </thead>
+        <tbody>
+          {comments.map((comment) => (
+            <tr key={comment.id}>
+              <td>
+                <strong>{comment.author?.name ?? comment.guestName ?? 'Anonymous'}</strong>
+                <div className="op-description">{comment.status}</div>
+              </td>
+              <td>
+                {comment.body}
+                <div className="op-row-actions">
+                  {comment.status !== 'APPROVED' ? (
+                    <>
+                      <button type="button" onClick={() => setStatus(comment.id, 'APPROVED')}>
+                        Approve
+                      </button>
+                      {' | '}
+                    </>
+                  ) : null}
+                  {comment.status !== 'SPAM' ? (
+                    <>
+                      <button type="button" onClick={() => setStatus(comment.id, 'SPAM')}>
+                        Spam
+                      </button>
+                      {' | '}
+                    </>
+                  ) : null}
+                  <button type="button" className="is-delete" onClick={() => remove(comment.id)}>
+                    Delete
+                  </button>
+                </div>
+              </td>
+              <td>
+                <a href={`/${comment.content?.slug}`} target="_blank" rel="noreferrer">
+                  {comment.content?.title}
+                </a>
+              </td>
+              <td>
+                {new Date(comment.createdAt).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </td>
+            </tr>
+          ))}
+          {comments.length === 0 ? (
+            <tr>
+              <td colSpan={4}>No comments found.</td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </Screen>
   );
 }

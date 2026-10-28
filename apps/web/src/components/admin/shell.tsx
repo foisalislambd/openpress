@@ -7,19 +7,7 @@ import type { Comment, Role, SiteSettings, User } from '@openpress/shared';
 import { api, clearTokens } from '@/lib/client-api';
 import { cn } from '@/components/ui';
 
-type IconName =
-  | 'dashboard'
-  | 'posts'
-  | 'media'
-  | 'pages'
-  | 'comments'
-  | 'appearance'
-  | 'plugins'
-  | 'users'
-  | 'settings'
-  | 'collapse'
-  | 'plus'
-  | 'external';
+type IconName = string;
 
 const ROLES: Role[] = ['ADMIN', 'EDITOR', 'AUTHOR'];
 const STAFF: Role[] = ['ADMIN', 'EDITOR'];
@@ -48,11 +36,7 @@ type MenuEntry =
       children: MenuLink[];
     };
 
-/**
- * Same groups and order as wp-admin/menu.php, limited to screens OpenPress
- * already ships. Appearance / Tools editors and the settings sub-screens
- * land in later clones.
- */
+/** Same groups and order as wp-admin/menu.php. */
 const MENU: MenuEntry[] = [
   {
     kind: 'item',
@@ -61,7 +45,10 @@ const MENU: MenuEntry[] = [
     icon: 'dashboard',
     href: '/admin',
     roles: ROLES,
-    children: [{ href: '/admin', label: 'Home', roles: ROLES, exact: true }],
+    children: [
+      { href: '/admin', label: 'Home', roles: ROLES, exact: true },
+      { href: '/admin/updates', label: 'Updates', roles: ['ADMIN'], exact: true },
+    ],
   },
   {
     kind: 'item',
@@ -71,10 +58,15 @@ const MENU: MenuEntry[] = [
     href: '/admin/posts',
     roles: ROLES,
     children: [
-      { href: '/admin/posts', label: 'All Posts', roles: ROLES, exclude: ['/admin/posts/new'] },
+      {
+        href: '/admin/posts',
+        label: 'All Posts',
+        roles: ROLES,
+        exclude: ['/admin/posts/new', '/admin/posts/categories', '/admin/posts/tags'],
+      },
       { href: '/admin/posts/new', label: 'Add Post', roles: ROLES, exact: true },
-      { href: '/admin/taxonomy#categories', label: 'Categories', roles: ROLES, whenHashEmpty: true },
-      { href: '/admin/taxonomy#tags', label: 'Tags', roles: ROLES },
+      { href: '/admin/posts/categories', label: 'Categories', roles: ROLES },
+      { href: '/admin/posts/tags', label: 'Tags', roles: ROLES },
     ],
   },
   {
@@ -85,8 +77,8 @@ const MENU: MenuEntry[] = [
     href: '/admin/media',
     roles: ROLES,
     children: [
-      { href: '/admin/media', label: 'Library', roles: ROLES },
-      { href: '/admin/media#upload', label: 'Add Media File', roles: ROLES },
+      { href: '/admin/media', label: 'Library', roles: ROLES, exclude: ['/admin/media/new'] },
+      { href: '/admin/media/new', label: 'Add Media File', roles: ROLES, exact: true },
     ],
   },
   {
@@ -118,7 +110,12 @@ const MENU: MenuEntry[] = [
     icon: 'appearance',
     href: '/admin/themes',
     roles: ['ADMIN'],
-    children: [{ href: '/admin/themes', label: 'Themes', roles: ['ADMIN'] }],
+    children: [
+      { href: '/admin/themes', label: 'Themes', roles: ['ADMIN'], exact: true },
+      { href: '/admin/appearance/customize', label: 'Customize', roles: ['ADMIN'], exact: true },
+      { href: '/admin/appearance/menus', label: 'Menus', roles: ['ADMIN'], exact: true },
+      { href: '/admin/appearance/theme-editor', label: 'Theme File Editor', roles: ['ADMIN'], exact: true },
+    ],
   },
   {
     kind: 'item',
@@ -127,7 +124,11 @@ const MENU: MenuEntry[] = [
     icon: 'plugins',
     href: '/admin/plugins',
     roles: ['ADMIN'],
-    children: [{ href: '/admin/plugins', label: 'Installed Plugins', roles: ['ADMIN'] }],
+    children: [
+      { href: '/admin/plugins', label: 'Installed Plugins', roles: ['ADMIN'], exact: true },
+      { href: '/admin/plugins/new', label: 'Add Plugin', roles: ['ADMIN'], exact: true },
+      { href: '/admin/plugins/editor', label: 'Plugin File Editor', roles: ['ADMIN'], exact: true },
+    ],
   },
   {
     kind: 'item',
@@ -136,7 +137,36 @@ const MENU: MenuEntry[] = [
     icon: 'users',
     href: '/admin/users',
     roles: ['ADMIN'],
-    children: [{ href: '/admin/users', label: 'All Users', roles: ['ADMIN'] }],
+    children: [
+      { href: '/admin/users', label: 'All Users', roles: ['ADMIN'], exact: true },
+      { href: '/admin/users/new', label: 'Add User', roles: ['ADMIN'], exact: true },
+      { href: '/admin/profile', label: 'Profile', roles: ['ADMIN'], exact: true },
+    ],
+  },
+  {
+    kind: 'item',
+    id: 'profile',
+    label: 'Profile',
+    icon: 'users',
+    href: '/admin/profile',
+    roles: ['EDITOR', 'AUTHOR'],
+    children: [{ href: '/admin/profile', label: 'Profile', roles: ['EDITOR', 'AUTHOR'], exact: true }],
+  },
+  {
+    kind: 'item',
+    id: 'tools',
+    label: 'Tools',
+    icon: 'tools',
+    href: '/admin/tools',
+    roles: STAFF,
+    children: [
+      { href: '/admin/tools', label: 'Available Tools', roles: STAFF, exact: true },
+      { href: '/admin/tools/import', label: 'Import', roles: STAFF, exact: true },
+      { href: '/admin/tools/export', label: 'Export', roles: STAFF, exact: true },
+      { href: '/admin/tools/site-health', label: 'Site Health', roles: ['ADMIN'], exact: true },
+      { href: '/admin/tools/export-personal-data', label: 'Export Personal Data', roles: ['ADMIN'], exact: true },
+      { href: '/admin/tools/erase-personal-data', label: 'Erase Personal Data', roles: ['ADMIN'], exact: true },
+    ],
   },
   {
     kind: 'item',
@@ -145,91 +175,37 @@ const MENU: MenuEntry[] = [
     icon: 'settings',
     href: '/admin/settings',
     roles: ['ADMIN'],
-    children: [{ href: '/admin/settings', label: 'General', roles: ['ADMIN'] }],
+    children: [
+      { href: '/admin/settings', label: 'General', roles: ['ADMIN'], exact: true },
+      { href: '/admin/settings/writing', label: 'Writing', roles: ['ADMIN'], exact: true },
+      { href: '/admin/settings/reading', label: 'Reading', roles: ['ADMIN'], exact: true },
+      { href: '/admin/settings/discussion', label: 'Discussion', roles: ['ADMIN'], exact: true },
+      { href: '/admin/settings/media', label: 'Media', roles: ['ADMIN'], exact: true },
+      { href: '/admin/settings/permalinks', label: 'Permalinks', roles: ['ADMIN'], exact: true },
+      { href: '/admin/settings/privacy', label: 'Privacy', roles: ['ADMIN'], exact: true },
+    ],
   },
 ];
 
-function Icon({ name }: { name: IconName }) {
-  const common = {
-    viewBox: '0 0 20 20',
-    fill: 'currentColor',
-    'aria-hidden': true as const,
-    className: 'h-5 w-5',
-  };
-  switch (name) {
-    case 'dashboard':
-      return (
-        <svg {...common}>
-          <path d="M3 3h6v6H3V3zm8 0h6v4h-6V3zM3 11h6v6H3v-6zm8-2h6v8h-6V9z" />
-        </svg>
-      );
-    case 'posts':
-      return (
-        <svg {...common}>
-          <path d="M4 3h9l3 3v11H4V3zm8 1.5V7h2.5L12 4.5zM6 9h8v1.4H6V9zm0 3h8v1.4H6V12zm0 3h5v1.4H6V15z" />
-        </svg>
-      );
-    case 'media':
-      return (
-        <svg {...common}>
-          <path d="M3 4h14v12H3V4zm2 2v6.2l2.4-2.2 2.1 2 3-3.2L15 12V6H5zm2.2 1.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6z" />
-        </svg>
-      );
-    case 'pages':
-      return (
-        <svg {...common}>
-          <path d="M5 2h7l3 3v13H5V2zm6 1.4V6h2.6L11 3.4zM7 8h6v1.3H7V8zm0 3h6v1.3H7V11zm0 3h4v1.3H7V14z" />
-        </svg>
-      );
-    case 'comments':
-      return (
-        <svg {...common}>
-          <path d="M3 3h14v10H7.2L3 16.2V3zm2 2v7.4l1.6-1.4H15V5H5z" />
-        </svg>
-      );
-    case 'appearance':
-      return (
-        <svg {...common}>
-          <path d="M10 2a8 8 0 1 0 .01 16.01A8 8 0 0 0 10 2zm0 2c.8 0 1.5.2 2.2.5A3 3 0 0 1 10 9a3 3 0 0 1-2.2-4.5A6 6 0 0 1 10 4zm-4.5 3.2A5 5 0 0 0 10 11a5 5 0 0 0 4.5-3.8A6 6 0 0 1 10 16a6 6 0 0 1-4.5-8.8z" />
-        </svg>
-      );
-    case 'plugins':
-      return (
-        <svg {...common}>
-          <path d="M7 2h2v4h2V2h2v4h1.2A1.8 1.8 0 0 1 16 7.8V11h2v2h-2v3.2A1.8 1.8 0 0 1 14.2 18H5.8A1.8 1.8 0 0 1 4 16.2V13H2v-2h2V7.8A1.8 1.8 0 0 1 5.8 6H7V2z" />
-        </svg>
-      );
-    case 'users':
-      return (
-        <svg {...common}>
-          <path d="M7 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm6.5 1.5a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8zM2.5 16.5c.4-2.6 2.4-4 4.5-4s4.1 1.4 4.5 4H2.5zm8.2-.4c-.2-1.6.2-3 1.2-4 .7.3 1.5.5 2.3.5 1.6 0 3 .9 3.4 3.5h-6.9z" />
-        </svg>
-      );
-    case 'settings':
-      return (
-        <svg {...common}>
-          <path d="M8.2 2h3.6l.4 2.1a6 6 0 0 1 1.5.9l2-1 2.5 2.5-1 2c.4.5.7 1 .9 1.5L20 10.4v3.2l-2.1.4a6 6 0 0 1-.9 1.5l1 2-2.5 2.5-2-1a6 6 0 0 1-1.5.9l-.4 2.1H8.2l-.4-2.1a6 6 0 0 1-1.5-.9l-2 1L2 16.5l1-2a6 6 0 0 1-.9-1.5L0 12.6V9.4l2.1-.4c.2-.5.5-1 .9-1.5l-1-2L4.5 3l2 1c.5-.4 1-.7 1.5-.9L8.2 2zM10 7.5A2.5 2.5 0 1 0 10 12a2.5 2.5 0 0 0 0-4.5z" />
-        </svg>
-      );
-    case 'collapse':
-      return (
-        <svg {...common}>
-          <path d="M12.5 4.5 7 10l5.5 5.5 1.2-1.2L9.4 10l4.3-4.3-1.2-1.2zM4 3h2v14H4V3z" />
-        </svg>
-      );
-    case 'plus':
-      return (
-        <svg {...common}>
-          <path d="M9 3h2v6h6v2h-6v6H9v-6H3V9h6V3z" />
-        </svg>
-      );
-    case 'external':
-      return (
-        <svg {...common}>
-          <path d="M4 4h6v2H6v8h8v-4h2v6H4V4zm6 0h6v6h-2V7.4l-5.3 5.3-1.4-1.4L12.6 6H10V4z" />
-        </svg>
-      );
-  }
+function Icon({ name }: { name: string }) {
+  const glyph =
+    {
+      dashboard: 'dashboard',
+      posts: 'admin-post',
+      media: 'admin-media',
+      pages: 'admin-page',
+      comments: 'admin-comments',
+      appearance: 'admin-appearance',
+      plugins: 'admin-plugins',
+      users: 'admin-users',
+      settings: 'admin-settings',
+      tools: 'admin-tools',
+      collapse: 'arrow-left-alt2',
+      plus: 'plus',
+      external: 'external',
+      update: 'update',
+    }[name] ?? name;
+  return <span className={`dashicons dashicons-${glyph}`} aria-hidden />;
 }
 
 function pathOf(href: string) {
@@ -257,8 +233,8 @@ function linkActive(pathname: string, hash: string, link: MenuLink) {
   return true;
 }
 
-function visibleMenu(role: Role) {
-  return MENU.flatMap((entry) => {
+function visibleMenu(role: Role): MenuEntry[] {
+  return MENU.flatMap((entry): MenuEntry[] => {
     if (entry.kind === 'separator') return [entry];
     if (!entry.roles.includes(role)) return [];
     return [
@@ -384,30 +360,34 @@ export function AdminShell({
           onToggle={() => setMenuOpen(menuOpen === 'new' ? null : 'new')}
         >
           <Link href="/admin/posts/new">Post</Link>
-          <Link href="/admin/media#upload">Media</Link>
+          <Link href="/admin/media/new">Media</Link>
           {canPages ? <Link href="/admin/pages/new">Page</Link> : null}
-          {isAdmin ? <Link href="/admin/users">User</Link> : null}
+          {isAdmin ? <Link href="/admin/users/new">User</Link> : null}
         </BarMenu>
         <div className="ml-auto flex h-full items-center">
-          {pending > 0 && user.role !== 'AUTHOR' ? (
+          {user.role !== 'AUTHOR' ? (
             <Link
               href="/admin/comments"
-              className="flex h-8 items-center gap-1 px-2 hover:bg-[#2c3338]"
-              title={`${pending} in moderation`}
+              className="relative flex h-8 items-center px-2 hover:bg-[#2c3338]"
+              title={pending > 0 ? `${pending} in moderation` : 'Comments'}
             >
               <Icon name="comments" />
-              <span className="rounded-full bg-[#d63638] px-1.5 text-[11px] leading-4 text-white">
-                {pending}
-              </span>
+              {pending > 0 ? (
+                <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-[#d63638] px-1 text-center text-[9px] leading-4 text-white">
+                  {pending > 99 ? '99+' : pending}
+                </span>
+              ) : null}
             </Link>
           ) : null}
           <BarMenu
-            label={user.name}
+            label={`Howdy, ${user.name}`}
             open={menuOpen === 'user'}
             onToggle={() => setMenuOpen(menuOpen === 'user' ? null : 'user')}
             align="right"
           >
-            <div className="px-3 py-2 text-[12px] text-[#a7aaad]">{user.role}</div>
+            <div className="px-3 py-2 text-[12px] text-[#a7aaad]">{user.name}</div>
+            <div className="px-3 pb-2 text-[12px] text-[#a7aaad]">{user.role}</div>
+            <Link href="/admin/profile">Edit Profile</Link>
             <button
               type="button"
               onClick={() => {
@@ -437,7 +417,7 @@ export function AdminShell({
           mobileOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
         )}
       >
-        <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" aria-label="Main">
+        <nav className="op-menu min-h-0 flex-1 overflow-y-auto overflow-x-hidden" aria-label="Main">
           <ul>
             {menu.map((entry, index) =>
               entry.kind === 'separator' ? (
@@ -471,9 +451,10 @@ export function AdminShell({
       </aside>
 
       <div className={cn('pt-8', folded ? 'md:pl-9' : 'md:pl-40')}>
-        <div className="px-5 py-4">{children}</div>
-        <footer className="px-5 pb-6 text-[13px] text-[#50575e]">
-          Thank you for creating with OpenPress.
+        <div className="op-screen px-5 py-2">{children}</div>
+        <footer className="flex items-center justify-between px-5 py-5 text-[13px] text-[#50575e]">
+          <span>Thank you for creating with OpenPress.</span>
+          <span>Version 0.1.0</span>
         </footer>
       </div>
     </div>
@@ -519,7 +500,7 @@ function MenuBranch({
         onClick={() => onHash(hashOf(entry.href))}
         className={cn(
           'flex h-[34px] items-center text-[13px] no-underline hover:text-[#72aee6]',
-          sectionOn ? 'bg-[#2271b1] text-white hover:text-white' : 'text-[#f0f0f1]',
+          sectionOn ? 'is-current bg-[#2271b1] text-white hover:text-white' : 'text-[#f0f0f1]',
         )}
       >
         <span className="grid w-9 shrink-0 place-items-center">
@@ -542,7 +523,10 @@ function MenuBranch({
       {inline ? (
         <Submenu entry={entry} pathname={pathname} hash={hash} onHash={onHash} />
       ) : fly ? (
-        <div className="fixed z-50 min-w-40 shadow-lg" style={{ top: fly.top, left: fly.left }}>
+        <div className="fixed z-50 min-w-40 bg-[#2c3338] py-1 shadow-lg" style={{ top: fly.top, left: fly.left }}>
+          <Link href={entry.href} className="block px-3 py-1.5 text-[13px] font-semibold text-white no-underline">
+            {entry.label}
+          </Link>
           <Submenu entry={entry} pathname={pathname} hash={hash} onHash={onHash} />
         </div>
       ) : null}
@@ -562,7 +546,7 @@ function Submenu({
   onHash: (hash: string) => void;
 }) {
   return (
-    <ul className="bg-[#2c3338] py-1">
+    <ul className="op-submenu bg-[#2c3338] py-1">
       {entry.children.map((child) => {
         const on = linkActive(pathname, hash, child);
         return (
@@ -571,8 +555,8 @@ function Submenu({
               href={child.href}
               onClick={() => onHash(hashOf(child.href))}
               className={cn(
-                'block px-3 py-1.5 text-[13px] no-underline',
-                on ? 'font-semibold text-white' : 'text-[#c3c4c7] hover:text-white',
+                'block text-[13px] no-underline',
+                on ? 'is-current text-white' : 'text-[#c3c4c7] hover:text-[#72aee6]',
               )}
             >
               {child.label}

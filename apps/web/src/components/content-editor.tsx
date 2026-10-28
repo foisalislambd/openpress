@@ -5,20 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Category, Content, Tag } from '@openpress/shared';
 import { api } from '@/lib/client-api';
-import {
-  Badge,
-  Button,
-  Card,
-  Input,
-  Label,
-  Select,
-  Textarea,
-  statusBadgeColor,
-} from '@/components/ui';
+import { Button, Input, Label, Textarea } from '@/components/ui';
+import { Notice } from '@/components/admin/screen';
 
 const BlockEditor = dynamic(
   () => import('@/components/block-editor').then((m) => m.BlockEditor),
-  { ssr: false, loading: () => <div className="min-h-[420px] rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-400">Loading editor...</div> },
+  { ssr: false, loading: () => <div className="min-h-[420px] border border-[#c3c4c7] bg-white p-6 text-[13px] text-[#646970]">Loading editor…</div> },
 );
 
 export function ContentEditor({
@@ -111,71 +103,69 @@ export function ContentEditor({
     return <div className="text-zinc-400">Loading...</div>;
   }
 
+  const noun = type === 'POST' ? 'Post' : 'Page';
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">
-            {contentId ? 'Edit' : 'New'} {type === 'POST' ? 'post' : 'page'}
-          </h1>
-          {existing ? (
-            <Badge color={statusBadgeColor(existing.status)}>{existing.status}</Badge>
-          ) : null}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
-            Save draft
-          </Button>
-          <Button disabled={saving} onClick={() => save('PUBLISHED')}>
-            {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
-          </Button>
-        </div>
-      </div>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-        <div className="space-y-4">
+      <h1>
+        {contentId ? 'Edit' : 'Add'} {noun}
+        {existing ? <span className="ml-2 text-[13px] text-[#646970]">{existing.status}</span> : null}
+      </h1>
+      <hr className="op-header-end" />
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-3">
           <Input
-            placeholder="Title"
+            placeholder="Add title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="!text-2xl font-bold"
+            className="!px-3 !py-2 !text-[1.7em] !font-normal"
           />
           <BlockEditor initialBlocks={blocks} onChange={setBlocks} />
         </div>
-        <div className="space-y-4">
-          <Card className="space-y-4 !p-4">
-            <div>
-              <Label>Slug</Label>
-              <Input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder="auto-generated"
-              />
+        <div className="space-y-3">
+          <div className="op-postbox">
+            <h2 className="px-3 py-2">Publish</h2>
+            <div className="space-y-2 p-3 text-[13px]">
+              <p>
+                Status: <strong>{existing?.status ?? 'DRAFT'}</strong>
+              </p>
+              <p>
+                Visibility: <strong>{existing?.status === 'PUBLISHED' ? 'Public' : 'Not published'}</strong>
+              </p>
+              <div className="flex gap-2 border-t border-[#dcdcde] pt-3">
+                <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
+                  Save Draft
+                </Button>
+                <Button disabled={saving} onClick={() => save('PUBLISHED')}>
+                  {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
+                </Button>
+              </div>
             </div>
-            <div>
-              <Label>Excerpt</Label>
-              <Textarea
-                rows={3}
-                value={excerpt}
-                onChange={(e) => setExcerpt(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Cover image URL</Label>
-              <Input
-                value={coverImage}
-                onChange={(e) => setCoverImage(e.target.value)}
-                placeholder="/uploads/..."
-              />
-            </div>
-          </Card>
-          {type === 'POST' ? (
-            <Card className="space-y-4 !p-4">
+          </div>
+          <div className="border border-[#c3c4c7] bg-white">
+            <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">Permalink</h2>
+            <div className="space-y-3 p-3">
               <div>
-                <Label>Categories</Label>
-                <div className="space-y-1">
+                <Label>Slug</Label>
+                <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="auto-generated" />
+              </div>
+              <div>
+                <Label>Excerpt</Label>
+                <Textarea rows={3} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} />
+              </div>
+              <div>
+                <Label>Cover image URL</Label>
+                <Input value={coverImage} onChange={(e) => setCoverImage(e.target.value)} placeholder="/uploads/..." />
+              </div>
+            </div>
+          </div>
+          {type === 'POST' ? (
+            <div className="border border-[#c3c4c7] bg-white">
+              <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">Categories and tags</h2>
+              <div className="space-y-3 p-3">
+                <div className="max-h-40 space-y-1 overflow-auto">
                   {categories.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm">
+                    <label key={c.id} className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={categoryIds.includes(c.id)}
@@ -190,55 +180,41 @@ export function ContentEditor({
                       {c.name}
                     </label>
                   ))}
-                  {categories.length === 0 ? (
-                    <p className="text-xs text-zinc-400">No categories yet.</p>
-                  ) : null}
+                  {categories.length === 0 ? <p className="op-description">No categories yet.</p> : null}
                 </div>
+                <div className="max-h-40 space-y-1 overflow-auto">
+                  {tags.map((t) => (
+                    <label key={t.id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={tagIds.includes(t.id)}
+                        onChange={(e) =>
+                          setTagIds(
+                            e.target.checked ? [...tagIds, t.id] : tagIds.filter((id) => id !== t.id),
+                          )
+                        }
+                      />
+                      {t.name}
+                    </label>
+                  ))}
+                  {tags.length === 0 ? <p className="op-description">No tags yet.</p> : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div className="border border-[#c3c4c7] bg-white">
+            <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">SEO</h2>
+            <div className="space-y-3 p-3">
+              <div>
+                <Label>SEO title</Label>
+                <Input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} />
               </div>
               <div>
-                <Label>Tags</Label>
-                <div className="flex flex-wrap gap-1">
-                  {tags.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() =>
-                        setTagIds(
-                          tagIds.includes(t.id)
-                            ? tagIds.filter((id) => id !== t.id)
-                            : [...tagIds, t.id],
-                        )
-                      }
-                      className={
-                        tagIds.includes(t.id)
-                          ? 'rounded-full bg-indigo-600 px-2.5 py-0.5 text-xs text-white'
-                          : 'rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 hover:bg-zinc-200'
-                      }
-                    >
-                      {t.name}
-                    </button>
-                  ))}
-                  {tags.length === 0 ? (
-                    <p className="text-xs text-zinc-400">No tags yet.</p>
-                  ) : null}
-                </div>
+                <Label>SEO description</Label>
+                <Textarea rows={3} value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} />
               </div>
-            </Card>
-          ) : null}
-          <Card className="space-y-4 !p-4">
-            <div>
-              <Label>SEO title</Label>
-              <Input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} />
             </div>
-            <div>
-              <Label>SEO description</Label>
-              <Textarea
-                rows={3}
-                value={seoDescription}
-                onChange={(e) => setSeoDescription(e.target.value)}
-              />
-            </div>
-          </Card>
+          </div>
         </div>
       </div>
     </div>

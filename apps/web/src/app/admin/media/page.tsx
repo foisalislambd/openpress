@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Media } from '@openpress/shared';
 import { api } from '@/lib/client-api';
-import { Button, Card } from '@/components/ui';
+import { Button } from '@/components/ui';
+import { Notice, Screen } from '@/components/admin/screen';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -66,27 +67,25 @@ export default function MediaPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Media library</h1>
-        <div>
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            accept="image/*,video/*,application/pdf"
-            className="hidden"
-            onChange={(e) => upload(e.target.files)}
-          />
-          <Button id="upload" disabled={uploading} onClick={() => fileRef.current?.click()}>
-            {uploading ? 'Uploading...' : 'Upload files'}
-          </Button>
-        </div>
+    <Screen title="Media Library" action={{ href: '/admin/media/new', label: 'Add New Media File' }}>
+      <div className="op-tablenav">
+        <input
+          ref={fileRef}
+          id="upload"
+          type="file"
+          multiple
+          accept="image/*,video/*,application/pdf"
+          className="hidden"
+          onChange={(e) => upload(e.target.files)}
+        />
+        <Button disabled={uploading} onClick={() => fileRef.current?.click()}>
+          {uploading ? 'Uploading…' : 'Upload'}
+        </Button>
       </div>
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      <div className="op-media-grid">
         {items.map((m) => (
-          <Card key={m.id} className="group relative overflow-hidden !p-0">
+          <div key={m.id} className="op-media-tile">
             {m.mimeType.startsWith('image/') ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -95,34 +94,23 @@ export default function MediaPage() {
                 className="aspect-square w-full object-cover"
               />
             ) : (
-              <div className="flex aspect-square items-center justify-center bg-zinc-100 p-4 text-center text-xs text-zinc-500">
+              <div className="flex aspect-square items-center justify-center bg-[#f6f7f7] p-2 text-center text-[11px]">
+                <span className="dashicons dashicons-media-default" aria-hidden />
                 {m.filename}
               </div>
             )}
-            <div className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-              <button
-                className="text-xs font-medium text-white hover:underline"
-                onClick={() => {
-                  navigator.clipboard.writeText(m.url);
-                }}
-              >
+            <div className="op-media-actions">
+              <button type="button" onClick={() => navigator.clipboard.writeText(m.url)}>
                 Copy URL
               </button>
-              <button
-                className="text-xs font-medium text-red-300 hover:underline"
-                onClick={() => remove(m.id)}
-              >
+              <button type="button" onClick={() => remove(m.id)}>
                 Delete
               </button>
             </div>
-          </Card>
+          </div>
         ))}
-        {items.length === 0 ? (
-          <p className="col-span-full py-10 text-center text-zinc-500">
-            No media uploaded yet.
-          </p>
-        ) : null}
       </div>
-    </div>
+      {items.length === 0 ? <p>No media files found.</p> : null}
+    </Screen>
   );
 }

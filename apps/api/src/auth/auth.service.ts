@@ -81,6 +81,29 @@ export class AuthService {
     }
   }
 
+  async updateProfile(
+    userId: string,
+    input: { name?: string; bio?: string; password?: string },
+  ) {
+    const data: { name?: string; bio?: string; passwordHash?: string } = {};
+    if (input.name) data.name = input.name;
+    if (input.bio !== undefined) data.bio = input.bio;
+    if (input.password) data.passwordHash = await bcrypt.hash(input.password, 10);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        bio: true,
+        createdAt: true,
+      },
+    });
+  }
+
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

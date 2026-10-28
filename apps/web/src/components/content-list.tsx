@@ -1,149 +1,290 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { Content, Paginated } from '@openpress/shared';
 import { api } from '@/lib/client-api';
-import { Badge, Button, Input, Select, statusBadgeColor } from '@/components/ui';
+import { Button, Input, Select } from '@/components/ui';
+import { Screen } from '@/components/admin/screen';
+
+const FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'PUBLISHED', label: 'Published' },
+  { value: 'DRAFT', label: 'Drafts' },
+  { value: 'SCHEDULED', label: 'Scheduled' },
+  { value: 'TRASHED', label: 'Trash' },
+];
+
+function statusLabel(status: string) {
+  if (status === 'PUBLISHED') return '';
+  if (status === 'TRASHED') return 'Trash';
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
+function when(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
   const [data, setData] = useState<Paginated<Content> | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulk, setBulk] = useState('trash');
+  const [actionError, setActionError] = useState('');
   const label = type === 'POST' ? 'Posts' : 'Pages';
   const base = type === 'POST' ? '/admin/posts' : '/admin/pages';
 
   const load = useCallback(() => {
-    const qs = new URLSearchParams({ type, page: String(page), perPage: '15' });
+    const qs = new URLSearchParams({ type, page: String(page), perPage: '20' });
     if (status) qs.set('status', status);
-    if (search) qs.set('search', search);
-    api<Paginated<Content>>(`/content?${qs}`).then(setData).catch(() => {});
-  }, [type, page, status, search]);
+    if (query) qs.set('search', query);
+    api<Paginated<Content>>(`/content?${qs}`)
+      .then((result) => {
+        setData(result);
+        if (result.items.length === 0 && page > 1) setPage(page - 1);
+      })
+      .catch(() => {});
+    setSelected([]);
+    Promise.all(
+      FILTERS.map(async (filter) => {
+        const countQs = new URLSearchParams({ type, page: '1', perPage: '1' });
+        if (filter.value) countQs.set('status', filter.value);
+        const result = await api<Paginated<Content>>(`/content?${countQs}`);
+        return [filter.value, result.total] as const;
+      }),
+    )
+      .then((rows) => setCounts(Object.fromEntries(rows)))
+      .catch(() => {});
+  }, [type, page, status, query]);
 
   useEffect(load, [load]);
 
-  async function remove(id: string) {
-    if (!confirm('Delete this item permanently?')) return;
-    await api(`/content/${id}`, { method: 'DELETE' });
+  useEffect(() => {
+    setBulk(status === 'TRASHED' ? 'restore' : 'trash');
+  }, [status]);
+
+  async function applyBulk() {
+    if (selected.length === 0) return;
+    if (bulk === 'delete' && !confirm(`Delete ${selected.length} item(s) permanently?`)) return;
+    setActionError('');
+    const nextStatus = bulk === 'restore' ? 'DRAFT' : 'TRASHED';
+    const results = await Promise.allSettled(
+      selected.map((id) =>
+        bulk === 'delete'
+          ? api(`/content/${id}`, { method: 'DELETE' })
+          : api(`/content/${id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ status: nextStatus }),
+            }),
+      ),
+    );
+    const failed = results.filter((result) => result.status === 'rejected').length;
+    if (failed > 0) {
+      setActionError(`${failed} of ${selected.length} item(s) could not be updated.`);
+    }
     load();
   }
 
+  function searchSubmit(event: FormEvent) {
+    event.preventDefault();
+    setPage(1);
+    setQuery(search.trim());
+  }
+
+  const ids = data?.items.map((item) => item.id) ?? [];
+  const allOn = ids.length > 0 && ids.every((id) => selected.includes(id));
+
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{label}</h1>
-        <Link href={`${base}/new`}>
-          <Button>New {type === 'POST' ? 'post' : 'page'}</Button>
-        </Link>
+    <Screen title={label} action={{ href: `${base}/new`, label: type === 'POST' ? 'Add Post' : 'Add Page' }}>
+      {actionError ? (
+        <div className="op-notice is-error">
+          <p>{actionError}</p>
+        </div>
+      ) : null}
+      <ul className="op-subsubsub">
+        {FILTERS.map((filter) => (
+          <li key={filter.value || 'all'}>
+            <button
+              type="button"
+              className={status === filter.value ? 'is-current' : undefined}
+              onClick={() => {
+                setStatus(filter.value);
+                setPage(1);
+              }}
+            >
+              {filter.label}{' '}
+              <span className={status === filter.value ? '' : 'op-status'}>({counts[filter.value] ?? 0})</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="op-tablenav">
+        <div className="op-bulk">
+          <Select value={bulk} onChange={(e) => setBulk(e.target.value)}>
+            {status === 'TRASHED' ? <option value="restore">Restore</option> : <option value="trash">Move to Trash</option>}
+            <option value="delete">Delete permanently</option>
+          </Select>
+          <Button type="button" variant="secondary" disabled={selected.length === 0} onClick={applyBulk}>
+            Apply
+          </Button>
+          <span>{data ? `${data.total} items` : ''}</span>
+        </div>
+        <form className="op-search" onSubmit={searchSubmit}>
+          <Input placeholder={`Search ${label}`} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Button type="submit" variant="secondary">
+            Search {label}
+          </Button>
+        </form>
       </div>
-      <div className="mb-4 flex gap-3">
-        <Input
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className="max-w-xs"
-        />
-        <Select
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(1);
-          }}
-          className="max-w-[160px]"
-        >
-          <option value="">All statuses</option>
-          <option value="PUBLISHED">Published</option>
-          <option value="DRAFT">Draft</option>
-          <option value="SCHEDULED">Scheduled</option>
-          <option value="TRASHED">Trashed</option>
-        </Select>
-      </div>
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-            <tr>
-              <th className="px-4 py-3">Title</th>
-              <th className="px-4 py-3">Author</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {data?.items.map((item) => (
-              <tr key={item.id} className="hover:bg-zinc-50">
-                <td className="px-4 py-3">
-                  <Link
-                    href={`${base}/${item.id}`}
-                    className="font-medium text-zinc-900 hover:text-indigo-600"
-                  >
-                    {item.title}
+      <table className="op-list">
+        <thead>
+          <tr>
+            <th className="op-cb">
+              <input
+                type="checkbox"
+                checked={allOn}
+                onChange={(e) => setSelected(e.target.checked ? ids : [])}
+                aria-label="Select all"
+              />
+            </th>
+            <th>Title</th>
+            <th>Author</th>
+            {type === 'POST' ? (
+              <>
+                <th>Categories</th>
+                <th>Tags</th>
+                <th className="op-col-comments">
+                  <span className="dashicons dashicons-admin-comments" title="Comments" />
+                </th>
+              </>
+            ) : null}
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data?.items.map((item) => {
+            const labelText = statusLabel(item.status);
+            const dateValue = item.status === 'PUBLISHED' ? item.publishedAt ?? item.updatedAt : item.updatedAt;
+            return (
+              <tr key={item.id}>
+                <td className="op-cb">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(item.id)}
+                    onChange={(e) =>
+                      setSelected(
+                        e.target.checked ? [...selected, item.id] : selected.filter((id) => id !== item.id),
+                      )
+                    }
+                    aria-label={`Select ${item.title}`}
+                  />
+                </td>
+                <td>
+                  <Link className="op-row-title" href={`${base}/${item.id}`}>
+                    {item.title || '(no title)'}
                   </Link>
-                  <div className="text-xs text-zinc-400">/{item.slug}</div>
-                </td>
-                <td className="px-4 py-3 text-zinc-600">{item.author?.name}</td>
-                <td className="px-4 py-3">
-                  <Badge color={statusBadgeColor(item.status)}>{item.status}</Badge>
-                </td>
-                <td className="px-4 py-3 text-zinc-500">
-                  {new Date(item.updatedAt).toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-3 text-xs">
+                  {labelText ? <span className="op-status"> — {labelText}</span> : null}
+                  <div className="op-row-actions">
+                    <Link href={`${base}/${item.id}`}>Edit</Link>
+                    {' | '}
                     {item.status === 'PUBLISHED' ? (
-                      <a
-                        href={`/${item.slug}`}
-                        target="_blank"
-                        className="text-zinc-500 hover:text-indigo-600"
-                      >
-                        View
-                      </a>
+                      <>
+                        <a href={`/${item.slug}`} target="_blank" rel="noreferrer">
+                          View
+                        </a>
+                        {' | '}
+                      </>
                     ) : null}
+                    {item.status === 'TRASHED' ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await api(`/content/${item.id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: 'DRAFT' }),
+                          });
+                          load();
+                        }}
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await api(`/content/${item.id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: 'TRASHED' }),
+                          });
+                          load();
+                        }}
+                      >
+                        Trash
+                      </button>
+                    )}
+                    {' | '}
                     <button
-                      onClick={() => remove(item.id)}
-                      className="text-zinc-500 hover:text-red-600"
+                      type="button"
+                      className="is-delete"
+                      onClick={async () => {
+                        if (!confirm('Delete this item permanently?')) return;
+                        await api(`/content/${item.id}`, { method: 'DELETE' });
+                        load();
+                      }}
                     >
-                      Delete
+                      Delete permanently
                     </button>
                   </div>
                 </td>
-              </tr>
-            ))}
-            {data && data.items.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
-                  Nothing here yet.
+                <td>{item.author?.name}</td>
+                {type === 'POST' ? (
+                  <>
+                    <td>{item.categories?.map((category) => category.name).join(', ') || '—'}</td>
+                    <td>{item.tags?.map((tag) => tag.name).join(', ') || '—'}</td>
+                    <td className="op-col-comments">{item._count?.comments ?? 0}</td>
+                  </>
+                ) : null}
+                <td>
+                  {item.status === 'PUBLISHED' ? 'Published' : 'Last Modified'}
+                  <br />
+                  {when(dateValue)}
                 </td>
               </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+          {data && data.items.length === 0 ? (
+            <tr>
+              <td colSpan={type === 'POST' ? 7 : 4}>No {label.toLowerCase()} found.</td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
       {data && data.totalPages > 1 ? (
-        <div className="mt-4 flex items-center justify-center gap-4 text-sm">
-          <Button
-            variant="secondary"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous
+        <div className="op-tablenav">
+          <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            ‹
           </Button>
-          <span className="text-zinc-500">
-            Page {data.page} of {data.totalPages}
+          <span>
+            {data.page} of {data.totalPages}
           </span>
-          <Button
-            variant="secondary"
-            disabled={page >= data.totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
+          <Button variant="secondary" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>
+            ›
           </Button>
         </div>
       ) : null}
-    </div>
+    </Screen>
   );
 }

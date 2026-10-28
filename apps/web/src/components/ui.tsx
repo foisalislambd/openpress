@@ -17,16 +17,16 @@ export function Button({
 }) {
   const variants = {
     primary:
-      'bg-indigo-600 text-white hover:bg-indigo-500 disabled:bg-indigo-300',
+      'border-[#2271b1] bg-[#2271b1] text-white hover:border-[#135e96] hover:bg-[#135e96]',
     secondary:
-      'border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50',
-    ghost: 'text-zinc-600 hover:bg-zinc-100',
-    danger: 'bg-red-600 text-white hover:bg-red-500',
+      'border-[#2271b1] bg-[#f6f7f7] text-[#2271b1] hover:border-[#0a4b78] hover:bg-[#f0f0f1] hover:text-[#0a4b78]',
+    ghost: 'border-transparent bg-transparent text-[#2271b1] hover:text-[#135e96]',
+    danger: 'border-[#d63638] bg-[#d63638] text-white hover:bg-[#b32d2e]',
   };
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        'inline-flex min-h-[30px] items-center justify-center gap-1 rounded-[3px] border px-3 text-[13px] leading-none font-normal disabled:cursor-not-allowed disabled:opacity-60',
         variants[variant],
         className,
       )}
@@ -42,7 +42,7 @@ export function Input({
   return (
     <input
       className={cn(
-        'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100',
+        'w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-1 text-[14px] text-[#2c3338] outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]',
         className,
       )}
       {...props}
@@ -57,7 +57,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100',
+        'w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-1 text-[14px] text-[#2c3338] outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]',
         className,
       )}
       {...props}
@@ -72,7 +72,7 @@ export function Select({
   return (
     <select
       className={cn(
-        'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500',
+        'max-w-full rounded-[4px] border border-[#8c8f94] bg-white px-2 py-0 text-[14px] text-[#2c3338] min-h-[30px] outline-none focus:border-[#2271b1] focus:shadow-[0_0_0_1px_#2271b1]',
         className,
       )}
       {...props}
@@ -86,7 +86,7 @@ export function Label({
 }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
-      className={cn('mb-1 block text-sm font-medium text-zinc-700', className)}
+      className={cn('mb-1 block text-[14px] font-normal text-[#1d2327]', className)}
       {...props}
     />
   );
@@ -99,7 +99,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-xl border border-zinc-200 bg-white p-6 shadow-sm',
+        'border border-[#c3c4c7] bg-white p-3 shadow-[0_1px_1px_rgba(0,0,0,0.04)]',
         className,
       )}
       {...props}
@@ -124,7 +124,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
+        'inline-flex rounded-[2px] px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
         colors[color],
       )}
     >

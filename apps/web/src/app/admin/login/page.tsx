@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { api, setTokens } from '@/lib/client-api';
-import { Button, Card, Input, Label } from '@/components/ui';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,64 +37,50 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-100 px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-center text-2xl font-extrabold tracking-tight">
-          Open<span className="text-indigo-600">Press</span>
-        </h1>
-        <p className="mb-6 text-center text-sm text-zinc-500">
-          {mode === 'login' ? 'Sign in to your dashboard' : 'Create your account'}
-        </p>
-        <form onSubmit={submit} className="space-y-4">
+    <div className="op-login">
+      <div className="op-login-box">
+        <a className="op-login-logo" href="/" style={{ fontSize: 20, lineHeight: '84px' }}>
+          OpenPress
+        </a>
+        <form onSubmit={submit}>
           {mode === 'register' ? (
-            <div>
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
+            <>
+              <label htmlFor="name">Name</label>
+              <input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+            </>
           ) : null}
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading
-              ? 'Please wait...'
-              : mode === 'login'
-                ? 'Sign in'
-                : 'Create account'}
-          </Button>
+          <label htmlFor="email">Email</label>
+          <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <label htmlFor="password">Password</label>
+          <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          {error ? <p style={{ color: '#d63638' }}>{error}</p> : null}
+          <p className="op-login-submit">
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                float: 'right',
+                minHeight: 32,
+                padding: '0 12px',
+                border: '1px solid #2271b1',
+                borderRadius: 3,
+                background: '#2271b1',
+                color: '#fff',
+                fontSize: 13,
+              }}
+            >
+              {loading ? 'Please wait…' : mode === 'login' ? 'Log In' : 'Register'}
+            </button>
+          </p>
         </form>
-        <button
-          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-          className="mt-4 w-full text-center text-sm text-indigo-600 hover:underline"
-        >
-          {mode === 'login'
-            ? 'First time? Create the admin account'
-            : 'Already have an account? Sign in'}
-        </button>
-      </Card>
+        <p className="op-login-nav">
+          <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+            {mode === 'login' ? 'Register' : 'Log in'}
+          </button>
+          {' | '}
+          <a href="/">← Go to OpenPress</a>
+        </p>
+      </div>
     </div>
   );
 }

@@ -34,7 +34,7 @@ export function BlockEditor({
   }, [editor]);
 
   return (
-    <div className="min-h-[420px] rounded-xl border border-zinc-200 bg-white py-4">
+    <div className="min-h-[420px] border border-[#c3c4c7] bg-white py-4">
       <BlockNoteView
         editor={editor as BlockNoteEditor}
         theme="light"
