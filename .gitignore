@@ -15,3 +15,4 @@ apps/api/themes-store/
 # Built-in themes: only default is in the repo; others are uploaded or local
 packages/themes/*
 !packages/themes/default/
+/wordpress-develop/
