@@ -260,6 +260,12 @@
   color: #135e96;
 }
 
+.op-menu {
+  scrollbar-width: none;
+}
+.op-menu::-webkit-scrollbar {
+  display: none;
+}
 .op-menu .dashicons {
   width: 20px;
   height: 20px;
