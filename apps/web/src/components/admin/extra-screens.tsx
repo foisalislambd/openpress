@@ -371,6 +371,16 @@ export function ProfileScreen() {
 
 export function AddUserScreen() {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'AUTHOR' });
+  useEffect(() => {
+    api<SiteSettings>('/settings')
+      .then((settings) => {
+        const role = String(settings.defaultRole ?? 'AUTHOR');
+        if (role === 'ADMIN' || role === 'EDITOR' || role === 'AUTHOR') {
+          setForm((current) => ({ ...current, role }));
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
@@ -870,6 +880,145 @@ export function PrivacySettings() {
   );
 }
 
-export function GeneralExtras() {
-  return null;
+type WidgetItem = { id: string; type: string; title: string; text?: string };
+type WidgetAreas = { sidebar: WidgetItem[]; footer: WidgetItem[] };
+
+const WIDGET_TYPES = [
+  { type: 'search', title: 'Search' },
+  { type: 'recent-posts', title: 'Recent Posts' },
+  { type: 'recent-comments', title: 'Recent Comments' },
+  { type: 'categories', title: 'Categories' },
+  { type: 'text', title: 'Text' },
+];
+
+export function WidgetsScreen() {
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [areas, setAreas] = useState<WidgetAreas>({ sidebar: [], footer: [] });
+  const [saved, setSaved] = useState(false);
+  const [area, setArea] = useState<'sidebar' | 'footer'>('sidebar');
+
+  useEffect(() => {
+    api<SiteSettings>('/settings')
+      .then((loaded) => {
+        setSettings(loaded);
+        const stored = loaded.widgets as WidgetAreas | undefined;
+        setAreas({
+          sidebar: Array.isArray(stored?.sidebar) ? stored.sidebar : [],
+          footer: Array.isArray(stored?.footer) ? stored.footer : [],
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  async function save(next: WidgetAreas = areas) {
+    if (!settings) return;
+    const updated = await api<SiteSettings>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ ...settings, widgets: next }),
+    });
+    setSettings(updated);
+    setAreas(next);
+    setSaved(true);
+  }
+
+  return (
+    <Screen
+      title="Widgets"
+      help="Add widgets to the sidebar or footer, then save. Titles and text widgets stay in site settings."
+    >
+      {saved ? <Notice kind="success">Widgets saved.</Notice> : null}
+      <div className="op-split">
+        <div className="op-postbox">
+          <h2 className="px-3 py-2">Available widgets</h2>
+          <ul className="divide-y divide-[#dcdcde]">
+            {WIDGET_TYPES.map((widget) => (
+              <li key={widget.type} className="flex items-center justify-between px-3 py-2">
+                <span>{widget.title}</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!settings}
+                  onClick={() =>
+                    save({
+                      ...areas,
+                      [area]: [
+                        ...areas[area],
+                        { id: `${widget.type}-${Date.now()}`, type: widget.type, title: widget.title, text: '' },
+                      ],
+                    })
+                  }
+                >
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div className="op-tablenav">
+            <Select value={area} onChange={(e) => setArea(e.target.value as 'sidebar' | 'footer')}>
+              <option value="sidebar">Sidebar</option>
+              <option value="footer">Footer</option>
+            </Select>
+          </div>
+          {areas[area].length === 0 ? <p>This area has no widgets.</p> : null}
+          <div className="space-y-3">
+            {areas[area].map((widget, index) => (
+              <div key={widget.id} className="op-postbox">
+                <h2 className="flex items-center justify-between px-3 py-2">
+                  {widget.title}
+                  <button
+                    type="button"
+                    className="text-[13px] font-normal text-[#b32d2e]"
+                    onClick={() =>
+                      save({
+                        ...areas,
+                        [area]: areas[area].filter((_, i) => i !== index),
+                      })
+                    }
+                  >
+                    Delete
+                  </button>
+                </h2>
+                <div className="space-y-2 p-3">
+                  <Label>Title</Label>
+                  <Input
+                    value={widget.title}
+                    onChange={(e) => {
+                      const list = areas[area].map((item, i) =>
+                        i === index ? { ...item, title: e.target.value } : item,
+                      );
+                      setAreas({ ...areas, [area]: list });
+                      setSaved(false);
+                    }}
+                  />
+                  {widget.type === 'text' ? (
+                    <>
+                      <Label>Content</Label>
+                      <Textarea
+                        rows={3}
+                        value={widget.text ?? ''}
+                        onChange={(e) => {
+                          const list = areas[area].map((item, i) =>
+                            i === index ? { ...item, text: e.target.value } : item,
+                          );
+                          setAreas({ ...areas, [area]: list });
+                          setSaved(false);
+                        }}
+                      />
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3">
+            <Button type="button" disabled={!settings} onClick={() => save()}>
+              Save Widgets
+            </Button>
+          </p>
+        </div>
+      </div>
+    </Screen>
+  );
 }

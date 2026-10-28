@@ -161,13 +161,11 @@ export default function DashboardPage() {
       ) : null}
 
       {welcome ? (
-        <section className="mb-4 border border-[#c3c4c7] bg-white">
-          <div className="flex items-start justify-between gap-4 bg-[#1d2327] px-5 py-4 text-white">
+        <section className="op-welcome">
+          <div className="op-welcome-header">
             <div>
-              <h2 className="text-xl font-normal">Welcome to OpenPress</h2>
-              <p className="mt-1 max-w-xl text-[13px] text-[#dcdcde]">
-                Posts, pages, media, and comments for this site are managed from here.
-              </p>
+              <h2>Welcome to OpenPress</h2>
+              <p>Posts, pages, media, and comments for this site are managed from here.</p>
             </div>
             <button
               type="button"
@@ -180,7 +178,7 @@ export default function DashboardPage() {
               Dismiss
             </button>
           </div>
-          <div className="grid gap-6 px-5 py-4 text-[13px] md:grid-cols-3">
+          <div className="op-welcome-cols">
             <div>
               <h3 className="mb-2 font-semibold">Get started</h3>
               <ul className="space-y-1">

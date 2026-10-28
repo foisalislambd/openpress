@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export default function MediaPage() {
   const [items, setItems] = useState<Media[]>([]);
+  const [selected, setSelected] = useState<Media | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -63,6 +64,7 @@ export default function MediaPage() {
   async function remove(id: string) {
     if (!confirm('Delete this file?')) return;
     await api(`/media/${id}`, { method: 'DELETE' });
+    setSelected((current) => (current?.id === id ? null : current));
     load();
   }
 
@@ -83,9 +85,15 @@ export default function MediaPage() {
         </Button>
       </div>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
       <div className="op-media-grid">
         {items.map((m) => (
-          <div key={m.id} className="op-media-tile">
+          <div
+            key={m.id}
+            className="op-media-tile"
+            style={selected?.id === m.id ? { outline: '2px solid #2271b1' } : undefined}
+            onClick={() => setSelected(m)}
+          >
             {m.mimeType.startsWith('image/') ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -100,15 +108,51 @@ export default function MediaPage() {
               </div>
             )}
             <div className="op-media-actions">
-              <button type="button" onClick={() => navigator.clipboard.writeText(m.url)}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  navigator.clipboard.writeText(m.url);
+                }}
+              >
                 Copy URL
               </button>
-              <button type="button" onClick={() => remove(m.id)}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  remove(m.id);
+                }}
+              >
                 Delete
               </button>
             </div>
           </div>
         ))}
+      </div>
+      <aside className="op-postbox">
+        <h2 className="px-3 py-2">Attachment details</h2>
+        <div className="space-y-2 p-3 text-[13px]">
+          {selected ? (
+            <>
+              <p className="break-all font-semibold">{selected.filename}</p>
+              <p className="op-description">{selected.mimeType}</p>
+              <p className="break-all">{selected.url}</p>
+              <p>
+                <button type="button" onClick={() => navigator.clipboard.writeText(selected.url)}>
+                  Copy URL
+                </button>
+                {' | '}
+                <button type="button" className="text-[#b32d2e]" onClick={() => remove(selected.id).then(() => setSelected(null))}>
+                  Delete permanently
+                </button>
+              </p>
+            </>
+          ) : (
+            <p className="op-description">Select a file to see its details.</p>
+          )}
+        </div>
+      </aside>
       </div>
       {items.length === 0 ? <p>No media files found.</p> : null}
     </Screen>

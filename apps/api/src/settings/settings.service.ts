@@ -26,7 +26,9 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   permalinkStructure: '/%postname%/',
   privacyPageId: null,
   defaultCategoryId: null,
+  defaultRole: 'AUTHOR',
   menus: [],
+  widgets: { sidebar: [], footer: [] },
 };
 
 // Only these keys can be written via the public settings API. Internal keys

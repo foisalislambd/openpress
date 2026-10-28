@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Input, Select, Textarea } from '@/components/ui';
 import { SettingsForm } from '@/components/admin/screen';
 
 export default function SettingsPage() {
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
   return (
     <SettingsForm title="General Settings">
       {(settings, set) => (
@@ -26,6 +29,13 @@ export default function SettingsPage() {
                 onChange={(e) => set({ siteDescription: e.target.value })}
               />
               <p className="op-description">In a few words, explain what this site is about.</p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">Site Address</th>
+            <td>
+              <Input value={origin} readOnly />
+              <p className="op-description">OpenPress serves the site from this address.</p>
             </td>
           </tr>
           <tr>
@@ -117,6 +127,19 @@ export default function SettingsPage() {
                 />
                 Anyone can register
               </label>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row">New User Default Role</th>
+            <td>
+              <Select
+                value={String(settings.defaultRole ?? 'AUTHOR')}
+                onChange={(e) => set({ defaultRole: e.target.value })}
+              >
+                <option value="AUTHOR">Author</option>
+                <option value="EDITOR">Editor</option>
+                <option value="ADMIN">Administrator</option>
+              </Select>
             </td>
           </tr>
         </>

@@ -16,6 +16,7 @@ interface PluginItem {
 
 export default function PluginsPage() {
   const [plugins, setPlugins] = useState<PluginItem[]>([]);
+  const [view, setView] = useState<'all' | 'active' | 'inactive'>('all');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -68,7 +69,11 @@ export default function PluginsPage() {
   }
 
   return (
-    <Screen title="Plugins" action={{ href: '/admin/plugins/new', label: 'Add Plugin' }}>
+    <Screen
+      title="Plugins"
+      action={{ href: '/admin/plugins/new', label: 'Add Plugin' }}
+      help="Active plugins run on the server. Deactivate one before you delete it if it is still handling a request."
+    >
       <input
         ref={fileRef}
         type="file"
@@ -80,6 +85,29 @@ export default function PluginsPage() {
         A plugin zip contains plugin.json and a main file that exports activate(ctx). Plugin code runs on the server, so only install plugins you trust.
       </p>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      <ul className="op-subsubsub">
+        {(
+          [
+            ['all', 'All'],
+            ['active', 'Active'],
+            ['inactive', 'Inactive'],
+          ] as const
+        ).map(([key, label]) => {
+          const count =
+            key === 'active'
+              ? plugins.filter((plugin) => plugin.enabled).length
+              : key === 'inactive'
+                ? plugins.filter((plugin) => !plugin.enabled).length
+                : plugins.length;
+          return (
+            <li key={key}>
+              <button type="button" className={view === key ? 'is-current' : undefined} onClick={() => setView(key)}>
+                {label} <span className="op-status">({count})</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
       <table className="op-list">
         <thead>
           <tr>
@@ -88,11 +116,13 @@ export default function PluginsPage() {
           </tr>
         </thead>
         <tbody>
-          {plugins.map((p) => (
+          {plugins
+            .filter((plugin) => view === 'all' || (view === 'active' ? plugin.enabled : !plugin.enabled))
+            .map((p) => (
             <tr key={p.id}>
               <td>
                 <span className="op-row-title">{p.name}</span>
-                <div className="op-row-actions" style={{ visibility: 'visible' }}>
+                <div className="op-row-actions">
                   <button type="button" disabled={busy} onClick={() => toggle(p.id)}>
                     {p.enabled ? 'Deactivate' : 'Activate'}
                   </button>

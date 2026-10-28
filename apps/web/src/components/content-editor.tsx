@@ -106,11 +106,25 @@ export function ContentEditor({
   const noun = type === 'POST' ? 'Post' : 'Page';
   return (
     <div>
-      <h1>
-        {contentId ? 'Edit' : 'Add'} {noun}
-        {existing ? <span className="ml-2 text-[13px] text-[#646970]">{existing.status}</span> : null}
-      </h1>
-      <hr className="op-header-end" />
+      <div className="op-editor-bar">
+        <strong>
+          {contentId ? 'Edit' : 'Add'} {noun}
+        </strong>
+        <span className="text-[#646970]">{existing?.status ?? 'DRAFT'}</span>
+        <span className="ml-auto flex gap-2">
+          {existing?.status === 'PUBLISHED' ? (
+            <a href={`/${existing.slug}`} target="_blank" rel="noreferrer">
+              View
+            </a>
+          ) : null}
+          <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
+            Save Draft
+          </Button>
+          <Button disabled={saving} onClick={() => save('PUBLISHED')}>
+            {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
+          </Button>
+        </span>
+      </div>
       {error ? <Notice kind="error">{error}</Notice> : null}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-3">

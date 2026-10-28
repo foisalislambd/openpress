@@ -113,6 +113,7 @@ const MENU: MenuEntry[] = [
     children: [
       { href: '/admin/themes', label: 'Themes', roles: ['ADMIN'], exact: true },
       { href: '/admin/appearance/customize', label: 'Customize', roles: ['ADMIN'], exact: true },
+      { href: '/admin/appearance/widgets', label: 'Widgets', roles: ['ADMIN'], exact: true },
       { href: '/admin/appearance/menus', label: 'Menus', roles: ['ADMIN'], exact: true },
       { href: '/admin/appearance/theme-editor', label: 'Theme File Editor', roles: ['ADMIN'], exact: true },
     ],
@@ -450,9 +451,9 @@ export function AdminShell({
         </button>
       </aside>
 
-      <div className={cn('pt-8', folded ? 'md:pl-9' : 'md:pl-40')}>
-        <div className="op-screen px-5 py-2">{children}</div>
-        <footer className="flex items-center justify-between px-5 py-5 text-[13px] text-[#50575e]">
+      <div className={cn('flex min-h-screen flex-col pt-8', folded ? 'md:pl-9' : 'md:pl-40')}>
+        <div className="op-screen flex-1 px-5 py-2">{children}</div>
+        <footer className="mt-8 flex items-center justify-between px-5 py-4 text-[13px] text-[#50575e]">
           <span>Thank you for creating with OpenPress.</span>
           <span>Version 0.1.0</span>
         </footer>
@@ -589,9 +590,14 @@ function BarMenu({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex h-8 items-center gap-1 px-3 hover:bg-[#2c3338]"
+        className="flex h-8 items-center gap-1 px-2 hover:bg-[#2c3338]"
       >
         {icon ? <Icon name={icon} /> : null}
+        {align === 'right' ? (
+          <span className="grid h-4 w-4 place-items-center rounded-full bg-[#50575e] text-[10px] uppercase text-white">
+            {label.replace(/^Howdy,\s*/, '').slice(0, 1)}
+          </span>
+        ) : null}
         <span className="max-w-40 truncate">{label}</span>
       </button>
       {open ? (

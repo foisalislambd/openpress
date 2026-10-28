@@ -129,8 +129,12 @@
   background: #f6f7f7;
 }
 .op-screen table.op-list .op-row-title {
+  color: #2271b1;
   font-size: 14px;
   font-weight: 600;
+}
+.op-screen table.op-list tbody tr:hover {
+  background: #f0f6fc;
 }
 .op-screen .op-row-actions {
   color: #646970;
@@ -390,6 +394,18 @@
   font-size: 16px;
   color: #646970;
   vertical-align: text-bottom;
+}
+.op-editor-bar {
+  position: sticky;
+  top: 32px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 -20px 12px;
+  padding: 8px 20px;
+  background: #fff;
+  border-bottom: 1px solid #dcdcde;
 }
 .op-screen-meta {
   float: right;

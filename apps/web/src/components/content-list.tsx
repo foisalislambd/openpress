@@ -108,7 +108,11 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
   const allOn = ids.length > 0 && ids.every((id) => selected.includes(id));
 
   return (
-    <Screen title={label} action={{ href: `${base}/new`, label: type === 'POST' ? 'Add Post' : 'Add Page' }}>
+    <Screen
+      title={label}
+      action={{ href: `${base}/new`, label: type === 'POST' ? 'Add Post' : 'Add Page' }}
+      help={`Search, filter by status, or move ${label.toLowerCase()} to the trash. Trash is separate from All.`}
+    >
       {actionError ? (
         <div className="op-notice is-error">
           <p>{actionError}</p>

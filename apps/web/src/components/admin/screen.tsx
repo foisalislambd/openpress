@@ -9,14 +9,29 @@ import { Button } from '@/components/ui';
 export function Screen({
   title,
   action,
+  help,
   children,
 }: {
   title: string;
   action?: { href: string; label: string };
+  help?: string;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <div>
+      {help ? (
+        <div className="op-screen-meta">
+          <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+            Help
+          </button>
+        </div>
+      ) : null}
+      {open && help ? (
+        <div className="op-screen-panel">
+          <p>{help}</p>
+        </div>
+      ) : null}
       <h1>
         {title}
         {action ? (
