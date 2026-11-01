@@ -1,286 +1,218 @@
 # OpenPress
 
-**A modern, open-source CMS — the WordPress experience rebuilt for developers.**
+**WordPress-shaped publishing, on a TypeScript monorepo you can actually extend.**
 
-OpenPress gives you familiar CMS power (posts, pages, media, themes, plugins, roles) on a **TypeScript stack** you actually want to maintain: NestJS, Next.js, PostgreSQL, and React.
+OpenPress is a self-hosted CMS for people who want posts, pages, media, themes, plugins, and roles without a PHP runtime. The admin follows WordPress concepts. The code is NestJS, Next.js, and PostgreSQL.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
----
+A site owner gets a public theme and an `/admin` panel. A developer gets typed hooks, a plugin manifest, and a REST API. A team moving off WordPress can import a WXR file today and follow the [parity roadmap](docs/wordpress-parity-roadmap.md) for what is still ahead, including a one-click migration.
 
-## What is OpenPress?
+## Why OpenPress instead of WordPress
 
-OpenPress is a **content management system** you can self-host. It ships with:
+| | WordPress | OpenPress |
+|---|---|---|
+| Stack | PHP and MySQL | TypeScript, NestJS, Next.js, PostgreSQL |
+| Themes | PHP templates | React layouts, or design tokens |
+| Plugins | `add_action` / `add_filter` in PHP, full process access | The same idea: `addAction` / `addFilter`, plus a `plugin.json` permission list and a core version range |
+| Admin | wp-admin | The same jobs: dashboard, editor, media, comments, appearance, plugins, users, tools, settings |
+| Data | Your server | Your server. MIT licensed. |
 
-- A **public website** (themes, posts, pages, archives)
-- An **admin panel** at `/admin` (dashboard, block editor, media library)
-- A **REST API** for headless use or integrations
-- **Theme & plugin systems** — extend the site without touching core code
-
-Think of it as **WordPress concepts + modern web architecture**.
-
----
-
-## Why OpenPress exists
-
-WordPress powers a huge part of the web — but for many teams the **cost of ownership** has grown:
-
-| Pain point | WordPress today | OpenPress approach |
-|------------|-----------------|-------------------|
-| Stack | PHP + MySQL, legacy patterns | TypeScript, NestJS, Next.js, PostgreSQL |
-| Frontend | Themes in PHP templates | **React components** — upload full code themes |
-| API | REST exists but ecosystem is fragmented | **API-first** from day one |
-| Performance | Plugins + PHP can slow sites | SSR/SSG with Next.js, lean core |
-| Developer experience | Hooks in PHP, mixed quality | **Typed** monorepo, SQL on PostgreSQL, modern tooling |
-| Security surface | Large plugin ecosystem risk | Smaller core; plugins are explicit server modules |
-| Hosting | Often shared hosting + wp-admin | Run on any Node + Postgres host (VPS, Docker, cloud) |
-
-**We built OpenPress** for developers and teams who want:
-
-- A **blog, marketing site, or content hub** without WordPress lock-in
-- **Full control** over frontend (React themes) and backend (NestJS modules)
-- **Open source** (MIT) — fork it, host it, sell services on top of it
-- A **learning foundation** for CMS architecture (auth, roles, hooks, themes)
-
-OpenPress is **not** trying to clone every WordPress feature on day one. It focuses on a **solid core** (content, users, media, themes, plugins) that you can grow with the community.
-
----
-
-## Who is it for?
-
-- **Developers** building client sites who prefer React/Node over PHP
-- **Startups** needing a self-hosted blog or docs site with an admin UI
-- **Agencies** shipping custom themes as zip packages (full React code)
-- **Learners** studying how a real CMS is structured (monorepo, API, extensions)
-- **Open-source contributors** who want a clear, modern codebase to improve
-
----
-
-## Key benefits
-
-| Benefit | What you get |
-|---------|----------------|
-| **Modern stack** | NestJS + Next.js 16 + React 19 + PostgreSQL — hire-friendly, well documented |
-| **Block editor** | Notion/Gutenberg-style editing (BlockNote) — no shortcode hell |
-| **Real theme system** | Upload themes as zip: token-based **or** full React components (`react-v1`) |
-| **Real plugin system** | Server plugins with hooks (`content.published`, `comment.created`, …) |
-| **Roles** | Admin / Editor / Author — same mental model as WordPress |
-| **Self-hosted** | Your data, your server, no SaaS lock-in |
-| **MIT license** | Use commercially, modify freely, no royalties |
-| **Monorepo** | One repo: API, web, shared types, default theme |
-| **Headless-ready** | Public site uses the API; you can build other clients on the same API |
-
----
+OpenPress is the right fit when the team already works in React and Node and wants WordPress habits (drafts, roles, menus, widgets, hooks) without adopting PHP. It is the wrong fit when you need the WordPress plugin directory, Gutenberg block plugins, or multisite today. Those are called out on the roadmap, not implied by the admin chrome.
 
 ## Features
 
-### Content
+**Content.** Posts and pages, block editor (BlockNote JSON), revisions, autosave that does not create a revision, drafts, scheduled publishing, trash, public / private / password visibility, sticky posts, excerpts, SEO fields, categories, tags, and custom fields.
 
-- **Posts & pages** — drafts, publish, schedule-ready schema, slugs, excerpts
-- **Block editor** — rich content stored as JSON blocks
-- **Revisions** — snapshot on each save
-- **SEO fields** — per post/page meta
-- **Categories & tags**
+**Media.** Uploads with an allow-list, alt text, captions, width and height, thumbnail / medium / large derivatives, and a numeric crop.
 
-### Media & community
+**Discussion.** Comments with moderation, open or closed per post, and a public comment form.
 
-- **Media library** — images, video, PDF (typed upload validation)
-- **Comments** — guests + logged-in users, moderation queue
+**People.** Admin, Editor, Author, Contributor, and Subscriber, with an explicit capability map. JWT access and refresh tokens. Application passwords for scripts (HTTP Basic). Registration stays off until an admin enables it.
 
-### Users & security
+**Appearance.** Default React theme, uploaded token themes and React themes, primary and footer menu locations, sidebar and footer widget areas.
 
-- **JWT auth** — access + refresh tokens
-- **Roles** — Admin, Editor, Author ([permissions guide](docs/roles-and-permissions.md))
-- **Rate limiting** — brute-force protection on login and comments
-- **Registration toggle** — first user is Admin; public signup optional
+**Plugins.** Zip install. Actions and filters. Opt-in permissions for the database, settings, admin menus, REST routes, assets, widgets, shortcodes, and editor blocks. See [docs/plugins.md](docs/plugins.md).
 
-### Extensions
+**Feeds and tools.** RSS at `/feed`, a sitemap at `/sitemap.xml`, public search, JSON export, and a WordPress WXR import/export subset.
 
-- **Themes** — built-in default + upload zip ([theme guide](docs/themes.md))
-  - `runtime-v1` — design tokens + CSS (quick themes)
-  - `react-v1` — your own JSX components, bundled on upload
-- **Plugins** — upload zip, hook into CMS events ([plugin guide](docs/plugins.md))
+## Screenshots
 
-### Admin panel
+Captured from a local run with demo posts, the default theme, and a plugin that declares its permissions.
 
-Dashboard, content editor, media, taxonomy, comments, users, settings, theme picker, plugin manager — all at `/admin`.
-
----
-
-## How themes & plugins work
-
-```
-Developer builds zip  →  Admin uploads  →  Stored on server  →  Live on site
-```
-
-| Extension | Stored in | In git? |
-|-----------|-----------|---------|
-| Default theme | `packages/themes/default/` | Yes |
-| Uploaded themes | `apps/api/themes-store/<id>/` | No |
-| Uploaded plugins | `apps/api/plugins/<id>/` | No |
-
-**Plugins** = server-side JavaScript (`activate(ctx)` with `hooks`, `db`, `logger`).  
-**Themes** = React layouts (`Layout`, `Home`, `Post`, `Page`, `Archive`) or token-based styling.
-
-Sample zips for testing: build your own or see the [plugins](docs/plugins.md) and [themes](docs/themes.md) guides.
-
----
+| | |
+|---|---|
+| Dashboard | Post editor |
+| ![Admin dashboard with At a Glance, activity, and quick draft](docs/screenshots/admin-dashboard.webp) | ![Post editor with visibility, schedule, and block content](docs/screenshots/post-editor.webp) |
+| Media library | Plugins |
+| ![Media library with generated sizes and attachment details](docs/screenshots/media-library.webp) | ![Plugins list showing permissions and the required OpenPress version](docs/screenshots/plugins.webp) |
+| Themes | Menus |
+| ![Themes screen with the default theme active](docs/screenshots/themes.webp) | ![Menus with primary and footer locations](docs/screenshots/menus.webp) |
+| Widgets | Settings |
+| ![Widgets screen with a sidebar text widget](docs/screenshots/widgets.webp) | ![General settings](docs/screenshots/settings.webp) |
+| Homepage | Single post |
+| ![Public homepage with the default theme](docs/screenshots/homepage.webp) | ![Single post with a cover, menu, and sidebar widget](docs/screenshots/single-post.webp) |
 
 ## Quick start
 
-**Requirements:** Node.js 20+, pnpm 10+, PostgreSQL 14+
+**Requirements:** Node.js 20+, pnpm 10+, and PostgreSQL 14+ (Docker or the embedded dev server).
 
 ```bash
-git clone <your-repo-url> openpress
+git clone https://github.com/foisalislambd/openpress.git
 cd openpress
 pnpm install
-
-# 1. Database (pick one)
-docker compose up -d    # Docker → localhost:5432
-pnpm db:local           # Embedded Postgres → localhost:5432 (keep running)
-
-# 2. Environment
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
-# Edit DATABASE_URL in apps/api/.env if needed
+```
 
-# 3. Database setup
+Start Postgres with one of these. Both use `postgresql://openpress:openpress@localhost:5432/openpress`, which is already the `DATABASE_URL` in `apps/api/.env.example`.
+
+```bash
+# Docker
+docker compose up -d
+
+# No Docker. Leave this process running.
+pnpm db:local
+```
+
+Apply schema and seed the admin user. `pnpm db:migrate` runs every file in `apps/api/db/migrations/` in order, including `001_init.sql` and `002_core_parity.sql` (visibility, autosave, custom fields, application passwords, and the extra roles).
+
+```bash
 pnpm db:migrate
 pnpm db:seed
-
-# 4. Run API + frontend (Turbo — both at once)
 pnpm dev
 ```
 
-| URL | Service |
-|-----|---------|
-| http://localhost:3000 | Frontend (site + admin) |
-| http://localhost:4000/api | Backend API |
+| URL | What |
+|---|---|
+| http://localhost:3000 | Public site |
+| http://localhost:3000/admin | Admin |
+| http://localhost:4000/api | REST API |
 
-**Run separately:** `pnpm dev:api` · `pnpm dev:web` — see [Running dev guide](docs/running-dev.md).
+`pnpm dev` starts the API and the Next.js app together. To run them apart: `pnpm dev:api` and `pnpm dev:web`. More detail is in [docs/running-dev.md](docs/running-dev.md) and [docs/installation.md](docs/installation.md).
 
-**Seeded login:** `admin@openpress.local` / `admin12345`
+### First login
 
-> The **first registered user** always becomes Admin. After that, registration is off until enabled in **Settings → Membership**.
+Seeded account:
 
-Detailed setup: [docs/installation.md](docs/installation.md)
+- Email: `admin@openpress.local`
+- Password: `admin12345`
 
----
+Change that password before any shared or public deploy. If you skip the seed and register through the site, the first account becomes Admin and later registrations stay closed until **Settings → General → Membership**.
 
-## Documentation
-
-| Guide | Description |
-|-------|-------------|
-| [📖 Docs index](docs/README.md) | Start here |
-| [Installation](docs/installation.md) | Database, env vars, troubleshooting |
-| [Running dev (Turbo)](docs/running-dev.md) | **Backend + frontend together**, separate commands |
-| [Admin guide](docs/admin-guide.md) | Using the dashboard |
-| [Themes](docs/themes.md) | Build & upload themes (`react-v1`, `runtime-v1`) |
-| [Plugins](docs/plugins.md) | Build & upload plugins + hooks |
-| [API reference](docs/api.md) | REST endpoints |
-| [Architecture](docs/architecture.md) | How the system fits together |
-| [Roles & permissions](docs/roles-and-permissions.md) | Admin / Editor / Author |
-| [Development](docs/development.md) | Monorepo, scripts, contributing locally |
-| [Deployment](docs/deployment.md) | Production checklist |
-| [Distribution](docs/distribution.md) | Open source: releases, MIT, themes, plugins, self-hosting |
-
----
+Production checklist: [docs/deployment.md](docs/deployment.md).
 
 ## Project structure
 
 ```
 openpress/
 ├── apps/
-│   ├── api/                 # NestJS REST API, PostgreSQL, plugins, theme store
-│   └── web/                 # Next.js — public site + /admin
+│   ├── api/                 # NestJS API, SQL migrations, plugin and theme uploads
+│   │   └── db/migrations/   # 001_init.sql, 002_core_parity.sql, …
+│   └── web/                 # Next.js public site and /admin
 ├── packages/
-│   ├── shared/              # Shared TypeScript types
-│   └── themes/
-│       └── default/         # Built-in theme (only theme in git)
-├── docs/                    # Full documentation
-├── .github/                 # Issue & PR templates
-├── scripts/
-│   └── local-postgres.mjs   # Dev Postgres without Docker
-├── docker-compose.yml       # PostgreSQL for local dev
-├── CONTRIBUTING.md          # How to contribute
-├── CODE_OF_CONDUCT.md       # Community standards
-├── SECURITY.md              # Vulnerability reporting
-├── CHANGELOG.md             # Release notes
-├── LICENSE                  # MIT
-└── README.md                # You are here
+│   ├── shared/              # Types shared by the API and the web app
+│   └── themes/default/      # Built-in theme (the only theme stored in git)
+├── docs/                    # Guides, API reference, parity roadmap
+├── scripts/local-postgres.mjs
+├── docker-compose.yml       # Postgres 16 for local development
+├── CONTRIBUTING.md
+└── LICENSE                  # MIT
 ```
 
----
+Uploaded themes live in `apps/api/themes-store/`. Uploaded plugins live in `apps/api/plugins/`. Neither directory is committed.
 
-## Tech stack
+## Themes and plugins
 
-| Layer | Technology |
-|-------|------------|
-| **API** | NestJS 11, PostgreSQL (`pg`), JWT, EventEmitter hooks |
-| **Web** | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
-| **Editor** | BlockNote |
-| **Build** | pnpm workspaces, Turborepo |
-| **Theme bundling** | esbuild (for uploaded `react-v1` themes) |
+Themes and plugins are zip uploads from the admin. Guides: [docs/themes.md](docs/themes.md), [docs/plugins.md](docs/plugins.md).
 
----
+A token theme is a `theme.json` plus optional CSS:
 
-## Roadmap
+```json
+{
+  "id": "sunset",
+  "name": "Sunset",
+  "version": "1.0.0",
+  "engine": "runtime-v1",
+  "tokens": { "accent": "#ea580c", "font": "sans", "layout": "cards" }
+}
+```
 
-Community contributions welcome on:
+A plugin declares which core it runs on and which capabilities it needs. Hooks are always available. Database access, admin pages, and the other extension points are not, unless `permissions` lists them.
 
-- [ ] Plugin admin UI extensions (settings pages in dashboard)
-- [ ] Theme customizer (live preview, menus)
-- [ ] S3 / object storage for media
-- [ ] Image resizing & optimization pipeline
-- [ ] Multilingual content
-- [ ] Webhooks for external integrations
-- [ ] Docker images for API + web
+```json
+{
+  "id": "hello-note",
+  "name": "Hello Note",
+  "version": "1.0.0",
+  "main": "index.js",
+  "requires": { "openpress": ">=0.1.0" },
+  "permissions": ["admin_menu", "shortcodes"]
+}
+```
 
----
+```js
+function activate(ctx) {
+  ctx.hooks.addAction('content.published', (content) => {
+    ctx.logger.log(`Published: ${content.title}`);
+  });
+
+  ctx.hooks.addFilter('the_title', (title) => title);
+
+  ctx.admin.addMenuPage({
+    slug: 'hello',
+    title: 'Hello Settings',
+    menuTitle: 'Hello',
+    fields: [{ key: 'greeting', label: 'Greeting', type: 'text' }],
+  });
+
+  ctx.shortcodes.add('hello', (attrs) => `Hello ${attrs.name || 'there'}`);
+}
+
+module.exports = { activate };
+```
+
+`addAction` / `doAction` match WordPress actions. `addFilter` / `applyFilters` match filters. Public content runs `the_title`, `the_excerpt`, `the_content`, and `content.public`. Public lists run `pre_get_posts` on the query fields (core still writes the SQL). Deactivating a plugin removes its listeners and its admin pages.
+
+This permission list is the contract a future marketplace can enforce. It is not a process sandbox: installed plugin code runs inside the API. Install zips you trust.
+
+## WordPress migration (WXR)
+
+1. In WordPress, use **Tools → Export** and download the WXR XML.
+2. In OpenPress, open **Tools → Import** (`/admin/tools/import`).
+3. Upload that `.xml` file. You can also upload an OpenPress JSON export.
+
+The importer brings posts, pages, categories, tags, and block content. It does not yet bring attachments, authors, or comments. That one-click migration is a key adoption feature and is the first item on the [roadmap](docs/wordpress-parity-roadmap.md).
+
+**Tools → Export** downloads the same WXR subset, or JSON, so two OpenPress sites can round-trip content.
+
+## Documentation
+
+| Guide | Description |
+|---|---|
+| [Docs index](docs/README.md) | All guides |
+| [Installation](docs/installation.md) | Env vars and database options |
+| [Running dev](docs/running-dev.md) | Turbo, ports, separate processes |
+| [Admin guide](docs/admin-guide.md) | Day-to-day publishing |
+| [Themes](docs/themes.md) | `runtime-v1` and `react-v1` |
+| [Plugins](docs/plugins.md) | Manifest, permissions, actions, filters |
+| [API](docs/api.md) | REST endpoints |
+| [Roles](docs/roles-and-permissions.md) | Five roles and the capability map |
+| [Architecture](docs/architecture.md) | How the packages fit |
+| [WordPress parity roadmap](docs/wordpress-parity-roadmap.md) | What is in core, and what the next runs should build |
+| [Deployment](docs/deployment.md) | Production checklist |
 
 ## Contributing
 
-OpenPress is **open source** and grows with the community.
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md).
+2. Branch from `main`. Keep admin concepts familiar to WordPress users, and keep the implementation a typed monorepo.
+3. `pnpm test` covers the API's pure core (capabilities, visibility, WXR, hooks, plugin permissions). `pnpm lint` checks the web app.
+4. Open a pull request and fill in the template.
 
-1. **Star & fork** the repo
-2. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/development.md](docs/development.md)
-3. Pick an issue or propose a feature
-4. Open a PR with a clear description
-
-**Good first contributions:** docs, default theme improvements, sample plugins, bug fixes, tests.
-
-Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
-
----
-
-## FAQ
-
-**Is OpenPress production-ready?**  
-Core CMS features are implemented and audited. For production, follow [deployment guide](docs/deployment.md), change JWT secrets, and only install trusted plugins/themes.
-
-**Can I use it headless?**  
-Yes. The REST API exposes public content endpoints. The included Next.js app is one frontend; you can build mobile apps or other sites against the same API.
-
-**WordPress migration?**  
-Not built-in yet. Content would need a custom import script (API supports block JSON posts).
-
-**Why MIT?**  
-Maximum freedom for personal, commercial, and educational use.
-
----
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues through [SECURITY.md](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) OpenPress contributors.
+[MIT](LICENSE). Copyright (c) OpenPress contributors.
 
-You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of this software.
-
----
-
-<p align="center">
-  <strong>OpenPress</strong> — open source CMS for the modern web.<br>
-  <a href="docs/README.md">Documentation</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a> ·
-  <a href="docs/themes.md">Themes</a> ·
-  <a href="docs/plugins.md">Plugins</a>
-</p>
+You can use, modify, and ship OpenPress, including in commercial work.
