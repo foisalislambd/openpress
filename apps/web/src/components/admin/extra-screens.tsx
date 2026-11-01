@@ -584,11 +584,23 @@ export function ImportScreen() {
       if (file.name.endsWith('.xml') || file.type.includes('xml')) {
         const body = new FormData();
         body.append('file', file);
-        const result = await api<{ imported: number; total: number }>('/tools/import/wxr', {
+        const started = await api<{ jobId: string; total: number }>('/tools/import/wxr', {
           method: 'POST',
           body,
         });
-        setMessage(`Imported ${result.imported} of ${result.total} from WXR.`);
+        setMessage(`Import started (${started.total} records)…`);
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const job = await api<{ status: string; progress: number; total: number; message?: string; result?: { imported?: number } }>(
+            `/tools/imports/${started.jobId}`,
+          );
+          setMessage(`${job.message || job.status} (${job.progress}/${job.total})`);
+          if (job.status === 'DONE') {
+            setMessage(`Imported ${job.result?.imported ?? job.progress} records. Private, scheduled, and password posts keep their status.`);
+            return;
+          }
+          if (job.status === 'FAILED') throw new Error(job.message || 'Import failed');
+        }
         return;
       }
       const text = await file.text();
@@ -618,7 +630,7 @@ export function ImportScreen() {
     <Screen title="Import">
       {error ? <Notice kind="error">{error}</Notice> : null}
       {message ? <Notice kind="success">{message}</Notice> : null}
-      <p>Upload an OpenPress export (.json) or a WordPress WXR file (.xml).</p>
+      <p>Upload an OpenPress export (.json) or a WordPress WXR file (.xml). WXR imports keep private, password, and scheduled posts, and show progress while attachments and comments come in.</p>
       <input type="file" accept="application/json,.json,application/xml,.xml,text/xml" onChange={(e) => onFile(e.target.files?.[0])} />
     </Screen>
   );
@@ -706,7 +718,8 @@ export function SiteHealthScreen() {
   const [rows, setRows] = useState<{ label: string; ok: boolean; detail: string }[]>([]);
 
   useEffect(() => {
-    Promise.allSettled([api('/auth/me'), api('/settings')]).then((results) => {
+    Promise.allSettled([api('/auth/me'), api('/settings'), api<{ ok?: boolean; demo?: boolean }>('/health')]).then((results) => {
+      const health = results[2].status === 'fulfilled' ? results[2].value : null;
       setRows([
         {
           label: 'Signed-in session',
@@ -717,6 +730,15 @@ export function SiteHealthScreen() {
           label: 'Site settings',
           ok: results[1].status === 'fulfilled',
           detail: results[1].status === 'fulfilled' ? 'Settings loaded.' : 'Settings request failed.',
+        },
+        {
+          label: 'Database',
+          ok: Boolean(health?.ok),
+          detail: health?.ok
+            ? health.demo
+              ? 'Database responded. Demo mode is on.'
+              : 'Database responded.'
+            : 'Health check failed.',
         },
       ]);
     });
@@ -735,7 +757,7 @@ export function SiteHealthScreen() {
               ? 'Running checks…'
               : critical
                 ? 'A check failed. Details are in the table below.'
-                : 'The session and site settings both responded.'}
+                : 'The session, site settings, and database all responded.'}
           </p>
         </div>
       </div>

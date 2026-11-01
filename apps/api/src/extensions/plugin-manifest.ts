@@ -2,7 +2,11 @@ export const OPENPRESS_VERSION = '0.1.0';
 
 /** Declared in plugin.json. Hooks are always available; everything else is opt-in. */
 export const PLUGIN_PERMISSIONS = [
-  'database',
+  'content:read',
+  'content:write',
+  'storage',
+  'network:request',
+  'email:send',
   'settings',
   'admin_menu',
   'rest',
@@ -10,6 +14,8 @@ export const PLUGIN_PERMISSIONS = [
   'widgets',
   'shortcodes',
   'blocks',
+  /** Accepted so older manifests still parse. The sandbox does not expose raw SQL. */
+  'database',
 ] as const;
 
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
@@ -24,6 +30,8 @@ export interface PluginManifest {
   /** Semver range against OpenPress core, e.g. ">=0.1.0" or "^0.1.0". */
   requires?: { openpress?: string };
   permissions?: PluginPermission[];
+  /** Hosts ctx.http.fetch may call when network:request is declared. */
+  allowedHosts?: string[];
 }
 
 const ID_RE = /^[a-z0-9][a-z0-9-_]*$/;
@@ -76,6 +84,13 @@ export function validatePluginManifest(manifest: PluginManifest) {
   for (const permission of permissions) {
     if (!PLUGIN_PERMISSIONS.includes(permission)) {
       throw new Error(`Unknown plugin permission "${permission}"`);
+    }
+  }
+  const hosts = manifest.allowedHosts ?? [];
+  if (!Array.isArray(hosts)) throw new Error('allowedHosts must be an array');
+  for (const host of hosts) {
+    if (typeof host !== 'string' || !/^[a-z0-9.*-]+$/i.test(host) || host.includes('..')) {
+      throw new Error(`Invalid allowed host "${host}"`);
     }
   }
   const required = manifest.requires?.openpress;

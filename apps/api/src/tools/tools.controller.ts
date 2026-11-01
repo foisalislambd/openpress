@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  Param,
   Post,
   UploadedFile,
   UseGuards,
@@ -33,5 +34,10 @@ export class ToolsController {
   importWxr(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: JwtPayload) {
     if (!file?.buffer?.length) throw new BadRequestException('Upload a WXR .xml file');
     return this.tools.importWxr(file.buffer.toString('utf8'), user);
+  }
+
+  @Get('imports/:id')
+  job(@Param('id') id: string) {
+    return this.tools.job(id);
   }
 }

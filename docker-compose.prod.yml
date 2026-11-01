@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: openpress
+      POSTGRES_PASSWORD: openpress
+      POSTGRES_DB: openpress
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://openpress:openpress@postgres:5432/openpress
+      JWT_SECRET: change-me
+      JWT_REFRESH_SECRET: change-me-too
+      WEB_ORIGIN: http://localhost:3000
+      PORT: 4000
+    depends_on:
+      - postgres
+    ports:
+      - "4000:4000"
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

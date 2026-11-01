@@ -119,12 +119,41 @@ export class PluginsController {
     return this.plugins.updateSettings(id, body, slug);
   }
 
+  @Get('updates')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  updates() {
+    return this.plugins.updates();
+  }
+
+  @Post('stage')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @UseInterceptors(zipUpload)
+  stage(@UploadedFile() file: Express.Multer.File) {
+    return this.plugins.stage(file);
+  }
+
+  @Post('stage/:token/commit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  commit(@Param('token') token: string) {
+    return this.plugins.commit(token);
+  }
+
   @Post('upload')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @UseInterceptors(zipUpload)
   upload(@UploadedFile() file: Express.Multer.File) {
-    return this.plugins.install(file);
+    return this.plugins.stage(file);
+  }
+
+  @Post(':id/rollback')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  rollback(@Param('id') id: string) {
+    return this.plugins.rollback(id);
   }
 
   @Patch(':id/toggle')

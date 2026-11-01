@@ -14,7 +14,20 @@ interface PluginItem {
   loaded: boolean;
   permissions?: string[];
   requires?: { openpress?: string };
+  allowedHosts?: string[];
+  sandbox?: boolean;
+  canRollback?: boolean;
   error?: string | null;
+}
+
+interface StagedPlugin {
+  token: string;
+  hash: string;
+  signatureStatus: 'trusted' | 'unsigned' | 'invalid';
+  permissions: string[];
+  allowedHosts: string[];
+  requires?: { openpress?: string };
+  manifest: { id: string; name: string; version: string; description?: string };
 }
 
 export default function PluginsPage() {
@@ -22,6 +35,7 @@ export default function PluginsPage() {
   const [view, setView] = useState<'all' | 'active' | 'inactive'>('all');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [review, setReview] = useState<StagedPlugin | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
@@ -37,8 +51,8 @@ export default function PluginsPage() {
     try {
       const fd = new FormData();
       fd.append('file', files[0]);
-      await api('/plugins/upload', { method: 'POST', body: fd });
-      load();
+      const staged = await api<StagedPlugin>('/plugins/stage', { method: 'POST', body: fd });
+      setReview(staged);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -85,9 +99,47 @@ export default function PluginsPage() {
         onChange={(e) => upload(e.target.files)}
       />
       <p className="op-description mb-3">
-        A plugin zip contains plugin.json and a main file that exports activate(ctx). Declare permissions and a core version range. Hooks are always available. Database access, admin menus, REST routes, assets, widgets, shortcodes, and blocks are not, unless the manifest lists them.
+        A plugin zip contains plugin.json and a main file that exports activate(ctx). Uploads stop on a permission review before anything is installed. Each plugin then runs in its own process; content, storage, email, and network calls work only when the manifest declares them.
       </p>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      {review ? (
+        <div className="op-postbox mb-4">
+          <h2 className="px-3 py-2">Review {review.manifest.name}</h2>
+          <div className="space-y-2 p-3 text-[13px]">
+            <p>
+              Version {review.manifest.version}. Signature: {review.signatureStatus}. Package hash {review.hash.slice(0, 12)}.
+            </p>
+            <p>Permissions: {review.permissions.length ? review.permissions.join(', ') : 'hooks only'}</p>
+            <p>Allowed hosts: {review.allowedHosts.length ? review.allowedHosts.join(', ') : 'none'}</p>
+            <p>The plugin runs in a separate process. These permissions are the only host APIs it can call.</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="border border-[#3858e9] bg-[#3858e9] px-3 py-1 text-white"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    await api(`/plugins/stage/${review.token}/commit`, { method: 'POST' });
+                    setReview(null);
+                    load();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Install failed');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Install
+              </button>
+              <button type="button" onClick={() => setReview(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <ul className="op-subsubsub">
         {(
           [
@@ -130,6 +182,29 @@ export default function PluginsPage() {
                     {p.enabled ? 'Deactivate' : 'Activate'}
                   </button>
                   {' | '}
+                  {p.canRollback ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          setError('');
+                          try {
+                            await api(`/plugins/${p.id}/rollback`, { method: 'POST' });
+                            load();
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Rollback failed');
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Rollback
+                      </button>
+                      {' | '}
+                    </>
+                  ) : null}
                   <button type="button" className="is-delete" disabled={busy} onClick={() => remove(p.id)}>
                     Delete
                   </button>
@@ -142,6 +217,8 @@ export default function PluginsPage() {
                   {p.author ? ` | By ${p.author}` : ''} | {p.enabled ? 'Active' : 'Inactive'}
                   {p.requires?.openpress ? ` | Requires OpenPress ${p.requires.openpress}` : ''}
                   <br />
+                  Sandbox: {p.sandbox ? 'isolated process' : 'off'}
+                  {' | '}
                   Permissions: {p.permissions?.length ? p.permissions.join(', ') : 'hooks only'}
                   {p.error ? <span className="text-[#b32d2e]"> — {p.error}</span> : null}
                 </div>

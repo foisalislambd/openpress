@@ -32,9 +32,11 @@ OpenPress is the right fit when the team already works in React and Node and wan
 
 **Appearance.** Default React theme, uploaded token themes and React themes, primary and footer menu locations, sidebar and footer widget areas.
 
-**Plugins.** Zip install. Actions and filters. Opt-in permissions for the database, settings, admin menus, REST routes, assets, widgets, shortcodes, and editor blocks. See [docs/plugins.md](docs/plugins.md).
+**Plugins.** Each plugin runs in its own process. Actions and filters stay WordPress-shaped. Content, storage, email, and HTTP are separate permissions, and HTTP is limited to an allow list. Admins review those permissions before install. Packages can be signed, and a bad release can be rolled back. See [docs/plugins.md](docs/plugins.md).
 
-**Feeds and tools.** RSS at `/feed`, a sitemap at `/sitemap.xml`, public search, JSON export, and a WordPress WXR import/export subset.
+**Feeds and tools.** RSS at `/feed`, a sitemap at `/sitemap.xml`, public search, and a WordPress WXR import that keeps private and scheduled posts, downloads public attachments, and shows progress. Permalink redirects from the import are honored by the public site.
+
+**Operations.** `GET /api/health`, a login audit log, and [docker-compose.prod.yml](docker-compose.prod.yml) for Postgres, the API, and the web app. Apply `003_platform.sql` with `pnpm db:migrate`.
 
 ## Screenshots
 
@@ -52,6 +54,10 @@ Captured from a local run with demo posts, the default theme, and a plugin that 
 | ![Widgets screen with a sidebar text widget](docs/screenshots/widgets.webp) | ![General settings](docs/screenshots/settings.webp) |
 | Homepage | Single post |
 | ![Public homepage with the default theme](docs/screenshots/homepage.webp) | ![Single post with a cover, menu, and sidebar widget](docs/screenshots/single-post.webp) |
+| Permission review | Rollback |
+| ![Plugin upload stops on a permission review before install](docs/screenshots/plugin-review.webp) | ![Installed plugins run in a sandbox and can roll back](docs/screenshots/plugin-rollback.webp) |
+| WordPress import | Site Health |
+| ![WXR import finished and kept private, scheduled, and password posts](docs/screenshots/wxr-import.webp) | ![Site Health shows the session, settings, and database](docs/screenshots/site-health.webp) |
 
 ## Quick start
 
@@ -75,7 +81,7 @@ docker compose up -d
 pnpm db:local
 ```
 
-Apply schema and seed the admin user. `pnpm db:migrate` runs every file in `apps/api/db/migrations/` in order, including `001_init.sql` and `002_core_parity.sql` (visibility, autosave, custom fields, application passwords, and the extra roles).
+Apply schema and seed the admin user. `pnpm db:migrate` runs every file in `apps/api/db/migrations/` in order, including `001_init.sql`, `002_core_parity.sql` (visibility, autosave, custom fields, application passwords, extra roles), and `003_platform.sql` (plugin storage, trusted keys, import jobs, redirects, audit log).
 
 ```bash
 pnpm db:migrate
@@ -108,7 +114,7 @@ Production checklist: [docs/deployment.md](docs/deployment.md).
 openpress/
 ├── apps/
 │   ├── api/                 # NestJS API, SQL migrations, plugin and theme uploads
-│   │   └── db/migrations/   # 001_init.sql, 002_core_parity.sql, …
+│   │   └── db/migrations/   # 001_init.sql, 002_core_parity.sql, 003_platform.sql
 │   └── web/                 # Next.js public site and /admin
 ├── packages/
 │   ├── shared/              # Types shared by the API and the web app
@@ -138,7 +144,7 @@ A token theme is a `theme.json` plus optional CSS:
 }
 ```
 
-A plugin declares which core it runs on and which capabilities it needs. Hooks are always available. Database access, admin pages, and the other extension points are not, unless `permissions` lists them.
+A plugin declares which core it runs on and which capabilities it needs. Hooks are always available. Content, storage, email, network, admin pages, and the other extension points are not, unless `permissions` lists them. The admin shows that list and asks for confirmation before the plugin is installed. The plugin then runs in its own process.
 
 ```json
 {
@@ -174,7 +180,7 @@ module.exports = { activate };
 
 `addAction` / `doAction` match WordPress actions. `addFilter` / `applyFilters` match filters. Public content runs `the_title`, `the_excerpt`, `the_content`, and `content.public`. Public lists run `pre_get_posts` on the query fields (core still writes the SQL). Deactivating a plugin removes its listeners and its admin pages.
 
-This permission list is the contract a future marketplace can enforce. It is not a process sandbox: installed plugin code runs inside the API. Install zips you trust.
+This permission list is enforced inside the plugin process. Filesystem access outside the plugin directory is denied, and `fetch` plus the network builtins are sealed. Content, storage, email, and HTTP go through the API, which checks the manifest again. A hook that runs longer than 30 seconds is killed without stopping the API. See [docs/plugins.md](docs/plugins.md).
 
 ## WordPress migration (WXR)
 
@@ -182,7 +188,7 @@ This permission list is the contract a future marketplace can enforce. It is not
 2. In OpenPress, open **Tools → Import** (`/admin/tools/import`).
 3. Upload that `.xml` file. You can also upload an OpenPress JSON export.
 
-The importer brings posts, pages, categories, tags, and block content. It does not yet bring attachments, authors, or comments. That one-click migration is a key adoption feature and is the first item on the [roadmap](docs/wordpress-parity-roadmap.md).
+The importer keeps private, password, and scheduled posts (a future post stays scheduled, including its date). It also creates authors, comments, categories, tags, custom fields, featured images when the attachment URL can be downloaded, menus, and permalink redirects. Uploading the same file again updates the existing posts instead of duplicating them. Progress is shown on the Import screen. EmDash JSON dumps are not imported yet. See the [roadmap](docs/wordpress-parity-roadmap.md).
 
 **Tools → Export** downloads the same WXR subset, or JSON, so two OpenPress sites can round-trip content.
 

@@ -42,25 +42,33 @@ hello-logger/
 | `version` | Yes | Semver string |
 | `main` | Yes | Entry file relative to plugin root |
 | `requires.openpress` | No | `*`, exact `x.y.z`, `>=x.y.z`, or `^x.y.z`. Missing means compatible. Core is `0.1.0` |
-| `permissions` | No | Missing or `[]` means hooks only |
+| `permissions` | No | Missing or `[]` means hooks only. See the table below |
+| `allowedHosts` | No | Hostnames `ctx.http.fetch` may call. Required for `network:request` |
 | `description`, `author` | No | Shown in admin |
 
 ### Permissions
 
 | Permission | Unlocks |
 |------------|---------|
-| `database` | `ctx.db.query` and `ctx.db.one` |
-| `settings` | `ctx.settings.get` / `ctx.settings.set` for this plugin's own options (`plugin:<id>`) |
-| `admin_menu` | `ctx.admin.addMenuPage` (appears under Plugins, with a settings form) |
-| `rest` | `ctx.rest.route` at `/api/plugins/<id>/rest/...` |
+| `content:read` | `ctx.content.list` and `ctx.content.get` |
+| `content:write` | `ctx.content.create` and `ctx.content.update` |
+| `storage` | `ctx.storage.get` / `set` / `delete` for this plugin only |
+| `network:request` | `ctx.http.fetch` to `allowedHosts` only. Private addresses are refused |
+| `email:send` | `ctx.email.send` queues a row in `outbound_mail` |
+| `settings` | `ctx.settings.get` / `set` for this plugin's options (`plugin:<id>`) |
+| `admin_menu` | `ctx.admin.addMenuPage` |
+| `rest` | `ctx.rest.route` under `/api/plugins/<id>/rest/` |
 | `assets` | `ctx.assets.enqueueStyle` / `enqueueScript` |
 | `widgets` | `ctx.widgets.register` |
 | `shortcodes` | `ctx.shortcodes.add` |
-| `blocks` | `ctx.blocks.register` (editor catalog + `pluginBlock` in the default theme) |
+| `blocks` | `ctx.blocks.register` |
+| `database` | Parsed for older manifests. `ctx.db` throws. Use `content:read` / `content:write` |
 
-Hooks do not require a permission. Calling an API you did not declare throws. Deactivate removes listeners, filters, and registrations.
+Hooks do not require a permission. Each plugin runs in its own Node process with the permission model (filesystem outside the plugin directory is denied) and sealed `fetch`, `http`, and `fs` requires. Actions and filters still use `addAction` and `addFilter`; the parent runs them by RPC. A hook that runs longer than 30 seconds is killed without taking down the API. Memory is capped at 128MB.
 
-This is a capability gate on the context object, the same idea as WordPress capabilities. It is **not** a process sandbox. Plugin code still runs in the API process and can call Node APIs directly. Install only trusted zips. A marketplace can later refuse plugins whose manifest asks for `database` or whose package is not reviewed.
+Install shows a permission review before the plugin is activated. A zip may include `openpress-signature.json` (ed25519 over the package hash). Signatures from keys in `trusted_keys` are marked trusted. An invalid signature is rejected. Unsigned packages can still be installed after the admin confirms the review.
+
+`POST /api/plugins/:id/rollback` restores the previous on-disk release. Update checks compare installed versions with the `packageCatalog` setting.
 
 ## Entry file
 
@@ -89,8 +97,12 @@ module.exports = { activate };
 | `ctx.hooks.addFilter(hook, fn, priority?)` | WordPress `add_filter`. Return the value (may be async) |
 | `ctx.hooks.applyFilters(hook, value, ...args)` | WordPress `apply_filters` |
 | `ctx.hooks.on(event, fn)` | Alias of `addAction` |
-| `ctx.logger` | NestJS `Logger` prefixed with `plugin:<id>` |
-| `ctx.db` | Requires `database`. `query(sql, params)` and `one(sql, params)` |
+| `ctx.logger` | Forwards log lines to the API logger |
+| `ctx.db` | Always throws. Raw SQL is not available in the sandbox |
+| `ctx.content` | Requires `content:read` or `content:write`. `list`, `get`, `create`, `update` |
+| `ctx.storage` | Requires `storage`. Key/value rows scoped to this plugin |
+| `ctx.http.fetch(url, init?)` | Requires `network:request` and a public host on `allowedHosts` |
+| `ctx.email.send({ to, subject, text })` | Requires `email:send`. Queues `outbound_mail` |
 | `ctx.settings.get()` / `set(values)` | Requires `settings`. Own options only |
 | `ctx.admin.addMenuPage({ slug, title, menuTitle, fields })` | Requires `admin_menu` |
 | `ctx.widgets.register({ id, name, render })` | Requires `widgets`. Place it in Appearance → Widgets as `pluginId/id` |
@@ -145,17 +157,14 @@ function activate(ctx) {
     if (content.excerpt || content.type !== 'POST') return;
     const excerpt = textFromBlocks(content.blocks);
     if (!excerpt) return;
-    await ctx.db.query(
-      'UPDATE contents SET excerpt = $1, "updatedAt" = now() WHERE id = $2',
-      [excerpt, content.id],
-    );
+    await ctx.content.update(content.id, { excerpt });
   });
 }
 
 module.exports = { activate };
 ```
 
-That example needs `"permissions": ["database"]` and `"requires": { "openpress": ">=0.1.0" }`.
+That example needs `"permissions": ["content:write"]` and `"requires": { "openpress": ">=0.1.0" }`.
 
 ### Example: settings page and shortcode
 
