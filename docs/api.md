@@ -40,6 +40,11 @@ POST /api/auth/refresh
 | POST | `/auth/login` | Public | Login |
 | POST | `/auth/refresh` | Public | New tokens |
 | GET | `/auth/me` | JWT | Current user |
+| GET | `/auth/application-passwords` | JWT | List application passwords |
+| POST | `/auth/application-passwords` | JWT | Create one. The plaintext password is returned once |
+| DELETE | `/auth/application-passwords/:id` | JWT | Revoke |
+
+Application passwords also authenticate any JWT route with `Authorization: Basic base64(email:password)`.
 
 \*Registration disabled after first user unless `allowRegistration` is true in settings.
 
@@ -71,6 +76,26 @@ POST /api/auth/refresh
 | POST | `/content` | Create |
 | PATCH | `/content/:id` | Update |
 | DELETE | `/content/:id` | Delete |
+| PUT | `/content/:id/autosave` | Autosave title, blocks, and excerpt. Does not create a revision |
+| GET | `/content/:id/autosave` | Latest autosave for the current user |
+| PUT | `/content/:id/meta` | Upsert a custom field `{ "key", "value" }` |
+| DELETE | `/content/:id/meta/:key` | Remove a custom field |
+| POST | `/content/public/slug/:slug/unlock` | `{ "password" }` → short-lived unlock token |
+
+Visibility is `PUBLIC`, `PRIVATE`, or `PASSWORD`. Private posts are omitted from public routes. Password posts are listed with empty `blocks` and `passwordRequired: true` until the `x-openpress-unlock` header carries a valid token.
+
+`sticky`, `commentStatus` (`open` or `closed`), and `scheduledAt` are accepted on create and update. A scheduler publishes due `SCHEDULED` rows. Contributors can save drafts but cannot publish.
+
+## Feeds
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/feed` | RSS 2.0 of the latest public posts |
+| GET | `/sitemap.xml` | Sitemap of public posts and pages |
+| GET | `/tools/export/wxr` | WXR export (Editor+) |
+| POST | `/tools/import/wxr` | Multipart `file` WXR import (Editor+) |
+
+The public site rewrites `/feed` and `/sitemap.xml` to these routes.
 
 ### Create/update body (example)
 
@@ -95,7 +120,8 @@ POST /api/auth/refresh
 |--------|------|-------------|
 | GET | `/media` | List |
 | POST | `/media/upload` | Multipart `file`, optional `alt` |
-| PATCH | `/media/:id` | Update `alt` |
+| PATCH | `/media/:id` | Update `alt` and `caption` |
+| POST | `/media/:id/crop` | `{ x, y, width, height }` crop a raster image and regenerate sizes |
 | DELETE | `/media/:id` | Delete file + record |
 
 Allowed MIME types: JPEG, PNG, GIF, WebP, SVG, AVIF, MP4, WebM, MPEG, PDF.
@@ -136,7 +162,7 @@ Allowed MIME types: JPEG, PNG, GIF, WebP, SVG, AVIF, MP4, WebM, MPEG, PDF.
 | GET | `/settings` | All public settings |
 | PUT | `/settings` | Update allowed keys only |
 
-Allowed keys: `siteTitle`, `siteDescription`, `activeTheme`, `homepageType`, `homepageId`, `postsPerPage`, `allowRegistration`.
+Allowed keys include `siteTitle`, `siteDescription`, `activeTheme`, `homepageType`, `homepageId`, `postsPerPage`, `allowRegistration`, `menus`, `menuLocations`, `widgets`, discussion and media size keys. Internal keys such as `enabledPlugins` and `plugin:<id>` are not writable here.
 
 ## Themes (Admin for upload/delete)
 
@@ -149,7 +175,13 @@ Allowed keys: `siteTitle`, `siteDescription`, `activeTheme`, `homepageType`, `ho
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/plugins` | Installed plugins |
+| GET | `/plugins` | Installed plugins, permissions, core requirement, load error |
+| GET | `/plugins/registry` | Admin menus, editor blocks, widget types |
+| GET | `/plugins/chrome` | Public assets, blocks, rendered sidebar and footer |
+| GET | `/plugins/files/:id/*file` | Enqueued CSS or JS inside that plugin |
+| ALL | `/plugins/:id/rest/*path` | Routes the plugin registered |
+| GET | `/plugins/:id/settings/:slug` | Admin page fields and saved values |
+| PATCH | `/plugins/:id/settings/:slug` | Save declared fields only |
 | POST | `/plugins/upload` | Multipart zip |
 | PATCH | `/plugins/:id/toggle` | Enable/disable |
 | DELETE | `/plugins/:id` | Remove |

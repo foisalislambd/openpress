@@ -13,6 +13,9 @@ export default function MediaPage() {
   const [selected, setSelected] = useState<Media | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [alt, setAlt] = useState('');
+  const [caption, setCaption] = useState('');
+  const [crop, setCrop] = useState({ x: '0', y: '0', width: '', height: '' });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
@@ -92,7 +95,12 @@ export default function MediaPage() {
             key={m.id}
             className="op-media-tile"
             style={selected?.id === m.id ? { outline: '2px solid #3858e9' } : undefined}
-            onClick={() => setSelected(m)}
+            onClick={() => {
+              setSelected(m);
+              setAlt(m.alt ?? '');
+              setCaption(m.caption ?? '');
+              setCrop({ x: '0', y: '0', width: String(m.width ?? ''), height: String(m.height ?? '') });
+            }}
           >
             {m.mimeType.startsWith('image/') ? (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -137,6 +145,83 @@ export default function MediaPage() {
             <>
               <p className="break-all font-semibold">{selected.filename}</p>
               <p className="op-description">{selected.mimeType}</p>
+              {selected.width && selected.height ? (
+                <p>
+                  {selected.width} × {selected.height}
+                </p>
+              ) : null}
+              <label className="block">
+                Alternative text
+                <input
+                  className="mt-1 w-full border border-[#8c8f94] px-2 py-1"
+                  value={alt}
+                  onChange={(e) => setAlt(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                Caption
+                <input
+                  className="mt-1 w-full border border-[#8c8f94] px-2 py-1"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={async () => {
+                  const updated = await api<Media>(`/media/${selected.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ alt, caption }),
+                  });
+                  setSelected(updated);
+                  load();
+                }}
+              >
+                Save details
+              </button>
+              {selected.sizes && Object.keys(selected.sizes).length > 0 ? (
+                <ul className="space-y-1">
+                  {Object.entries(selected.sizes).map(([name, size]) => (
+                    <li key={name}>
+                      {name}: {size.width}×{size.height}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {selected.mimeType.startsWith('image/') && selected.mimeType !== 'image/svg+xml' ? (
+                <div className="space-y-1 border-t border-[#dcdcde] pt-2">
+                  <p>Crop</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(['x', 'y', 'width', 'height'] as const).map((key) => (
+                      <input
+                        key={key}
+                        aria-label={key}
+                        className="border border-[#8c8f94] px-1 py-0.5"
+                        value={crop[key]}
+                        onChange={(e) => setCrop({ ...crop, [key]: e.target.value })}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = await api<Media>(`/media/${selected.id}/crop`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          x: Number(crop.x),
+                          y: Number(crop.y),
+                          width: Number(crop.width),
+                          height: Number(crop.height),
+                        }),
+                      });
+                      setSelected(updated);
+                      load();
+                    }}
+                  >
+                    Apply crop
+                  </button>
+                </div>
+              ) : null}
               <p className="break-all">{selected.url}</p>
               <p>
                 <button type="button" onClick={() => navigator.clipboard.writeText(selected.url)}>

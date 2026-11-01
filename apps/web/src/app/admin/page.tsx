@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState, useSyncExternalStore } from 'react';
 import type { Comment, Content, Paginated, SiteSettings, User } from '@openpress/shared';
 import { api } from '@/lib/client-api';
 
@@ -21,13 +21,9 @@ export default function DashboardPage() {
   const [pending, setPending] = useState(0);
   const [theme, setTheme] = useState('default');
   const [user, setUser] = useState<User | null>(null);
-  const [welcome, setWelcome] = useState(true);
   const [screenOpen, setScreenOpen] = useState(false);
-  const [shown, setShown] = useState<Record<WidgetKey, boolean>>({
-    glance: true,
-    activity: true,
-    draft: true,
-  });
+  const welcome = useSyncExternalStore(subscribeWelcome, readWelcome, () => true);
+  const shown = useSyncExternalStore(subscribeWidgets, readWidgets, () => DEFAULT_WIDGETS);
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -36,26 +32,10 @@ export default function DashboardPage() {
   const [savedId, setSavedId] = useState<string | null>(null);
 
   useEffect(() => {
-    setWelcome(localStorage.getItem('op_welcome_dismissed') !== '1');
-    const stored = localStorage.getItem('op_dashboard_widgets');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as Partial<Record<WidgetKey, boolean>>;
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          setShown((current) => ({
-            glance: typeof parsed.glance === 'boolean' ? parsed.glance : current.glance,
-            activity: typeof parsed.activity === 'boolean' ? parsed.activity : current.activity,
-            draft: typeof parsed.draft === 'boolean' ? parsed.draft : current.draft,
-          }));
-        }
-      } catch {
-        /* keep defaults */
-      }
-    }
     api<User>('/auth/me')
       .then((me) => {
         setUser(me);
-        if (me.role === 'AUTHOR') return;
+        if (me.role !== 'ADMIN' && me.role !== 'EDITOR') return;
         api<Paginated<Content>>('/content?type=PAGE&perPage=1').then(setPages).catch(() => {});
         api<Comment[]>('/comments')
           .then((rows) =>
@@ -79,11 +59,9 @@ export default function DashboardPage() {
   }, []);
 
   function toggleWidget(key: WidgetKey) {
-    setShown((current) => {
-      const next = { ...current, [key]: !current[key] };
-      localStorage.setItem('op_dashboard_widgets', JSON.stringify(next));
-      return next;
-    });
+    const next = { ...shown, [key]: !shown[key] };
+    localStorage.setItem('op_dashboard_widgets', JSON.stringify(next));
+    window.dispatchEvent(new Event('op-widgets'));
   }
 
   async function saveDraft(event: FormEvent) {
@@ -127,6 +105,8 @@ export default function DashboardPage() {
 
   const isAdmin = user?.role === 'ADMIN';
   const isStaff = user?.role === 'ADMIN' || user?.role === 'EDITOR';
+  const canWrite = user?.role !== 'SUBSCRIBER';
+  const canMedia = user?.role === 'ADMIN' || user?.role === 'EDITOR' || user?.role === 'AUTHOR';
 
   return (
     <div>
@@ -172,7 +152,7 @@ export default function DashboardPage() {
               className="text-[13px] text-[#c3c4c7] hover:text-white"
               onClick={() => {
                 localStorage.setItem('op_welcome_dismissed', '1');
-                setWelcome(false);
+                window.dispatchEvent(new Event('op-welcome'));
               }}
             >
               Dismiss
@@ -182,12 +162,14 @@ export default function DashboardPage() {
             <div>
               <h3 className="mb-2 font-semibold">Get started</h3>
               <ul className="space-y-1">
+                {canWrite ? (
                 <li>
                   <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/posts/new">
                     <span className="dashicons dashicons-admin-post" />
                     Write a post
                   </Link>
                 </li>
+                ) : null}
                 {isStaff ? (
                   <li>
                     <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/pages/new">
@@ -196,12 +178,14 @@ export default function DashboardPage() {
                     </Link>
                   </li>
                 ) : null}
+                {canMedia ? (
                 <li>
                   <Link className="text-[#3858e9] hover:text-[#183ad6]" href="/admin/media/new">
                     <span className="dashicons dashicons-admin-media" />
                     Upload media
                   </Link>
                 </li>
+                ) : null}
               </ul>
             </div>
             <div>
@@ -331,7 +315,7 @@ export default function DashboardPage() {
           ) : null}
         </div>
 
-        {shown.draft ? (
+        {shown.draft && canWrite ? (
           <Postbox title="Quick Draft">
             <form onSubmit={saveDraft} className="space-y-3 text-[13px]">
               <label className="block">
@@ -373,6 +357,52 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+}
+
+const DEFAULT_WIDGETS: Record<WidgetKey, boolean> = {
+  glance: true,
+  activity: true,
+  draft: true,
+};
+
+let widgetsSnapshot = DEFAULT_WIDGETS;
+
+function readWidgets() {
+  try {
+    const stored = localStorage.getItem('op_dashboard_widgets');
+    if (!stored) return DEFAULT_WIDGETS;
+    const parsed = JSON.parse(stored) as Partial<Record<WidgetKey, boolean>>;
+    const next = {
+      glance: typeof parsed.glance === 'boolean' ? parsed.glance : DEFAULT_WIDGETS.glance,
+      activity: typeof parsed.activity === 'boolean' ? parsed.activity : DEFAULT_WIDGETS.activity,
+      draft: typeof parsed.draft === 'boolean' ? parsed.draft : DEFAULT_WIDGETS.draft,
+    };
+    if (
+      next.glance === widgetsSnapshot.glance &&
+      next.activity === widgetsSnapshot.activity &&
+      next.draft === widgetsSnapshot.draft
+    ) {
+      return widgetsSnapshot;
+    }
+    widgetsSnapshot = next;
+    return widgetsSnapshot;
+  } catch {
+    return DEFAULT_WIDGETS;
+  }
+}
+
+function subscribeWidgets(onStoreChange: () => void) {
+  window.addEventListener('op-widgets', onStoreChange);
+  return () => window.removeEventListener('op-widgets', onStoreChange);
+}
+
+function readWelcome() {
+  return localStorage.getItem('op_welcome_dismissed') !== '1';
+}
+
+function subscribeWelcome(onStoreChange: () => void) {
+  window.addEventListener('op-welcome', onStoreChange);
+  return () => window.removeEventListener('op-welcome', onStoreChange);
 }
 
 function Postbox({ title, children }: { title: string; children: React.ReactNode }) {

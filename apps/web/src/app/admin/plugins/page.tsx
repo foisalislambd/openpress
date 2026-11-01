@@ -12,6 +12,9 @@ interface PluginItem {
   author?: string;
   enabled: boolean;
   loaded: boolean;
+  permissions?: string[];
+  requires?: { openpress?: string };
+  error?: string | null;
 }
 
 export default function PluginsPage() {
@@ -82,7 +85,7 @@ export default function PluginsPage() {
         onChange={(e) => upload(e.target.files)}
       />
       <p className="op-description mb-3">
-        A plugin zip contains plugin.json and a main file that exports activate(ctx). Plugin code runs on the server, so only install plugins you trust.
+        A plugin zip contains plugin.json and a main file that exports activate(ctx). Declare permissions and a core version range. Hooks are always available. Database access, admin menus, REST routes, assets, widgets, shortcodes, and blocks are not, unless the manifest lists them.
       </p>
       {error ? <Notice kind="error">{error}</Notice> : null}
       <ul className="op-subsubsub">
@@ -137,6 +140,10 @@ export default function PluginsPage() {
                 <div className="mt-1 text-[12px] text-[#646970]">
                   Version {p.version}
                   {p.author ? ` | By ${p.author}` : ''} | {p.enabled ? 'Active' : 'Inactive'}
+                  {p.requires?.openpress ? ` | Requires OpenPress ${p.requires.openpress}` : ''}
+                  <br />
+                  Permissions: {p.permissions?.length ? p.permissions.join(', ') : 'hooks only'}
+                  {p.error ? <span className="text-[#b32d2e]"> — {p.error}</span> : null}
                 </div>
               </td>
             </tr>

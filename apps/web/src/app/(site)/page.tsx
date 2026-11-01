@@ -16,15 +16,19 @@ export default async function HomePage({
   const theme = await resolveTheme(settings.activeTheme);
 
   // "Reading" setting: homepage can be a static page instead of latest posts
+  let staticPage: { content: Awaited<ReturnType<typeof getPublicContentById>>; comments: Awaited<ReturnType<typeof getComments>> } | null = null;
   if (settings.homepageType === 'static-page' && settings.homepageId) {
     try {
       const content = await getPublicContentById(settings.homepageId);
       const comments = await getComments(content.id);
-      const { Page } = theme;
-      return <Page settings={settings} content={content} comments={comments} />;
+      staticPage = { content, comments };
     } catch {
-      // fall back to latest posts if the page was deleted/unpublished
+      staticPage = null;
     }
+  }
+  if (staticPage) {
+    const { Page } = theme;
+    return <Page settings={settings} content={staticPage.content} comments={staticPage.comments} />;
   }
 
   const posts = await getPublicPosts({

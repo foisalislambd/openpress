@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
     return [
       { source: '/uploads/:path*', destination: `${api}/uploads/:path*` },
+      { source: '/feed', destination: `${api}/api/feed` },
+      { source: '/sitemap.xml', destination: `${api}/api/sitemap.xml` },
     ];
   },
 };

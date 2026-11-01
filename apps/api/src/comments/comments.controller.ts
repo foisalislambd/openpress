@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import {
   IsEmail,
   IsIn,
@@ -63,8 +65,12 @@ export class CommentsController {
   // Public: guests can submit (goes to moderation). Stricter rate limit.
   @Post()
   @Throttle({ default: { ttl: 60_000, limit: 15 } })
-  create(@Body() dto: CreateCommentDto) {
-    return this.comments.create(dto);
+  create(@Body() dto: CreateCommentDto, @Req() req: Request) {
+    return this.comments.create({
+      ...dto,
+      authorIp: req.ip,
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+    });
   }
 
   @Get()

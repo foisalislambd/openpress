@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -12,6 +12,10 @@ import { MediaModule } from './media/media.module';
 import { CommentsModule } from './comments/comments.module';
 import { SettingsModule } from './settings/settings.module';
 import { ExtensionsModule } from './extensions/extensions.module';
+import { HooksModule } from './hooks/hooks.module';
+import { FeedsModule } from './feeds/feeds.module';
+import { ToolsModule } from './tools/tools.module';
+import { AppPasswordMiddleware } from './auth/app-password.middleware';
 
 @Module({
   imports: [
@@ -20,6 +24,7 @@ import { ExtensionsModule } from './extensions/extensions.module';
     // Global rate limit: 120 requests/minute per IP
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     DbModule,
+    HooksModule,
     AuthModule,
     UsersModule,
     ContentModule,
@@ -28,7 +33,16 @@ import { ExtensionsModule } from './extensions/extensions.module';
     CommentsModule,
     SettingsModule,
     ExtensionsModule,
+    FeedsModule,
+    ToolsModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    AppPasswordMiddleware,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AppPasswordMiddleware).forRoutes('*');
+  }
+}

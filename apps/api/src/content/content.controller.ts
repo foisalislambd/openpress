@@ -3,19 +3,27 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
+  ForbiddenException,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { can } from '../auth/capabilities';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { ContentService } from './content.service';
 import {
+  AutosaveDto,
   CreateContentDto,
+  MetaDto,
   QueryContentDto,
+  UnlockDto,
   UpdateContentDto,
 } from './content.dto';
 
@@ -23,38 +31,77 @@ import {
 export class ContentController {
   constructor(private content: ContentService) {}
 
-  // ---- Public endpoints (no auth) ----
   @Get('public')
   publicList(@Query() query: QueryContentDto) {
     return this.content.findAll(query, true);
   }
 
   @Get('public/slug/:slug')
-  publicBySlug(@Param('slug') slug: string) {
-    return this.content.findBySlug(slug, true);
+  publicBySlug(@Param('slug') slug: string, @Headers('x-openpress-unlock') unlock?: string) {
+    return this.content.findBySlug(slug, true, unlock);
+  }
+
+  @Post('public/slug/:slug/unlock')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  unlock(@Param('slug') slug: string, @Body() dto: UnlockDto) {
+    return this.content.unlock(slug, dto.password);
   }
 
   @Get('public/id/:id')
-  publicById(@Param('id') id: string) {
-    return this.content.findOne(id, true);
+  publicById(@Param('id') id: string, @Headers('x-openpress-unlock') unlock?: string) {
+    return this.content.findOne(id, true, unlock);
   }
 
-  // ---- Admin endpoints ----
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@Query() query: QueryContentDto) {
+  findAll(@Query() query: QueryContentDto, @CurrentUser() user: JwtPayload) {
+    this.assertLibrary(user);
     return this.content.findAll(query);
+  }
+
+  @Get(':id/autosave')
+  @UseGuards(JwtAuthGuard)
+  getAutosave(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.assertLibrary(user);
+    return this.content.getAutosave(id, user);
+  }
+
+  @Put(':id/autosave')
+  @UseGuards(JwtAuthGuard)
+  autosave(@Param('id') id: string, @Body() dto: AutosaveDto, @CurrentUser() user: JwtPayload) {
+    return this.content.autosave(id, dto, user);
+  }
+
+  @Get(':id/meta')
+  @UseGuards(JwtAuthGuard)
+  meta(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.assertLibrary(user);
+    return this.content.listMeta(id);
+  }
+
+  @Put(':id/meta')
+  @UseGuards(JwtAuthGuard)
+  upsertMeta(@Param('id') id: string, @Body() dto: MetaDto, @CurrentUser() user: JwtPayload) {
+    return this.content.upsertMeta(id, dto.key, dto.value, user);
+  }
+
+  @Delete(':id/meta/:key')
+  @UseGuards(JwtAuthGuard)
+  deleteMeta(@Param('id') id: string, @Param('key') key: string, @CurrentUser() user: JwtPayload) {
+    return this.content.deleteMeta(id, key, user);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.assertLibrary(user);
     return this.content.findOne(id);
   }
 
   @Get(':id/revisions')
   @UseGuards(JwtAuthGuard)
-  revisions(@Param('id') id: string) {
+  revisions(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    this.assertLibrary(user);
     return this.content.revisions(id);
   }
 
@@ -88,5 +135,11 @@ export class ContentController {
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.content.remove(id, user);
+  }
+
+  private assertLibrary(user: JwtPayload) {
+    if (!can(user.role, 'edit_posts') && !can(user.role, 'edit_pages')) {
+      throw new ForbiddenException('You cannot view the content library');
+    }
   }
 }

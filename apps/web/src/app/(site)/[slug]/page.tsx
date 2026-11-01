@@ -1,5 +1,7 @@
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { PasswordGate } from '@/components/password-gate';
 import { getComments, getPublicContentBySlug, getSettings } from '@/lib/api';
 import { resolveTheme } from '@/lib/themes';
 
@@ -25,12 +27,18 @@ export default async function ContentPage({ params }: Props) {
   const { slug } = await params;
   const settings = await getSettings();
   const theme = await resolveTheme(settings.activeTheme);
+  const jar = await cookies();
+  const unlock = jar.get(`op_unlock_${slug}`)?.value;
 
   let content;
   try {
-    content = await getPublicContentBySlug(slug);
+    content = await getPublicContentBySlug(slug, unlock ? decodeURIComponent(unlock) : undefined);
   } catch {
     notFound();
+  }
+
+  if (content.passwordRequired) {
+    return <PasswordGate slug={slug} title={content.title} excerpt={content.excerpt} />;
   }
 
   const comments = await getComments(content.id);

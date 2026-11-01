@@ -28,9 +28,10 @@ export function RevisionsPanel({
   const [fromId, setFromId] = useState('');
   const [toId, setToId] = useState(CURRENT);
   const [open, setOpen] = useState(false);
+  const compareHost =
+    open && typeof document !== 'undefined' ? document.getElementById('op-revision-compare') : null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [compareHost, setCompareHost] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,9 +87,7 @@ export function RevisionsPanel({
   }
 
   useEffect(() => {
-    const host = document.getElementById('op-revision-compare');
-    setCompareHost(host);
-    if (open) host?.scrollIntoView({ block: 'start' });
+    if (open) document.getElementById('op-revision-compare')?.scrollIntoView({ block: 'start' });
   }, [open]);
 
   const compare =

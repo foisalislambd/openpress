@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -12,6 +13,8 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { can } from '../auth/capabilities';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -20,6 +23,38 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { MediaService } from './media.service';
+
+class UpdateMediaDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  alt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  caption?: string;
+}
+
+class CropDto {
+  @IsInt()
+  @Min(0)
+  x: number;
+
+  @IsInt()
+  @Min(0)
+  y: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(20000)
+  width: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(20000)
+  height: number;
+}
 
 const uploadDir = process.env.UPLOAD_DIR ?? 'uploads';
 
@@ -76,12 +111,24 @@ export class MediaController {
     @CurrentUser() user: JwtPayload,
     @Body('alt') alt?: string,
   ) {
+    if (!can(user.role, 'upload_files')) {
+      throw new ForbiddenException('You cannot upload files');
+    }
+    if (!file) throw new BadRequestException('No file uploaded');
     return this.media.create(file, user.sub, alt);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body('alt') alt: string) {
-    return this.media.update(id, alt);
+  update(@Param('id') id: string, @Body() dto: UpdateMediaDto) {
+    return this.media.update(id, dto);
+  }
+
+  @Post(':id/crop')
+  crop(@Param('id') id: string, @Body() dto: CropDto, @CurrentUser() user: JwtPayload) {
+    if (!can(user.role, 'upload_files')) {
+      throw new ForbiddenException('You cannot edit files');
+    }
+    return this.media.crop(id, dto);
   }
 
   @Delete(':id')

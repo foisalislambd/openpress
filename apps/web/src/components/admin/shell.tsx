@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Comment, Role, SiteSettings, User } from '@openpress/shared';
 import { api, clearTokens } from '@/lib/client-api';
 import { cn } from '@/components/ui';
 
 type IconName = string;
 
-const ROLES: Role[] = ['ADMIN', 'EDITOR', 'AUTHOR'];
+const EVERYONE: Role[] = ['ADMIN', 'EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'];
+const WRITERS: Role[] = ['ADMIN', 'EDITOR', 'AUTHOR', 'CONTRIBUTOR'];
+const MEDIA_ROLES: Role[] = ['ADMIN', 'EDITOR', 'AUTHOR'];
 const STAFF: Role[] = ['ADMIN', 'EDITOR'];
 
 type MenuLink = {
@@ -44,9 +46,9 @@ const MENU: MenuEntry[] = [
     label: 'Dashboard',
     icon: 'dashboard',
     href: '/admin',
-    roles: ROLES,
+    roles: EVERYONE,
     children: [
-      { href: '/admin', label: 'Home', roles: ROLES, exact: true },
+      { href: '/admin', label: 'Home', roles: EVERYONE, exact: true },
       { href: '/admin/updates', label: 'Updates', roles: ['ADMIN'], exact: true },
     ],
   },
@@ -56,17 +58,17 @@ const MENU: MenuEntry[] = [
     label: 'Posts',
     icon: 'posts',
     href: '/admin/posts',
-    roles: ROLES,
+    roles: WRITERS,
     children: [
       {
         href: '/admin/posts',
         label: 'All Posts',
-        roles: ROLES,
+        roles: WRITERS,
         exclude: ['/admin/posts/new', '/admin/posts/categories', '/admin/posts/tags'],
       },
-      { href: '/admin/posts/new', label: 'Add Post', roles: ROLES, exact: true },
-      { href: '/admin/posts/categories', label: 'Categories', roles: ROLES },
-      { href: '/admin/posts/tags', label: 'Tags', roles: ROLES },
+      { href: '/admin/posts/new', label: 'Add Post', roles: WRITERS, exact: true },
+      { href: '/admin/posts/categories', label: 'Categories', roles: MEDIA_ROLES },
+      { href: '/admin/posts/tags', label: 'Tags', roles: MEDIA_ROLES },
     ],
   },
   {
@@ -75,10 +77,10 @@ const MENU: MenuEntry[] = [
     label: 'Media',
     icon: 'media',
     href: '/admin/media',
-    roles: ROLES,
+    roles: MEDIA_ROLES,
     children: [
-      { href: '/admin/media', label: 'Library', roles: ROLES, exclude: ['/admin/media/new'] },
-      { href: '/admin/media/new', label: 'Add Media File', roles: ROLES, exact: true },
+      { href: '/admin/media', label: 'Library', roles: MEDIA_ROLES, exclude: ['/admin/media/new'] },
+      { href: '/admin/media/new', label: 'Add Media File', roles: MEDIA_ROLES, exact: true },
     ],
   },
   {
@@ -150,8 +152,8 @@ const MENU: MenuEntry[] = [
     label: 'Profile',
     icon: 'users',
     href: '/admin/profile',
-    roles: ['EDITOR', 'AUTHOR'],
-    children: [{ href: '/admin/profile', label: 'Profile', roles: ['EDITOR', 'AUTHOR'], exact: true }],
+    roles: ['EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'],
+    children: [{ href: '/admin/profile', label: 'Profile', roles: ['EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'], exact: true }],
   },
   {
     kind: 'item',
@@ -187,6 +189,25 @@ const MENU: MenuEntry[] = [
     ],
   },
 ];
+
+function readFold() {
+  return localStorage.getItem('op_menu_folded') === '1';
+}
+
+function subscribeFold(onStoreChange: () => void) {
+  window.addEventListener('op-fold', onStoreChange);
+  return () => window.removeEventListener('op-fold', onStoreChange);
+}
+
+function readNarrow() {
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function subscribeNarrow(onStoreChange: () => void) {
+  const media = window.matchMedia('(max-width: 767px)');
+  media.addEventListener('change', onStoreChange);
+  return () => media.removeEventListener('change', onStoreChange);
+}
 
 function Icon({ name }: { name: string }) {
   const glyph =
@@ -262,13 +283,21 @@ export function AdminShell({
   const pathname = usePathname();
   const router = useRouter();
   const [hash, setHash] = useState('');
-  const [folded, setFolded] = useState(false);
+  const folded = useSyncExternalStore(subscribeFold, readFold, () => false);
+  const narrow = useSyncExternalStore(subscribeNarrow, readNarrow, () => false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pending, setPending] = useState(0);
+  const [pluginPages, setPluginPages] = useState<{ pluginId: string; slug: string; menuTitle: string }[]>([]);
   const [siteTitle, setSiteTitle] = useState('OpenPress');
   const [menuOpen, setMenuOpen] = useState<'new' | 'site' | 'user' | null>(null);
-  const [narrow, setNarrow] = useState(false);
   const barRef = useRef<HTMLElement>(null);
+  const routeKey = `${pathname}#${hash}`;
+  const [seenRoute, setSeenRoute] = useState(routeKey);
+  if (seenRoute !== routeKey) {
+    setSeenRoute(routeKey);
+    setMobileOpen(false);
+    setMenuOpen(null);
+  }
 
   useEffect(() => {
     const read = () => setHash(window.location.hash.replace('#', ''));
@@ -278,21 +307,7 @@ export function AdminShell({
   }, [pathname]);
 
   useEffect(() => {
-    setFolded(localStorage.getItem('op_menu_folded') === '1');
-    const media = window.matchMedia('(max-width: 767px)');
-    const apply = () => setNarrow(media.matches);
-    apply();
-    media.addEventListener('change', apply);
-    return () => media.removeEventListener('change', apply);
-  }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
-    setMenuOpen(null);
-  }, [pathname, hash]);
-
-  useEffect(() => {
-    if (user.role !== 'AUTHOR') {
+    if (user.role === 'ADMIN' || user.role === 'EDITOR') {
       api<Comment[]>('/comments?status=PENDING')
         .then((rows) => setPending(rows.length))
         .catch(() => {});
@@ -300,6 +315,11 @@ export function AdminShell({
     api<SiteSettings>('/settings')
       .then((s) => setSiteTitle(s.siteTitle || 'OpenPress'))
       .catch(() => {});
+    if (user.role === 'ADMIN') {
+      api<{ menus: { pluginId: string; slug: string; menuTitle: string }[] }>('/plugins/registry')
+        .then((registry) => setPluginPages(registry.menus))
+        .catch(() => setPluginPages([]));
+    }
   }, [pathname, user.role]);
 
   useEffect(() => {
@@ -310,9 +330,26 @@ export function AdminShell({
     return () => document.removeEventListener('mousedown', onPointer);
   }, []);
 
-  const menu = visibleMenu(user.role);
-  const canPages = user.role !== 'AUTHOR';
+  const menu = visibleMenu(user.role).map((entry) => {
+    if (entry.kind !== 'item' || entry.id !== 'plugins' || pluginPages.length === 0) return entry;
+    return {
+      ...entry,
+      children: [
+        ...entry.children,
+        ...pluginPages.map((page) => ({
+          href: `/admin/plugin/${page.pluginId}/${page.slug}`,
+          label: page.menuTitle,
+          roles: ['ADMIN'] as Role[],
+          exact: true,
+        })),
+      ],
+    };
+  });
+  const canPages = user.role === 'ADMIN' || user.role === 'EDITOR';
+  const canWrite = user.role !== 'SUBSCRIBER';
+  const canMedia = user.role === 'ADMIN' || user.role === 'EDITOR' || user.role === 'AUTHOR';
   const isAdmin = user.role === 'ADMIN';
+  const canModerate = user.role === 'ADMIN' || user.role === 'EDITOR';
 
   function selectHash(next: string) {
     setHash(next);
@@ -324,10 +361,8 @@ export function AdminShell({
   }
 
   function toggleFold() {
-    setFolded((value) => {
-      localStorage.setItem('op_menu_folded', value ? '0' : '1');
-      return !value;
-    });
+    localStorage.setItem('op_menu_folded', folded ? '0' : '1');
+    window.dispatchEvent(new Event('op-fold'));
   }
 
   return (
@@ -360,13 +395,13 @@ export function AdminShell({
           open={menuOpen === 'new'}
           onToggle={() => setMenuOpen(menuOpen === 'new' ? null : 'new')}
         >
-          <Link href="/admin/posts/new">Post</Link>
-          <Link href="/admin/media/new">Media</Link>
+          {canWrite ? <Link href="/admin/posts/new">Post</Link> : null}
+          {canMedia ? <Link href="/admin/media/new">Media</Link> : null}
           {canPages ? <Link href="/admin/pages/new">Page</Link> : null}
           {isAdmin ? <Link href="/admin/users/new">User</Link> : null}
         </BarMenu>
         <div className="ml-auto flex h-full items-center">
-          {user.role !== 'AUTHOR' ? (
+          {canModerate ? (
             <Link
               href="/admin/comments"
               className="relative flex h-8 items-center px-2 hover:bg-[#0c0c0c] hover:text-[#7b90ff]"

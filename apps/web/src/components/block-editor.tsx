@@ -26,7 +26,9 @@ export function BlockEditor({
 
   const editor = useCreateBlockNote({ initialContent });
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     // Emit initial state so the parent always has valid blocks

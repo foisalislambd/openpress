@@ -15,10 +15,12 @@ const FILTERS = [
   { value: 'TRASHED', label: 'Trash' },
 ];
 
-function statusLabel(status: string) {
-  if (status === 'PUBLISHED') return '';
-  if (status === 'TRASHED') return 'Trash';
-  return status.charAt(0) + status.slice(1).toLowerCase();
+function statusLabel(item: Content) {
+  if (item.status === 'PUBLISHED' && item.visibility === 'PRIVATE') return 'Private';
+  if (item.status === 'PUBLISHED' && item.visibility === 'PASSWORD') return 'Password protected';
+  if (item.status === 'PUBLISHED') return '';
+  if (item.status === 'TRASHED') return 'Trash';
+  return item.status.charAt(0) + item.status.slice(1).toLowerCase();
 }
 
 function when(value?: string | null) {
@@ -42,7 +44,13 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
-  const [bulk, setBulk] = useState('trash');
+  const [bulkChoice, setBulkChoice] = useState('trash');
+  const [bulkStatus, setBulkStatus] = useState(status);
+  if (bulkStatus !== status) {
+    setBulkStatus(status);
+    setBulkChoice(status === 'TRASHED' ? 'restore' : 'trash');
+  }
+  const bulk = bulkChoice;
   const [actionError, setActionError] = useState('');
   const label = type === 'POST' ? 'Posts' : 'Pages';
   const base = type === 'POST' ? '/admin/posts' : '/admin/pages';
@@ -54,10 +62,10 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
     api<Paginated<Content>>(`/content?${qs}`)
       .then((result) => {
         setData(result);
+        setSelected([]);
         if (result.items.length === 0 && page > 1) setPage(page - 1);
       })
       .catch(() => {});
-    setSelected([]);
     Promise.all(
       FILTERS.map(async (filter) => {
         const countQs = new URLSearchParams({ type, page: '1', perPage: '1' });
@@ -71,10 +79,6 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
   }, [type, page, status, query]);
 
   useEffect(load, [load]);
-
-  useEffect(() => {
-    setBulk(status === 'TRASHED' ? 'restore' : 'trash');
-  }, [status]);
 
   async function applyBulk() {
     if (selected.length === 0) return;
@@ -137,7 +141,7 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
       </ul>
       <div className="op-tablenav">
         <div className="op-bulk">
-          <Select value={bulk} onChange={(e) => setBulk(e.target.value)}>
+          <Select value={bulk} onChange={(e) => setBulkChoice(e.target.value)}>
             {status === 'TRASHED' ? <option value="restore">Restore</option> : <option value="trash">Move to Trash</option>}
             <option value="delete">Delete permanently</option>
           </Select>
@@ -180,7 +184,7 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
         </thead>
         <tbody>
           {data?.items.map((item) => {
-            const labelText = statusLabel(item.status);
+            const labelText = statusLabel(item);
             const dateValue = item.status === 'PUBLISHED' ? item.publishedAt ?? item.updatedAt : item.updatedAt;
             return (
               <tr key={item.id}>

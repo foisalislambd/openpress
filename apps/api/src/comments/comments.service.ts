@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DbService } from '../db/db.service';
+import { HooksService } from '../hooks/hooks.service';
 import { newId } from '../db/ids';
+import { initialCommentStatus } from './comment-policy';
 
 type CommentRow = {
   id: string;
@@ -27,7 +28,7 @@ const COMMENT_COLUMNS = `c.id, c."contentId", c."authorId", c."guestName", c."gu
 export class CommentsService {
   constructor(
     private db: DbService,
-    private events: EventEmitter2,
+    private hooks: HooksService,
   ) {}
 
   findAll(status?: string) {
@@ -77,19 +78,41 @@ export class CommentsService {
     guestName?: string;
     guestEmail?: string;
     parentId?: string;
+    authorIp?: string;
+    userAgent?: string;
   }) {
     // Guests must identify themselves
     if (!data.authorId && !data.guestName?.trim()) {
       throw new BadRequestException('Name is required to comment');
     }
     // Comments are only allowed on published content
-    const content = await this.db.one<{ status: string }>(
-      'SELECT status FROM contents WHERE id = $1',
+    const content = await this.db.one<{
+      status: string;
+      visibility: string;
+      commentStatus: string;
+    }>(
+      'SELECT status, visibility, "commentStatus" FROM contents WHERE id = $1',
       [data.contentId],
     );
-    if (!content || content.status !== 'PUBLISHED') {
+    if (!content || content.status !== 'PUBLISHED' || content.visibility === 'PRIVATE') {
       throw new NotFoundException('Content not found or not published');
     }
+    if (content.commentStatus === 'closed') {
+      throw new BadRequestException('Comments are closed');
+    }
+    const flags = await this.db.query<{ key: string; value: unknown }>(
+      `SELECT key, value FROM settings WHERE key = ANY($1::text[])`,
+      [['allowComments', 'commentModeration']],
+    );
+    const flag = Object.fromEntries(flags.map((row) => [row.key, row.value]));
+    if (flag.allowComments === false) {
+      throw new BadRequestException('Comments are closed');
+    }
+    const status = initialCommentStatus({
+      body: data.body,
+      authenticated: Boolean(data.authorId),
+      moderation: flag.commentModeration !== false,
+    });
     if (data.parentId) {
       const parent = await this.db.one<{ contentId: string }>(
         'SELECT "contentId" FROM comments WHERE id = $1',
@@ -101,8 +124,9 @@ export class CommentsService {
     }
     const comment = await this.db.one(
       `INSERT INTO comments (
-         id, "contentId", "authorId", "guestName", "guestEmail", body, status, "parentId"
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::"CommentStatus", $8)
+         id, "contentId", "authorId", "guestName", "guestEmail", body, status, "parentId",
+         "authorIp", "userAgent"
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::"CommentStatus", $8, $9, $10)
        RETURNING id, "contentId", "authorId", "guestName", "guestEmail", body, status, "parentId", "createdAt"`,
       [
         newId(),
@@ -111,11 +135,13 @@ export class CommentsService {
         data.guestName ?? null,
         data.guestEmail ?? null,
         data.body,
-        data.authorId ? 'APPROVED' : 'PENDING',
+        status,
         data.parentId ?? null,
+        data.authorIp?.slice(0, 64) ?? null,
+        data.userAgent?.slice(0, 300) ?? null,
       ],
     );
-    this.events.emit('comment.created', comment);
+    await this.hooks.doAction('comment.created', comment);
     return comment;
   }
 
