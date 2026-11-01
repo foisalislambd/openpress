@@ -34,18 +34,18 @@ export async function loadCodeTheme(
     if (!res.ok) return null;
     const source = await res.text();
 
-    const module = { exports: {} as Record<string, unknown> };
+    const themeModule = { exports: {} as Record<string, unknown> };
     const evaluate = new Function(
       'module',
       'exports',
       'require',
       `${source}\n//# sourceURL=openpress-theme-${id}.js`,
     );
-    evaluate(module, module.exports, requireShim);
+    evaluate(themeModule, themeModule.exports, requireShim);
 
     const exported =
-      (module.exports.default as Partial<ThemeDefinition>) ??
-      (module.exports as Partial<ThemeDefinition>);
+      (themeModule.exports.default as Partial<ThemeDefinition>) ??
+      (themeModule.exports as Partial<ThemeDefinition>);
 
     if (
       !exported?.Layout ||

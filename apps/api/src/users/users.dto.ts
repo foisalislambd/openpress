@@ -6,7 +6,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-const ROLES = ['ADMIN', 'EDITOR', 'AUTHOR'] as const;
+const ROLES = ['ADMIN', 'EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'] as const;
 
 export class CreateUserDto {
   @IsEmail()

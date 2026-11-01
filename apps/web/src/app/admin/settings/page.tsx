@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Input, Select, Textarea } from '@/components/ui';
 import { SettingsForm } from '@/components/admin/screen';
 
 export default function SettingsPage() {
-  const [origin, setOrigin] = useState('');
-  useEffect(() => setOrigin(window.location.origin), []);
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => '',
+  );
   return (
     <SettingsForm title="General Settings">
       {(settings, set) => (

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DbService } from '../db/db.service';
+import { HooksService } from '../hooks/hooks.service';
 
 export const DEFAULT_SETTINGS: Record<string, unknown> = {
   siteTitle: 'OpenPress Site',
@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   defaultCategoryId: null,
   defaultRole: 'AUTHOR',
   menus: [],
+  menuLocations: { primary: 'Primary', footer: '' },
   widgets: { sidebar: [], footer: [] },
 };
 
@@ -38,7 +39,7 @@ const PUBLIC_KEYS = Object.keys(DEFAULT_SETTINGS);
 export class SettingsService {
   constructor(
     private db: DbService,
-    private events: EventEmitter2,
+    private hooks: HooksService,
   ) {}
 
   async getAll() {
@@ -70,7 +71,7 @@ export class SettingsService {
       }
     });
     const all = await this.getAll();
-    this.events.emit('settings.updated', all);
+    await this.hooks.doAction('settings.updated', all);
     return all;
   }
 

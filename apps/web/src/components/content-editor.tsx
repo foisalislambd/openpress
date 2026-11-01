@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Category, Content, Tag } from '@openpress/shared';
+import type { Category, Content, ContentMeta, Tag } from '@openpress/shared';
 import { api } from '@/lib/client-api';
 import { Button, Input, Label, Textarea } from '@/components/ui';
 import { Notice } from '@/components/admin/screen';
@@ -39,9 +39,18 @@ export function ContentEditor({
   const [tags, setTags] = useState<Tag[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE' | 'PASSWORD'>('PUBLIC');
+  const [password, setPassword] = useState('');
+  const [sticky, setSticky] = useState(false);
+  const [commentStatus, setCommentStatus] = useState<'open' | 'closed'>('open');
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [meta, setMeta] = useState<ContentMeta[]>([]);
+  const [metaKey, setMetaKey] = useState('');
+  const [metaValue, setMetaValue] = useState('');
   const [editorKey, setEditorKey] = useState(0);
   const [revisionRefresh, setRevisionRefresh] = useState(0);
   const [notice, setNotice] = useState('');
+  const [autosave, setAutosave] = useState<{ title: string; blocks: unknown[]; excerpt?: string | null; updatedAt: string } | null>(null);
 
   useEffect(() => {
     api<Category[]>('/taxonomy/categories').then(setCategories).catch(() => {});
@@ -60,11 +69,38 @@ export function ContentEditor({
           setCoverImage(c.coverImage ?? '');
           setCategoryIds(c.categories?.map((x) => x.id) ?? []);
           setTagIds(c.tags?.map((x) => x.id) ?? []);
+          setVisibility(c.visibility ?? 'PUBLIC');
+          setSticky(Boolean(c.sticky));
+          setCommentStatus(c.commentStatus ?? 'open');
+          setScheduledAt(c.scheduledAt ? c.scheduledAt.slice(0, 16) : '');
+          setMeta(c.meta ?? []);
           setLoaded(true);
+          api<{ title: string; blocks: unknown[]; excerpt?: string | null; updatedAt: string } | null>(
+            `/content/${contentId}/autosave`,
+          )
+            .then((saved) => {
+              if (saved && new Date(saved.updatedAt).getTime() > new Date(c.updatedAt).getTime()) {
+                setAutosave(saved);
+              }
+            })
+            .catch(() => {});
         })
         .catch(() => setError('Failed to load content'));
     }
   }, [contentId]);
+
+  useEffect(() => {
+    if (!contentId || !loaded) return;
+    const handle = window.setInterval(() => {
+      api(`/content/${contentId}/autosave`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: title || 'Untitled', blocks, excerpt }),
+      })
+        .then(() => setNotice(`Autosaved at ${new Date().toLocaleTimeString()}`))
+        .catch(() => {});
+    }, 30_000);
+    return () => window.clearInterval(handle);
+  }, [contentId, loaded, title, blocks, excerpt]);
 
   function applyContent(content: Content) {
     setExisting(content);
@@ -90,6 +126,11 @@ export function ContentEditor({
       coverImage: coverImage || undefined,
       categoryIds,
       tagIds,
+      visibility,
+      sticky,
+      commentStatus,
+      ...(password ? { password } : {}),
+      ...(status === 'SCHEDULED' && scheduledAt ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
     };
     try {
       if (contentId) {
@@ -99,7 +140,10 @@ export function ContentEditor({
         });
         setExisting(updated);
         setSlug(updated.slug);
+        setPassword('');
+        setMeta(updated.meta ?? []);
         setRevisionRefresh((key) => key + 1);
+        setNotice(status === 'PUBLISHED' ? 'Updated.' : 'Saved.');
       } else {
         const created = await api<Content>('/content', {
           method: 'POST',
@@ -125,7 +169,11 @@ export function ContentEditor({
         <strong>
           {contentId ? 'Edit' : 'Add'} {noun}
         </strong>
-        <span className="text-[#646970]">{existing?.status ?? 'DRAFT'}</span>
+        <span className="text-[#646970]">
+          {existing?.status ?? 'DRAFT'}
+          {visibility === 'PRIVATE' ? ' · Private' : ''}
+          {visibility === 'PASSWORD' ? ' · Password' : ''}
+        </span>
         <span className="ml-auto flex gap-2">
           {existing?.status === 'PUBLISHED' ? (
             <a href={`/${existing.slug}`} target="_blank" rel="noreferrer">
@@ -142,6 +190,23 @@ export function ContentEditor({
       </div>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {notice ? <Notice kind="success">{notice}</Notice> : null}
+      {autosave ? (
+        <Notice kind="success">
+          An autosave from {new Date(autosave.updatedAt).toLocaleString()} is newer than the saved copy.{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setTitle(autosave.title);
+              setExcerpt(autosave.excerpt ?? '');
+              setBlocks(autosave.blocks ?? []);
+              setEditorKey((key) => key + 1);
+              setAutosave(null);
+            }}
+          >
+            Restore autosave
+          </button>
+        </Notice>
+      ) : null}
       {contentId ? <div id="op-revision-compare" /> : null}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-3">
@@ -160,15 +225,50 @@ export function ContentEditor({
               <p>
                 Status: <strong>{existing?.status ?? 'DRAFT'}</strong>
               </p>
-              <p>
-                Visibility: <strong>{existing?.status === 'PUBLISHED' ? 'Public' : 'Not published'}</strong>
-              </p>
-              <div className="flex gap-2 border-t border-[#dcdcde] pt-3">
+              <Label>Visibility</Label>
+              <select
+                className="w-full border border-[#8c8f94] px-2 py-1"
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as typeof visibility)}
+              >
+                <option value="PUBLIC">Public</option>
+                <option value="PRIVATE">Private</option>
+                <option value="PASSWORD">Password protected</option>
+              </select>
+              {visibility === 'PASSWORD' ? (
+                <Input
+                  type="password"
+                  value={password}
+                  placeholder={existing?.passwordProtected ? 'Password is set' : 'Password'}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              ) : null}
+              <Label>Schedule</Label>
+              <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+              {type === 'POST' ? (
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={sticky} onChange={(e) => setSticky(e.target.checked)} />
+                  Stick to the top of the blog
+                </label>
+              ) : null}
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={commentStatus === 'open'}
+                  onChange={(e) => setCommentStatus(e.target.checked ? 'open' : 'closed')}
+                />
+                Allow comments
+              </label>
+              <div className="flex flex-wrap gap-2 border-t border-[#dcdcde] pt-3">
                 <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
                   Save Draft
                 </Button>
                 <Button disabled={saving} onClick={() => save('PUBLISHED')}>
                   {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
+                </Button>
+                <Button variant="secondary" disabled={saving || !scheduledAt} onClick={() => save('SCHEDULED')}>
+                  Schedule
                 </Button>
               </div>
             </div>
@@ -245,6 +345,58 @@ export function ContentEditor({
               </div>
             </div>
           ) : null}
+          <div className="border border-[#c3c4c7] bg-white">
+            <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">Custom fields</h2>
+            <div className="space-y-2 p-3 text-[13px]">
+              {meta.map((field) => (
+                <div key={field.key} className="flex items-start justify-between gap-2">
+                  <div>
+                    <strong>{field.key}</strong>
+                    <p className="break-all text-[#646970]">{JSON.stringify(field.value)}</p>
+                  </div>
+                  {contentId ? (
+                    <button
+                      type="button"
+                      className="text-[#b32d2e]"
+                      onClick={async () => {
+                        const next = await api<ContentMeta[]>(`/content/${contentId}/meta/${encodeURIComponent(field.key)}`, {
+                          method: 'DELETE',
+                        });
+                        setMeta(next);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              {meta.length === 0 ? <p className="op-description">No custom fields yet.</p> : null}
+              {contentId ? (
+                <div className="space-y-2 border-t border-[#dcdcde] pt-2">
+                  <Input placeholder="Key" value={metaKey} onChange={(e) => setMetaKey(e.target.value)} />
+                  <Input placeholder="Value" value={metaValue} onChange={(e) => setMetaValue(e.target.value)} />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!metaKey.trim()) return;
+                      const next = await api<ContentMeta[]>(`/content/${contentId}/meta`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ key: metaKey.trim(), value: metaValue }),
+                      });
+                      setMeta(next);
+                      setMetaKey('');
+                      setMetaValue('');
+                    }}
+                  >
+                    Add custom field
+                  </Button>
+                </div>
+              ) : (
+                <p className="op-description">Save the {noun.toLowerCase()} before adding custom fields.</p>
+              )}
+            </div>
+          </div>
           <div className="border border-[#c3c4c7] bg-white">
             <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">SEO</h2>
             <div className="space-y-3 p-3">

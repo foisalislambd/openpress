@@ -7,7 +7,8 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "db:migrate": "tsx db/migrate.ts",
-    "db:seed": "tsx db/seed.ts"
+    "db:seed": "tsx db/seed.ts",
+    "test": "node --import tsx --test test/**/*.spec.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -29,6 +30,7 @@
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.5",
     "slugify": "^1.6.6"
   },
   "devDependencies": {

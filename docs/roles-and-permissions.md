@@ -1,24 +1,24 @@
 # Roles & Permissions
 
-Three roles, WordPress-style.
+Five roles, WordPress-style. Enforcement is the capability map in `apps/api/src/auth/capabilities.ts`, not the menu alone.
 
 ## Role matrix
 
-| Action | Admin | Editor | Author |
-|--------|:-----:|:------:|:------:|
-| View admin panel | ✓ | ✓ | ✓ |
-| Create/edit own posts | ✓ | ✓ | ✓ |
-| Create/edit any post | ✓ | ✓ | — |
-| Create/edit pages | ✓ | ✓ | — |
-| Delete own content | ✓ | ✓ | ✓ |
-| Delete any content | ✓ | ✓ | — |
-| Media library | ✓ | ✓ | ✓ |
-| Categories & tags | ✓ | ✓ | ✓ |
-| Moderate comments | ✓ | ✓ | — |
-| Manage users | ✓ | — | — |
-| Site settings | ✓ | — | — |
-| Themes (upload/activate) | ✓ | — | — |
-| Plugins (upload/toggle) | ✓ | — | — |
+| Action | Admin | Editor | Author | Contributor | Subscriber |
+|--------|:-----:|:------:|:------:|:-----------:|:----------:|
+| View admin panel | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Create/edit own posts | ✓ | ✓ | ✓ | ✓ | — |
+| Publish posts | ✓ | ✓ | ✓ | — | — |
+| Create/edit any post | ✓ | ✓ | — | — | — |
+| Create/edit pages | ✓ | ✓ | — | — | — |
+| Delete own posts | ✓ | ✓ | ✓ | ✓ | — |
+| Delete any post | ✓ | ✓ | — | — | — |
+| Media library | ✓ | ✓ | ✓ | — | — |
+| Categories & tags | ✓ | ✓ | ✓ | — | — |
+| Moderate comments | ✓ | ✓ | — | — | — |
+| Manage users | ✓ | — | — | — | — |
+| Site settings | ✓ | — | — | — | — |
+| Themes and plugins | ✓ | — | — | — | — |
 
 ## Admin
 

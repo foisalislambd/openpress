@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { api, setTokens } from '@/lib/client-api';
@@ -39,9 +40,9 @@ export default function LoginPage() {
   return (
     <div className="op-login">
       <div className="op-login-box">
-        <a className="op-login-logo" href="/" style={{ fontSize: 20, lineHeight: '84px' }}>
+        <Link className="op-login-logo" href="/" style={{ fontSize: 20, lineHeight: '84px' }}>
           OpenPress
-        </a>
+        </Link>
         <form onSubmit={submit}>
           {mode === 'register' ? (
             <>
@@ -78,7 +79,7 @@ export default function LoginPage() {
             {mode === 'login' ? 'Register' : 'Log in'}
           </button>
           {' | '}
-          <a href="/">← Go to OpenPress</a>
+          <Link href="/">← Go to OpenPress</Link>
         </p>
       </div>
     </div>

@@ -106,6 +106,12 @@ function BlockView({ block }: { block: Block }) {
           ) : null}
         </figure>
       );
+    case 'pluginBlock':
+      return (
+        <aside className="my-4 rounded border border-zinc-200 px-3 py-2 text-sm">
+          {String(block.props?.title ?? block.props?.name ?? 'Plugin block')}
+        </aside>
+      );
     case 'paragraph':
     default:
       return (

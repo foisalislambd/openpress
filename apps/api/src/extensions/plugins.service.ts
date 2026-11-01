@@ -5,25 +5,21 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import AdmZip from 'adm-zip';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { join, resolve } from 'path';
 import { DbService } from '../db/db.service';
+import { HooksService } from '../hooks/hooks.service';
+import { ExtensionRegistry } from './extension-registry';
+import { createPluginContext } from './plugin-context';
+import { PluginManifest, validatePluginManifest } from './plugin-manifest';
 
-export interface PluginManifest {
-  id: string;
-  name: string;
-  version: string;
-  description?: string;
-  author?: string;
-  main: string;
-}
+export type { PluginManifest };
 
 interface LoadedPlugin {
   manifest: PluginManifest;
   dir: string;
-  listeners: { event: string; handler: (...args: unknown[]) => void }[];
+  dispose: () => void;
 }
 
 const PLUGINS_DIR = resolve(process.cwd(), 'plugins');
@@ -34,10 +30,12 @@ const ID_RE = /^[a-z0-9][a-z0-9-_]*$/;
 export class PluginsService implements OnModuleInit {
   private readonly logger = new Logger('Plugins');
   private loaded = new Map<string, LoadedPlugin>();
+  private errors = new Map<string, string>();
 
   constructor(
     private db: DbService,
-    private events: EventEmitter2,
+    private hooks: HooksService,
+    private registry: ExtensionRegistry,
   ) {}
 
   async onModuleInit() {
@@ -48,7 +46,9 @@ export class PluginsService implements OnModuleInit {
         try {
           this.load(id);
         } catch (e) {
-          this.logger.error(`Failed to load plugin "${id}": ${e}`);
+          const message = e instanceof Error ? e.message : String(e);
+          this.errors.set(id, message);
+          this.logger.error(`Failed to load plugin "${id}": ${message}`);
         }
       }
     }
@@ -63,6 +63,9 @@ export class PluginsService implements OnModuleInit {
         id,
         enabled: enabled.includes(id),
         loaded: this.loaded.has(id),
+        permissions: manifest.permissions ?? [],
+        requires: manifest.requires ?? {},
+        error: this.errors.get(id) ?? null,
       };
     });
   }
@@ -113,6 +116,7 @@ export class PluginsService implements OnModuleInit {
     if (this.loaded.has(id)) this.unload(id);
     const dir = join(PLUGINS_DIR, id);
     const manifest = this.readManifest(dir);
+    this.validateManifest(manifest);
     const mainPath = join(dir, manifest.main);
 
     delete require.cache[require.resolve(mainPath)];
@@ -125,29 +129,32 @@ export class PluginsService implements OnModuleInit {
       );
     }
 
-    const listeners: LoadedPlugin['listeners'] = [];
-    const context = {
-      hooks: {
-        on: (event: string, handler: (...args: unknown[]) => void) => {
-          this.events.on(event, handler);
-          listeners.push({ event, handler });
-        },
-      },
-      logger: new Logger(`plugin:${id}`),
-      db: this.db,
+    this.registry.clear(id);
+    const { ctx, dispose } = createPluginContext({
       manifest,
-    };
-    activate(context);
-    this.loaded.set(id, { manifest, dir, listeners });
+      hooks: this.hooks,
+      registry: this.registry,
+      db: this.db,
+      pluginDir: dir,
+    });
+    try {
+      activate(ctx);
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+    this.loaded.set(id, { manifest, dir, dispose });
+    this.errors.delete(id);
     this.logger.log(`Plugin "${id}" activated`);
   }
 
   private unload(id: string) {
     const plugin = this.loaded.get(id);
-    if (!plugin) return;
-    for (const { event, handler } of plugin.listeners) {
-      this.events.off(event, handler);
+    if (!plugin) {
+      this.registry.clear(id);
+      return;
     }
+    plugin.dispose();
     this.loaded.delete(id);
     this.logger.log(`Plugin "${id}" deactivated`);
   }
@@ -170,19 +177,59 @@ export class PluginsService implements OnModuleInit {
   }
 
   private validateManifest(manifest: PluginManifest) {
-    if (!manifest?.id || !ID_RE.test(manifest.id)) {
-      throw new BadRequestException(
-        'plugin.json must contain a lowercase alphanumeric "id"',
-      );
+    try {
+      validatePluginManifest(manifest);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Invalid plugin.json');
     }
-    if (!manifest.name || !manifest.version || !manifest.main) {
-      throw new BadRequestException(
-        'plugin.json must contain "name", "version" and "main"',
-      );
+  }
+
+  async widgetAreas() {
+    const row = await this.db.one<{ value: unknown }>(
+      'SELECT value FROM settings WHERE key = $1',
+      ['widgets'],
+    );
+    const value = (row?.value ?? {}) as { sidebar?: unknown; footer?: unknown };
+    const list = (items: unknown) =>
+      Array.isArray(items)
+        ? items.filter((item) => item && typeof item === 'object')
+        : [];
+    return {
+      sidebar: list(value.sidebar) as { type?: string; title?: string; text?: string }[],
+      footer: list(value.footer) as { type?: string; title?: string; text?: string }[],
+    };
+  }
+
+  async getSettings(id: string) {
+    this.assertInstalled(id);
+    const row = await this.db.one<{ value: unknown }>(
+      'SELECT value FROM settings WHERE key = $1',
+      [`plugin:${id}`],
+    );
+    return row?.value && typeof row.value === 'object' ? row.value : {};
+  }
+
+  async updateSettings(id: string, values: Record<string, unknown>, slug: string) {
+    this.assertInstalled(id);
+    const page = this.registry.page(id, slug);
+    if (!page) throw new NotFoundException('Plugin page not found');
+    const allowed = new Set(page.fields.map((field) => field.key));
+    const current = (await this.getSettings(id)) as Record<string, unknown>;
+    const next = { ...current };
+    for (const [key, value] of Object.entries(values)) {
+      if (!allowed.has(key)) continue;
+      if (typeof value !== 'string' || value.length > 5000) {
+        throw new BadRequestException(`Invalid value for ${key}`);
+      }
+      next[key] = value;
     }
-    if (manifest.main.includes('..')) {
-      throw new BadRequestException('Invalid "main" path');
-    }
+    await this.db.query(
+      `INSERT INTO settings (key, value, "updatedAt")
+       VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, "updatedAt" = now()`,
+      [`plugin:${id}`, JSON.stringify(next)],
+    );
+    return next;
   }
 
   private findManifestInZip(zip: AdmZip, filename: string) {

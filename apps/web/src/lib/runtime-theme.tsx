@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import React from 'react';
 import type {
   Content,
@@ -176,7 +177,7 @@ export function buildRuntimeTheme(
               gap: '0.75rem',
             }}
           >
-            <a
+            <Link
               href="/"
               style={{
                 color: t.headerText,
@@ -186,11 +187,11 @@ export function buildRuntimeTheme(
               }}
             >
               {settings.siteTitle}
-            </a>
+            </Link>
             <nav style={{ display: 'flex', gap: '1.25rem' }}>
-              <a href="/" style={{ color: t.headerText, opacity: 0.9, textDecoration: 'none', fontSize: '0.9rem' }}>
+              <Link href="/" style={{ color: t.headerText, opacity: 0.9, textDecoration: 'none', fontSize: '0.9rem' }}>
                 Home
-              </a>
+              </Link>
               {pages.map((p) => (
                 <a
                   key={p.id}

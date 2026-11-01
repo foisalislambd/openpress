@@ -1,8 +1,9 @@
 import type { ComponentType, ReactNode } from 'react';
 
-export type Role = 'ADMIN' | 'EDITOR' | 'AUTHOR';
+export type Role = 'ADMIN' | 'EDITOR' | 'AUTHOR' | 'CONTRIBUTOR' | 'SUBSCRIBER';
 export type ContentType = 'POST' | 'PAGE';
 export type ContentStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'TRASHED';
+export type ContentVisibility = 'PUBLIC' | 'PRIVATE' | 'PASSWORD';
 export type CommentStatus = 'PENDING' | 'APPROVED' | 'SPAM' | 'TRASHED';
 
 export interface User {
@@ -32,10 +33,21 @@ export interface Tag {
   _count?: { contents: number };
 }
 
+export interface ContentMeta {
+  id: string;
+  key: string;
+  value: unknown;
+}
+
 export interface Content {
   id: string;
   type: ContentType;
   status: ContentStatus;
+  visibility?: ContentVisibility;
+  passwordProtected?: boolean;
+  passwordRequired?: boolean;
+  sticky?: boolean;
+  commentStatus?: 'open' | 'closed';
   title: string;
   slug: string;
   excerpt?: string | null;
@@ -44,6 +56,7 @@ export interface Content {
   coverImage?: string | null;
   publishedAt?: string | null;
   scheduledAt?: string | null;
+  meta?: ContentMeta[];
   authorId: string;
   author?: Pick<User, 'id' | 'name' | 'avatarUrl'>;
   categories?: Category[];
@@ -63,13 +76,24 @@ export interface Revision {
   author?: { id: string; name: string };
 }
 
+export interface MediaSize {
+  url: string;
+  width: number;
+  height: number;
+  filename?: string;
+}
+
 export interface Media {
   id: string;
   filename: string;
   url: string;
   mimeType: string;
   size: number;
+  width?: number | null;
+  height?: number | null;
   alt?: string | null;
+  caption?: string | null;
+  sizes?: Record<string, MediaSize>;
   createdAt: string;
   uploader?: Pick<User, 'id' | 'name'>;
 }

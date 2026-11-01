@@ -11,6 +11,8 @@ const ROLES = [
   { value: 'ADMIN', label: 'Administrator' },
   { value: 'EDITOR', label: 'Editor' },
   { value: 'AUTHOR', label: 'Author' },
+  { value: 'CONTRIBUTOR', label: 'Contributor' },
+  { value: 'SUBSCRIBER', label: 'Subscriber' },
 ];
 
 export default function UsersPage() {
@@ -80,6 +82,8 @@ export default function UsersPage() {
                   <option value="ADMIN">Administrator</option>
                   <option value="EDITOR">Editor</option>
                   <option value="AUTHOR">Author</option>
+                  <option value="CONTRIBUTOR">Contributor</option>
+                  <option value="SUBSCRIBER">Subscriber</option>
                 </Select>
               </td>
               <td>{user._count?.contents ?? 0}</td>

@@ -7,6 +7,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: settings.siteTitle, template: `%s | ${settings.siteTitle}` },
     description: settings.siteDescription,
+    alternates: { types: { 'application/rss+xml': '/feed' } },
   };
 }
 

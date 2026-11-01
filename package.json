@@ -14,7 +14,8 @@
     "lint": "turbo run lint --filter=@openpress/web",
     "db:local": "node scripts/local-postgres.mjs",
     "db:migrate": "pnpm --filter @openpress/api db:migrate",
-    "db:seed": "pnpm --filter @openpress/api db:seed"
+    "db:seed": "pnpm --filter @openpress/api db:seed",
+    "test": "pnpm --filter @openpress/api test"
   },
   "devDependencies": {
     "embedded-postgres": "^17.5.0-beta.15",

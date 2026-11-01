@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import type { Category, Content, Paginated, SiteSettings, User } from '@openpress/shared';
-import { api } from '@/lib/client-api';
+import { api, getToken } from '@/lib/client-api';
 import { Button, Input, Label, Select, Textarea } from '@/components/ui';
 import { Notice, Screen, SettingsForm } from '@/components/admin/screen';
 
@@ -110,12 +110,13 @@ export function MenusScreen() {
 
   const menus = (Array.isArray(settings?.menus) ? settings.menus : []) as NavMenu[];
   const current = menus[0] ?? { name, items: [] as MenuItem[] };
+  const locations = (settings?.menuLocations ?? {}) as { primary?: string; footer?: string };
 
-  async function persist(next: NavMenu) {
+  async function persist(next: NavMenu, nextLocations = locations) {
     if (!settings) return;
     const updated = await api<SiteSettings>('/settings', {
       method: 'PUT',
-      body: JSON.stringify({ ...settings, menus: [next] }),
+      body: JSON.stringify({ ...settings, menus: [next], menuLocations: nextLocations }),
     });
     setSettings(updated);
     setName(next.name);
@@ -153,6 +154,38 @@ export function MenusScreen() {
           )}
         </tbody>
       </table>
+      <div className="op-postbox mt-4">
+        <h2 className="px-3 py-2">Menu locations</h2>
+        <div className="space-y-2 p-3 text-[13px]">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={locations.primary === (name.trim() || 'Primary')}
+              onChange={(e) =>
+                persist(current, {
+                  ...locations,
+                  primary: e.target.checked ? name.trim() || 'Primary' : '',
+                })
+              }
+            />
+            Primary menu
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(locations.footer) && locations.footer === (name.trim() || 'Primary')}
+              onChange={(e) =>
+                persist(current, {
+                  ...locations,
+                  footer: e.target.checked ? name.trim() || 'Primary' : '',
+                })
+              }
+            />
+            Footer menu
+          </label>
+          <p className="text-[#646970]">The default theme reads these locations. A location with no menu falls back to the first menu in the header only.</p>
+        </div>
+      </div>
       <table className="op-list mt-4">
         <thead>
           <tr>
@@ -365,7 +398,89 @@ export function ProfileScreen() {
         </table>
         <Button type="submit">Update Profile</Button>
       </form>
+      <ApplicationPasswords />
     </Screen>
+  );
+}
+
+function ApplicationPasswords() {
+  const [rows, setRows] = useState<{ id: string; name: string; createdAt: string; lastUsedAt?: string | null }[]>([]);
+  const [name, setName] = useState('');
+  const [created, setCreated] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<typeof rows>('/auth/application-passwords').then(setRows).catch(() => {});
+  }, []);
+
+  return (
+    <div className="mt-6">
+      <h2 className="mb-2">Application passwords</h2>
+      <p className="op-description">
+        Use these with HTTP Basic auth (email and the password) on the REST API. The password is shown once.
+      </p>
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {created ? <Notice kind="success">New password: {created}</Notice> : null}
+      <div className="mb-3 flex gap-2">
+        <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Button
+          type="button"
+          onClick={async () => {
+            setError('');
+            setCreated('');
+            try {
+              const row = await api<{ id: string; name: string; createdAt: string; password: string }>(
+                '/auth/application-passwords',
+                { method: 'POST', body: JSON.stringify({ name: name || 'API' }) },
+              );
+              setCreated(row.password);
+              setName('');
+              setRows((current) => [{ id: row.id, name: row.name, createdAt: row.createdAt }, ...current]);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Could not create a password');
+            }
+          }}
+        >
+          Add New
+        </Button>
+      </div>
+      <table className="op-list">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Created</th>
+            <th>Last used</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>{row.name}</td>
+              <td>{new Date(row.createdAt).toLocaleString()}</td>
+              <td>{row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : '—'}</td>
+              <td>
+                <button
+                  type="button"
+                  className="is-delete"
+                  onClick={async () => {
+                    await api(`/auth/application-passwords/${row.id}`, { method: 'DELETE' });
+                    setRows((current) => current.filter((item) => item.id !== row.id));
+                  }}
+                >
+                  Revoke
+                </button>
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={4}>No application passwords yet.</td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -375,7 +490,7 @@ export function AddUserScreen() {
     api<SiteSettings>('/settings')
       .then((settings) => {
         const role = String(settings.defaultRole ?? 'AUTHOR');
-        if (role === 'ADMIN' || role === 'EDITOR' || role === 'AUTHOR') {
+        if (role === 'ADMIN' || role === 'EDITOR' || role === 'AUTHOR' || role === 'CONTRIBUTOR' || role === 'SUBSCRIBER') {
           setForm((current) => ({ ...current, role }));
         }
       })
@@ -416,6 +531,8 @@ export function AddUserScreen() {
                 <option value="ADMIN">Administrator</option>
                 <option value="EDITOR">Editor</option>
                 <option value="AUTHOR">Author</option>
+                <option value="CONTRIBUTOR">Contributor</option>
+                <option value="SUBSCRIBER">Subscriber</option>
               </Select>,
             )}
           </tbody>
@@ -464,6 +581,16 @@ export function ImportScreen() {
     setError('');
     setMessage('');
     try {
+      if (file.name.endsWith('.xml') || file.type.includes('xml')) {
+        const body = new FormData();
+        body.append('file', file);
+        const result = await api<{ imported: number; total: number }>('/tools/import/wxr', {
+          method: 'POST',
+          body,
+        });
+        setMessage(`Imported ${result.imported} of ${result.total} from WXR.`);
+        return;
+      }
       const text = await file.text();
       const data = JSON.parse(text) as { posts?: { title: string; excerpt?: string; status?: string; type?: string }[] };
       const posts = Array.isArray(data.posts) ? data.posts : [];
@@ -491,8 +618,8 @@ export function ImportScreen() {
     <Screen title="Import">
       {error ? <Notice kind="error">{error}</Notice> : null}
       {message ? <Notice kind="success">{message}</Notice> : null}
-      <p>Upload an OpenPress export (.json). Each item becomes a draft unless its status is PUBLISHED.</p>
-      <input type="file" accept="application/json,.json" onChange={(e) => onFile(e.target.files?.[0])} />
+      <p>Upload an OpenPress export (.json) or a WordPress WXR file (.xml).</p>
+      <input type="file" accept="application/json,.json,application/xml,.xml,text/xml" onChange={(e) => onFile(e.target.files?.[0])} />
     </Screen>
   );
 }
@@ -541,10 +668,36 @@ export function ExportScreen() {
   return (
     <Screen title="Export">
       {error ? <Notice kind="error">{error}</Notice> : null}
-      <p>Download posts and pages as JSON. The file can be imported on another OpenPress site.</p>
+      <p>Download posts and pages as JSON, or as a WordPress WXR file another OpenPress site can import.</p>
+      <div className="flex gap-2">
       <Button type="button" disabled={busy} onClick={download}>
         {busy ? 'Preparing…' : 'Download Export File'}
       </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={async () => {
+          const token = getToken();
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+          const res = await fetch(`${apiUrl}/api/tools/export/wxr`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!res.ok) {
+            setError('WXR export failed');
+            return;
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'openpress-export.xml';
+          link.click();
+          URL.revokeObjectURL(url);
+        }}
+      >
+        Download WXR
+      </Button>
+      </div>
     </Screen>
   );
 }
@@ -896,8 +1049,14 @@ export function WidgetsScreen() {
   const [areas, setAreas] = useState<WidgetAreas>({ sidebar: [], footer: [] });
   const [saved, setSaved] = useState(false);
   const [area, setArea] = useState<'sidebar' | 'footer'>('sidebar');
+  const [pluginWidgets, setPluginWidgets] = useState<{ type: string; title: string }[]>([]);
 
   useEffect(() => {
+    api<{ widgets?: { type: string; name: string }[] }>('/plugins/registry')
+      .then((registry) =>
+        setPluginWidgets((registry.widgets ?? []).map((widget) => ({ type: widget.type, title: widget.name }))),
+      )
+      .catch(() => setPluginWidgets([]));
     api<SiteSettings>('/settings')
       .then((loaded) => {
         setSettings(loaded);
@@ -931,7 +1090,7 @@ export function WidgetsScreen() {
         <div className="op-postbox">
           <h2 className="px-3 py-2">Available widgets</h2>
           <ul className="divide-y divide-[#dcdcde]">
-            {WIDGET_TYPES.map((widget) => (
+            {[...WIDGET_TYPES, ...pluginWidgets].map((widget) => (
               <li key={widget.type} className="flex items-center justify-between px-3 py-2">
                 <span>{widget.title}</span>
                 <Button

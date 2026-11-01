@@ -8,9 +8,10 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-async function get<T>(path: string): Promise<T> {
+async function get<T>(path: string, unlock?: string): Promise<T> {
   const res = await fetch(`${API_URL}/api${path}`, {
-    next: { revalidate: 10 },
+    headers: unlock ? { 'x-openpress-unlock': unlock } : undefined,
+    ...(unlock ? { cache: 'no-store' as const } : { next: { revalidate: 10 } }),
   });
   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
   return res.json();
@@ -45,12 +46,24 @@ export function getPublicPages() {
   );
 }
 
-export function getPublicContentBySlug(slug: string) {
-  return get<Content>(`/content/public/slug/${encodeURIComponent(slug)}`);
+export function getPublicContentBySlug(slug: string, unlock?: string) {
+  return get<Content>(`/content/public/slug/${encodeURIComponent(slug)}`, unlock);
 }
 
 export function getPublicContentById(id: string) {
   return get<Content>(`/content/public/id/${encodeURIComponent(id)}`);
+}
+
+export function getPluginChrome() {
+  return get<{
+    assets: { href: string; kind: 'style' | 'script'; handle: string }[];
+    widgets: { sidebar: string[]; footer: string[] };
+    blocks: { pluginId: string; name: string; title: string }[];
+  }>('/plugins/chrome').catch(() => ({
+    assets: [],
+    widgets: { sidebar: [], footer: [] },
+    blocks: [],
+  }));
 }
 
 export function getComments(contentId: string) {

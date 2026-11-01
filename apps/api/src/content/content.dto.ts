@@ -1,15 +1,9 @@
-import {
-  IsArray,
-  IsIn,
-  IsISO8601,
-  IsObject,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { Allow, IsArray, IsBoolean, IsIn, IsISO8601, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 const TYPES = ['POST', 'PAGE'] as const;
 const STATUSES = ['DRAFT', 'PUBLISHED', 'SCHEDULED', 'TRASHED'] as const;
+const VISIBILITY = ['PUBLIC', 'PRIVATE', 'PASSWORD'] as const;
+const COMMENT_STATUS = ['open', 'closed'] as const;
 
 export class CreateContentDto {
   @IsString()
@@ -27,6 +21,24 @@ export class CreateContentDto {
   @IsOptional()
   @IsIn(STATUSES as unknown as string[])
   status?: (typeof STATUSES)[number];
+
+  @IsOptional()
+  @IsIn(VISIBILITY as unknown as string[])
+  visibility?: (typeof VISIBILITY)[number];
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  password?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  sticky?: boolean;
+
+  @IsOptional()
+  @IsIn(COMMENT_STATUS as unknown as string[])
+  commentStatus?: (typeof COMMENT_STATUS)[number];
 
   @IsOptional()
   @IsString()
@@ -92,4 +104,34 @@ export class QueryContentDto {
   @IsOptional()
   @IsString()
   perPage?: string;
+}
+
+export class UnlockDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  password: string;
+}
+
+export class AutosaveDto {
+  @IsString()
+  @MinLength(1)
+  title: string;
+
+  @IsOptional()
+  @IsString()
+  excerpt?: string;
+
+  @IsArray()
+  blocks: unknown[];
+}
+
+export class MetaDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  key: string;
+
+  @Allow()
+  value: unknown;
 }
