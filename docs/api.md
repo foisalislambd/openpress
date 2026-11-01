@@ -93,7 +93,8 @@ Visibility is `PUBLIC`, `PRIVATE`, or `PASSWORD`. Private posts are omitted from
 | GET | `/feed` | RSS 2.0 of the latest public posts |
 | GET | `/sitemap.xml` | Sitemap of public posts and pages |
 | GET | `/tools/export/wxr` | WXR export (Editor+) |
-| POST | `/tools/import/wxr` | Multipart `file` WXR import (Editor+) |
+| POST | `/tools/import/wxr` | Multipart `file`. Returns `{ jobId, total }`. Keeps private and scheduled posts |
+| GET | `/tools/imports/:id` | Import progress |
 
 The public site rewrites `/feed` and `/sitemap.xml` to these routes.
 
@@ -182,7 +183,14 @@ Allowed keys include `siteTitle`, `siteDescription`, `activeTheme`, `homepageTyp
 | ALL | `/plugins/:id/rest/*path` | Routes the plugin registered |
 | GET | `/plugins/:id/settings/:slug` | Admin page fields and saved values |
 | PATCH | `/plugins/:id/settings/:slug` | Save declared fields only |
-| POST | `/plugins/upload` | Multipart zip |
+| POST | `/plugins/stage` | Multipart zip. Returns a review token, permissions, and signature status. Does not activate |
+| POST | `/plugins/stage/:token/commit` | Install a reviewed package |
+| POST | `/plugins/:id/rollback` | Restore the previous release |
+| GET | `/plugins/updates` | Compare installed versions with the `packageCatalog` setting |
+| POST | `/plugins/upload` | Same as stage (review still required) |
+| GET | `/health` | Database check |
+| GET | `/redirects/lookup?path=` | Public redirect target |
+| GET | `/audit` | Recent login and admin audit rows |
 | PATCH | `/plugins/:id/toggle` | Enable/disable |
 | DELETE | `/plugins/:id` | Remove |
 

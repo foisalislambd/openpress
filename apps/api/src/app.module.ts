@@ -16,6 +16,7 @@ import { HooksModule } from './hooks/hooks.module';
 import { FeedsModule } from './feeds/feeds.module';
 import { ToolsModule } from './tools/tools.module';
 import { AppPasswordMiddleware } from './auth/app-password.middleware';
+import { PlatformModule } from './platform/platform.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AppPasswordMiddleware } from './auth/app-password.middleware';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     DbModule,
     HooksModule,
+    PlatformModule,
     AuthModule,
     UsersModule,
     ContentModule,

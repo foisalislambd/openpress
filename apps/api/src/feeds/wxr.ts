@@ -15,6 +15,32 @@ export interface WxrItem {
   tags: WxrTerm[];
   password?: string;
   sticky?: boolean;
+  wpId?: string;
+  author?: string;
+  date?: string;
+  link?: string;
+  featuredId?: string;
+  meta?: { key: string; value: string }[];
+  comments?: { author: string; email: string; content: string; date: string; approved: boolean }[];
+}
+
+export interface WxrAttachment {
+  wpId: string;
+  url: string;
+  title: string;
+  filename: string;
+}
+
+export interface WxrMenuItem {
+  title: string;
+  url: string;
+  order: number;
+}
+
+export interface WxrBundle {
+  items: WxrItem[];
+  attachments: WxrAttachment[];
+  menuItems: WxrMenuItem[];
 }
 
 const BLOCK_MARK = 'openpress-blocks:';
@@ -52,8 +78,14 @@ function decodeXml(value: string) {
 }
 
 function mapStatus(status: string, password: string): Pick<WxrItem, 'status' | 'visibility'> {
-  if (password) return { status: status === 'future' ? 'SCHEDULED' : 'PUBLISHED', visibility: 'PASSWORD' };
-  switch (status) {
+  const normalized = status.toLowerCase();
+  if (password) {
+    return {
+      status: normalized === 'future' ? 'SCHEDULED' : normalized === 'draft' ? 'DRAFT' : 'PUBLISHED',
+      visibility: 'PASSWORD',
+    };
+  }
+  switch (normalized) {
     case 'publish':
       return { status: 'PUBLISHED', visibility: 'PUBLIC' };
     case 'private':
@@ -98,16 +130,56 @@ function terms(itemXml: string, domain: string): WxrTerm[] {
   return found;
 }
 
-export function parseWxr(xml: string): WxrItem[] {
+function postMeta(raw: string) {
+  const meta: { key: string; value: string }[] = [];
+  for (const match of raw.matchAll(/<wp:postmeta>([\s\S]*?)<\/wp:postmeta>/gi)) {
+    const key = tag(match[1], 'wp:meta_key');
+    const value = tag(match[1], 'wp:meta_value');
+    if (key) meta.push({ key, value });
+  }
+  return meta;
+}
+
+function commentsOf(raw: string): NonNullable<WxrItem['comments']> {
+  const comments: NonNullable<WxrItem['comments']> = [];
+  for (const match of raw.matchAll(/<wp:comment>([\s\S]*?)<\/wp:comment>/gi)) {
+    const approved = tag(match[1], 'wp:comment_approved');
+    comments.push({
+      author: tag(match[1], 'wp:comment_author'),
+      email: tag(match[1], 'wp:comment_author_email'),
+      content: tag(match[1], 'wp:comment_content'),
+      date: tag(match[1], 'wp:comment_date'),
+      approved: approved === '1',
+    });
+  }
+  return comments;
+}
+
+export function parseWxrBundle(xml: string): WxrBundle {
   const items: WxrItem[] = [];
+  const attachments: WxrAttachment[] = [];
+  const menuItems: WxrMenuItem[] = [];
   for (const match of xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)) {
     const raw = match[1];
     const postType = tag(raw, 'wp:post_type') || 'post';
-    if (postType !== 'post' && postType !== 'page') continue;
     const title = tag(raw, 'title') || 'Untitled';
+    const wpId = tag(raw, 'wp:post_id');
+    if (postType === 'attachment') {
+      const url = tag(raw, 'wp:attachment_url');
+      if (url) attachments.push({ wpId, url, title, filename: url.split('/').pop() || 'file' });
+      continue;
+    }
+    if (postType === 'nav_menu_item') {
+      const meta = postMeta(raw);
+      const url = meta.find((row) => row.key === '_menu_item_url')?.value || tag(raw, 'link');
+      if (title && url) menuItems.push({ title, url, order: Number(tag(raw, 'wp:menu_order') || 0) });
+      continue;
+    }
+    if (postType !== 'post' && postType !== 'page') continue;
     const slug = tag(raw, 'wp:post_name') || title;
     const password = tag(raw, 'wp:post_password');
     const mapped = mapStatus(tag(raw, 'wp:status') || 'draft', password);
+    const meta = postMeta(raw);
     items.push({
       title,
       slug,
@@ -120,9 +192,20 @@ export function parseWxr(xml: string): WxrItem[] {
       tags: terms(raw, 'post_tag'),
       password: password || undefined,
       sticky: tag(raw, 'wp:is_sticky') === '1',
+      wpId: wpId || undefined,
+      author: tag(raw, 'dc:creator') || undefined,
+      date: tag(raw, 'wp:post_date') || undefined,
+      link: tag(raw, 'link') || undefined,
+      featuredId: meta.find((row) => row.key === '_thumbnail_id')?.value,
+      meta,
+      comments: commentsOf(raw),
     });
   }
-  return items;
+  return { items, attachments, menuItems };
+}
+
+export function parseWxr(xml: string): WxrItem[] {
+  return parseWxrBundle(xml).items;
 }
 
 export function buildWxr(input: {
@@ -159,6 +242,9 @@ export function buildWxr(input: {
       return `<item>
 <title>${xmlEscape(item.title)}</title>
 <link>${xmlEscape(`${siteUrl}/${item.slug}`)}</link>
+<wp:post_id>${xmlEscape(item.wpId ?? '')}</wp:post_id>
+<dc:creator>${cdata(item.author ?? '')}</dc:creator>
+<wp:post_date>${xmlEscape(item.date ?? '')}</wp:post_date>
 <wp:post_name>${xmlEscape(item.slug)}</wp:post_name>
 <wp:post_type>${item.type === 'PAGE' ? 'page' : 'post'}</wp:post_type>
 <wp:status>${wpStatus}</wp:status>
@@ -175,6 +261,7 @@ ${cats}${tags}
 <rss version="2.0"
   xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
   xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
   xmlns:wp="http://wordpress.org/export/1.2/">
 <channel>
 <title>${xmlEscape(input.siteTitle)}</title>

@@ -37,12 +37,12 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core (wp-a
 | Application passwords | Create, list, revoke. HTTP Basic auth on the same routes as JWT | Last-used display in more screens, app-password-only REST scope |
 | REST API | Resource-oriented `/api/*` | `/wp/v2` compatibility shims for existing WP clients |
 | Hooks | `addAction` / `doAction` and `addFilter` / `applyFilters`, including `the_title`, `the_excerpt`, `the_content`, `content.public`, `content.blocks`, `pre_get_posts` | Hook reference UI |
-| Plugins | Manifest with `permissions` and `requires.openpress`. Admin pages, settings, widgets, shortcodes, blocks, REST, and enqueued assets are opt-in. Deactivate clears registrations | Process or VM sandbox. Today the gate is the context API; plugin code still runs in-process. Marketplace review has to treat `database` as full SQL |
+| Plugins | Separate process per plugin. Filesystem permission model plus sealed network builtins. Capability RPC for content, storage, email, and an HTTP allow list. Permission review before install. Ed25519 package signatures and rollback | Public marketplace UI, remote update feeds, theme sandbox. `database` no longer means raw SQL |
 | Themes | React layouts, primary/footer menu locations, sidebar and footer widget areas, plugin asset tags | Template hierarchy (`single-post`, `archive-category`), theme npm dependencies, `theme.json` design tokens beyond runtime themes |
 | Search | Admin ILIKE/full-text and a public `/search` page | Relevance ranking UI, search in pages+media |
 | RSS & sitemaps | `/feed` (RSS 2.0) and `/sitemap.xml` | Comment feeds, image sitemap, news sitemap |
 | SEO | Per-item title and description | Open Graph images, canonical, schema.org |
-| Import / export | JSON round-trip **and** a WXR subset (posts, pages, categories, tags, blocks) | **One-click WordPress (WXR) migration** — attachments, authors, comments, and a single admin action. This is a key adoption feature, not a nice-to-have |
+| Import / export | WXR import keeps private, password, sticky, and scheduled posts, downloads public attachments, creates authors and comments, stores custom fields, imports menu items, writes permalink redirects, and reports progress. Re-running uses `wxrId` | EmDash JSON dumps, a guided field mapper, and comment threading from WXR |
 | Multisite | Not started | Network admin, per-site tables, domain mapping — later on purpose |
 | i18n | `siteLanguage` setting only | String catalog, locale packs, RTL |
 | Accessibility | Focus rings, labels on many admin controls | Full keyboard audit of the block editor, contrast pass, skip links |
@@ -76,17 +76,27 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core (wp-a
 12. Default theme: menu locations, widget areas, plugin assets, search, RSS, comments, password gate.
 13. Unit tests for the pure core (capabilities, visibility tokens, WXR, filters, plugin permissions, comment policy, image size plan).
 
+### Done in the sandbox / migration round
+
+1. Process-isolated plugins with enforced capabilities, per-plugin storage, a 30s hook limit, and crash isolation.
+2. WXR import that preserves private and scheduled posts and pulls attachments, authors, comments, fields, menus, and redirects. Progress is a `jobs` row.
+3. Signed package review, trusted keys, local catalog version check, and rollback.
+4. Health check, login audit log, redirect lookup used by the Next.js middleware, and production Dockerfiles (`docker-compose.prod.yml`).
+
 ### Next runs
 
-1. **One-click WordPress migration** — key adoption feature. The current Tools screen imports a WXR subset (posts, pages, terms, blocks). The importer people will actually switch on is one action that also brings attachments, authors, comments, and passwords, and reports what it skipped.
-2. **Plugin marketplace readiness** — the manifest, permissions, and core version range are the contract a directory can list. Still open: a real sandbox (this process trusts plugin JavaScript), review of the `database` capability, signed packages, and update feeds. Do not build the directory UI before that contract is what the marketplace will enforce.
-3. **Theme system** — template hierarchy (`single`, `single-post`, `archive`, `archive-category`, `page`, `search`), theme packages that can depend on npm libraries, and a customizer that edits theme mods, additional CSS, menus, and widget areas with a live preview. Menu locations and the two widget areas already render.
-4. **Editor fidelity** — revision diff, reusable blocks, pending-review status, media modal inside the editor (pick from library instead of pasting a URL).
-5. **Registered types** — custom post types and custom taxonomies with capability mapping and admin menus generated from the registry.
-6. **REST compatibility** — `/wp/v2/posts` style routes and `_embed`, enough for headless WP clients.
-7. **Comments** — notifications, authenticated commenters, better spam features without shipping a blocklist of secrets.
-8. **i18n and accessibility** — message catalog, admin skip link, editor keyboard pass.
-9. **Multisite** — only after single-site capabilities, types, and themes are real. A network admin on top of a single content table would be a fake.
+1. **Marketplace UI** — browse a remote registry, one-click update from a URL, and theme signing. The local catalog and signature check are the contract that UI should call.
+2. **AI and MCP** — scoped tokens and a content tool server (search, draft, schedule, media), plus an assistant hook plugins can implement.
+3. **Languages** — per-post translations, a switcher, hreflang, and admin string catalogs.
+4. **SEO** — Open Graph, Twitter cards, JSON-LD, canonical tags, robots controls. Redirects already exist.
+5. **Auth** — TOTP, passkeys, OAuth/SSO, and a session list. Login is already rate-limited and written to the audit log.
+6. **Jobs and cache** — Redis, a real worker for imports and image derivatives, webhooks, scoped API keys, GraphQL. Import jobs today run in the API process after the response is sent.
+7. **Media** — rotate/resize UI, srcset, WebP/AVIF, focal point, S3.
+8. **Content modeling** — custom post types and custom taxonomies from the admin, field groups, patterns, and template editing. Also a pending-review status, revision diff, and a media modal in the editor.
+9. **Theme system** — template hierarchy, theme npm dependencies, and a customizer. Menu locations and widget areas already render.
+10. **REST compatibility** — `/wp/v2/posts` style routes and `_embed`, enough for headless WordPress clients.
+11. **Comments** — notifications and authenticated commenters.
+12. **Multisite and demo hosting** — network admin, and a resettable read-only demo. Production Docker Compose is in the repo. A network admin on top of a single content table would be a fake, so this waits on content modeling.
 
 ### Explicitly later
 

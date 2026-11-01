@@ -10,6 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import { DbService } from '../db/db.service';
 import { isUniqueViolation } from '../db/errors';
 import { newId } from '../db/ids';
+import { AuditService } from '../platform/audit.service';
 import { LoginDto, RegisterDto } from './auth.dto';
 
 const PUBLIC_USER = `id, email, name, role, "avatarUrl", bio, "createdAt"`;
@@ -33,6 +34,7 @@ export class AuthService {
   constructor(
     private db: DbService,
     private jwt: JwtService,
+    private audit: AuditService,
     config: ConfigService,
   ) {
     this.refreshSecret =
@@ -100,8 +102,10 @@ export class AuthService {
       [dto.email],
     );
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+      await this.audit.record('auth.login_failed', { email: dto.email });
       throw new UnauthorizedException('Invalid credentials');
     }
+    await this.audit.record('auth.login', { email: user.email }, user.id);
     return this.issueTokens(user.id, user.email, user.role);
   }
 
