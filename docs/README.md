@@ -20,6 +20,7 @@ Welcome to the OpenPress docs. Pick a guide below.
 ## Operations
 
 - [Deployment](deployment.md) — production setup and security
+- [Releasing](releasing.md) — VERSION.md, GitHub Releases, GHCR images, npm
 
 ## Open source & distribution
 

@@ -1,0 +1,198 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      retry:
+        description: Publish again when VERSION.md already matches the newest v* tag
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+concurrency:
+  group: openpress-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+      prerelease: ${{ steps.decide.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(git tag --list 'v*')
+          retry=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.retry }}" = "true" ]; then
+            retry="--retry"
+          fi
+          node scripts/version.mjs decide $retry "${tags[@]}"
+
+      - name: Tag and GitHub Release
+        if: steps.decide.outputs.release == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+          TAG: ${{ steps.decide.outputs.tag }}
+          PRERELEASE: ${{ steps.decide.outputs.prerelease }}
+          PREVIOUS: ${{ steps.decide.outputs.previous_tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+          else
+            git tag -a "${TAG}" -m "OpenPress ${VERSION}"
+            git push origin "refs/tags/${TAG}"
+          fi
+          node packages/create-openpress/bin/create-openpress.mjs compose "${VERSION}" > /tmp/docker-compose.ghcr.yml
+          git archive --format=tar.gz --prefix="openpress-${VERSION}/" -o "/tmp/openpress-${VERSION}.tar.gz" HEAD
+          cp docker-compose.prod.yml /tmp/docker-compose.prod.yml
+          flags=(--title "OpenPress ${VERSION}")
+          if [ "${PRERELEASE}" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            note_args=(-f "tag_name=${TAG}")
+            if [ -n "${PREVIOUS}" ]; then
+              note_args+=(-f "previous_tag_name=${PREVIOUS}")
+            fi
+            gh api --method POST "/repos/${GITHUB_REPOSITORY}/releases/generate-notes" "${note_args[@]}" --jq .body > /tmp/release-notes.md
+            gh release edit "${TAG}" "${flags[@]}" --notes-file /tmp/release-notes.md
+          else
+            create_flags=("${flags[@]}" --generate-notes)
+            if [ -n "${PREVIOUS}" ]; then
+              create_flags+=(--notes-start-tag "${PREVIOUS}")
+            fi
+            gh release create "${TAG}" "${create_flags[@]}"
+          fi
+          gh release upload "${TAG}" \
+            /tmp/docker-compose.ghcr.yml \
+            /tmp/docker-compose.prod.yml \
+            "/tmp/openpress-${VERSION}.tar.gz" \
+            --clobber
+
+  docker:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: api
+            dockerfile: apps/api/Dockerfile
+            image: ghcr.io/foisalislambd/openpress-api
+          - name: web
+            dockerfile: apps/web/Dockerfile
+            image: ghcr.io/foisalislambd/openpress-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'list<<EOF'
+            node scripts/version.mjs docker-tags "${{ needs.prepare.outputs.version }}" | sed 's|^|${{ matrix.image }}:|'
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
+          labels: |
+            org.opencontainers.image.title=OpenPress ${{ matrix.name }}
+            org.opencontainers.image.description=OpenPress ${{ matrix.name }} image
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+  npm:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install and build publishable packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          node scripts/version.mjs sync
+          pnpm --filter @openpress/plugin-sdk --filter @openpress/theme-sdk --filter create-openpress build
+
+      - name: Publish to npm
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "::warning title=npm publish skipped::NPM_TOKEN is not set. Add an npm automation token as the NPM_TOKEN repository secret. The GitHub Release and container images are not blocked."
+            exit 0
+          fi
+          tag="$(node --input-type=module -e 'import { distTag } from "./scripts/version.mjs"; process.stdout.write(distTag(process.argv[1]))' "${VERSION}")"
+          for dir in packages/plugin-sdk packages/theme-sdk packages/create-openpress; do
+            name="$(node -p "require('./${dir}/package.json').name")"
+            version="$(node -p "require('./${dir}/package.json').version")"
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "::warning title=already published::${name}@${version} is already on npm. Skipping."
+              continue
+            fi
+            npm publish --access public --provenance --tag "${tag}" --ignore-scripts "${dir}"
+          done
