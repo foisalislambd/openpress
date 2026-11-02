@@ -1,0 +1,14 @@
+.git
+.github
+**/.git
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.env
+**/*.log
+.pgdata
+apps/api/uploads
+apps/api/plugins
+apps/api/themes-store
+wordpress-develop

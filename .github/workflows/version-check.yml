@@ -1,0 +1,36 @@
+name: Version file
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate VERSION.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/version.mjs check
+
+      - name: Warn when the version was not bumped
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          if git show "FETCH_HEAD:VERSION.md" > /tmp/base-version.md 2>/dev/null; then
+            node scripts/version.mjs warn-bump /tmp/base-version.md
+          else
+            echo "::notice::The base branch has no VERSION.md yet."
+          fi

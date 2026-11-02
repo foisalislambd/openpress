@@ -1,0 +1,28 @@
+{
+  "name": "create-openpress",
+  "version": "0.3.0",
+  "description": "Create an OpenPress site directory or a plugin scaffold",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-openpress": "./bin/create-openpress.mjs"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node --check bin/create-openpress.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/foisalislambd/openpress.git",
+    "directory": "packages/create-openpress"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

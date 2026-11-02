@@ -2,6 +2,17 @@
 
 Production checklist for OpenPress.
 
+## Images
+
+Released versions are on GHCR. Pin the version from `VERSION.md` (see [releasing.md](releasing.md)):
+
+```bash
+docker pull ghcr.io/foisalislambd/openpress-api:0.3.0
+docker pull ghcr.io/foisalislambd/openpress-web:0.3.0
+```
+
+`npx create-openpress my-site` writes a Compose file that uses those images. Images for 0.3.0 exist after that version is merged to `main` and the Release workflow finishes.
+
 ## Build
 
 ```bash

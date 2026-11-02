@@ -1,4 +1,24 @@
-export const OPENPRESS_VERSION = '0.1.0';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+
+/** Fallback kept in sync by `pnpm release:bump`. VERSION.md wins when it is on disk. */
+const FALLBACK_OPENPRESS_VERSION = '0.3.0';
+
+function readDeclaredVersion() {
+  const candidates = [
+    join(__dirname, '../../../VERSION.md'),
+    join(process.cwd(), 'VERSION.md'),
+    join(process.cwd(), '../../VERSION.md'),
+  ];
+  for (const file of candidates) {
+    if (!existsSync(file)) continue;
+    const match = /^Version:\s*(\S+)\s*$/m.exec(readFileSync(file, 'utf8'));
+    if (match) return match[1];
+  }
+  return null;
+}
+
+export const OPENPRESS_VERSION = readDeclaredVersion() ?? FALLBACK_OPENPRESS_VERSION;
 
 /** Declared in plugin.json. Hooks are always available; everything else is opt-in. */
 export const PLUGIN_PERMISSIONS = [

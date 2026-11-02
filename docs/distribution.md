@@ -16,7 +16,7 @@ OpenPress is released under the [MIT License](../LICENSE). You may use, copy, mo
 | **Plugins** | Zip upload or share zip publicly | Your choice (MIT recommended) |
 | **Services** | Hosting, setup, support, custom development | Commercial — allowed |
 
-OpenPress core is **not** published to npm as installable packages today. Distribution is **source-first**: clone the repo, build, and deploy.
+OpenPress publishes container images and a few npm packages from [`VERSION.md`](../VERSION.md). The site itself is still self-hosted. See [Releasing](releasing.md).
 
 ---
 
@@ -24,23 +24,15 @@ OpenPress core is **not** published to npm as installable packages today. Distri
 
 ### For maintainers — publishing releases
 
-1. **Tag a version** (semver recommended):
+Bump `VERSION.md` with `pnpm release:bump patch|minor|major` and merge to `main`. The Release workflow tags `vX.Y.Z`, opens a GitHub Release whose notes are the generated changelog, and pushes images and npm packages. Details and the secret checklist are in [releasing.md](releasing.md).
 
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
+Before merging a version bump:
 
-2. **Create a GitHub Release** from that tag:
-   - Attach **Source code (zip)** — GitHub generates this automatically
-   - Write release notes: breaking changes, migration steps, new features
-
-3. **Release checklist** before tagging:
-   - [ ] `pnpm build` succeeds
-   - [ ] Database migrations are committed (`apps/api/db/migrations/`)
-   - [ ] `.env.example` files are up to date
-   - [ ] Docs reflect any breaking changes
-   - [ ] No secrets in the repo (`.env`, JWT keys, DB passwords)
+- [ ] `pnpm test` and `pnpm build` succeed
+- [ ] Database migrations are committed (`apps/api/db/migrations/`)
+- [ ] `.env.example` files are up to date
+- [ ] Docs reflect any breaking changes
+- [ ] No secrets in the repo (`.env`, JWT keys, DB passwords)
 
 ### For users — installing from a release
 
