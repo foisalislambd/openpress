@@ -2,7 +2,9 @@
 
 **WordPress-shaped publishing, on a TypeScript monorepo you can actually extend.**
 
-![Public site: posts, a menu, and the default theme](docs/media/public.gif)
+[![Full tour: admin to published site in ~60s — click for the video](docs/media/walkthrough.gif)](docs/media/walkthrough.mp4)
+
+*Full tour: admin to published site in ~60s — click for the video.*
 
 [![Release](https://img.shields.io/github/v/release/foisalislambd/openpress?display_name=tag)](https://github.com/foisalislambd/openpress/releases)
 [![GHCR](https://img.shields.io/badge/ghcr.io-openpress-2496ED)](https://github.com/foisalislambd/openpress/pkgs/container/openpress-api)

@@ -206,22 +206,32 @@ export function readVersionFile(path = VERSION_FILE) {
   return parseVersionFile(readFileSync(path, 'utf8'));
 }
 
+/**
+ * `const` or `export const`, optional type annotation, single or double quotes.
+ * The quote style and the rest of the declaration are left as they are.
+ */
+const FALLBACK_VERSION_DECLARATION =
+  /((?:export\s+)?const\s+FALLBACK_OPENPRESS_VERSION\b(?:\s*:\s*[^=]+?)?\s*=\s*)(['"])([^'"]*)\2/;
+
 export function syncPackageVersions(version, root = ROOT) {
   const parsed = parseSemver(version).raw;
   for (const relative of PUBLISHED_PACKAGES) {
     const path = join(root, relative);
     const json = JSON.parse(readFileSync(path, 'utf8'));
+    if (json.version === parsed) continue;
     json.version = parsed;
     writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`);
   }
   const manifestPath = join(root, 'apps/api/src/extensions/plugin-manifest.ts');
   const manifest = readFileSync(manifestPath, 'utf8');
-  const next = manifest.replace(
-    /const FALLBACK_OPENPRESS_VERSION = '[^']*'/,
-    `const FALLBACK_OPENPRESS_VERSION = '${parsed}'`,
-  );
-  if (next === manifest) throw new Error('Could not update FALLBACK_OPENPRESS_VERSION in plugin-manifest.ts.');
-  writeFileSync(manifestPath, next);
+  const match = FALLBACK_VERSION_DECLARATION.exec(manifest);
+  if (!match) {
+    throw new Error('Could not update FALLBACK_OPENPRESS_VERSION in plugin-manifest.ts.');
+  }
+  if (match[3] !== parsed) {
+    const next = manifest.replace(FALLBACK_VERSION_DECLARATION, `$1$2${parsed}$2`);
+    writeFileSync(manifestPath, next);
+  }
   return parsed;
 }
 
