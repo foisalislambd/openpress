@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { signWebhookBody } from '../cms/publishing';
 import { DbService } from '../db/db.service';
 import { newId } from '../db/ids';
+import { isPublicHostname } from '../extensions/sandbox/plugin-sandbox';
 import { HooksService } from '../hooks/hooks.service';
 
 const EVENTS = ['content.published', 'content.created', 'comment.created'];
@@ -53,14 +54,29 @@ export class WebhooksService implements OnModuleInit {
       [event],
     );
     const body = JSON.stringify({ event, payload, sentAt: new Date().toISOString() });
-    await Promise.all(
-      hooks.map(async (hook) => {
+    for (const hook of hooks) {
         const signature = signWebhookBody(hook.secret, body);
         let status = 0;
         let error: string | null = null;
+        let target: URL | null = null;
         try {
-          const response = await fetch(hook.url, {
+          target = new URL(hook.url);
+        } catch {
+          target = null;
+        }
+        if (!target || !['http:', 'https:'].includes(target.protocol) || !isPublicHostname(target.hostname)) {
+          error = 'refused non-public URL';
+          await this.db.query(
+            `INSERT INTO webhook_deliveries (id, "webhookId", event, status, error)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [newId(), hook.id, event, null, error],
+          );
+          continue;
+        }
+        try {
+          const response = await fetch(target, {
             method: 'POST',
+            redirect: 'manual',
             headers: {
               'content-type': 'application/json',
               'x-openpress-event': event,
@@ -80,7 +96,6 @@ export class WebhooksService implements OnModuleInit {
            VALUES ($1, $2, $3, $4, $5)`,
           [newId(), hook.id, event, status || null, error],
         );
-      }),
-    );
+    }
   }
 }

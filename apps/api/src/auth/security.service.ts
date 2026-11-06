@@ -109,7 +109,7 @@ export class SecurityService {
   }
 
   async verifyRegistration(userId: string, response: RegistrationResponseJSON) {
-    const expectedChallenge = await this.takeChallenge('register', userId);
+    const expectedChallenge = await this.takeChallenge('register', clientDataChallenge(response.response.clientDataJSON));
     const verification = await verifyRegistrationResponse({
       response,
       expectedChallenge,
@@ -172,7 +172,7 @@ export class SecurityService {
       [response.id],
     );
     if (!credential) throw new UnauthorizedException('Unknown passkey');
-    const expectedChallenge = await this.takeChallenge('login', credential.userId);
+    const expectedChallenge = await this.takeChallenge('login', clientDataChallenge(response.response.clientDataJSON));
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge,
@@ -276,8 +276,10 @@ export class SecurityService {
       headers: { authorization: `Bearer ${tokenJson.access_token}` },
     });
     if (!profile.ok) throw new UnauthorizedException('Google profile was unreadable');
-    const json = (await profile.json()) as { sub?: string; email?: string; name?: string };
-    if (!json.sub || !json.email) throw new UnauthorizedException('Google account has no email');
+    const json = (await profile.json()) as { sub?: string; email?: string; name?: string; email_verified?: boolean };
+    if (!json.sub || !json.email || json.email_verified !== true) {
+      throw new UnauthorizedException('Google account has no verified email');
+    }
     return { id: json.sub, email: json.email, name: json.name || json.email };
   }
 
@@ -299,18 +301,16 @@ export class SecurityService {
       headers: { authorization: `Bearer ${tokenJson.access_token}`, accept: 'application/vnd.github+json' },
     });
     if (!profile.ok) throw new UnauthorizedException('GitHub profile was unreadable');
-    const json = (await profile.json()) as { id?: number; login?: string; name?: string; email?: string };
-    let email = json.email;
-    if (!email) {
-      const emails = await fetch('https://api.github.com/user/emails', {
-        headers: { authorization: `Bearer ${tokenJson.access_token}`, accept: 'application/vnd.github+json' },
-      });
-      if (emails.ok) {
-        const list = (await emails.json()) as { email: string; primary?: boolean }[];
-        email = list.find((item) => item.primary)?.email || list[0]?.email;
-      }
+    const json = (await profile.json()) as { id?: number; login?: string; name?: string };
+    let email: string | undefined;
+    const emails = await fetch('https://api.github.com/user/emails', {
+      headers: { authorization: `Bearer ${tokenJson.access_token}`, accept: 'application/vnd.github+json' },
+    });
+    if (emails.ok) {
+      const list = (await emails.json()) as { email: string; primary?: boolean; verified?: boolean }[];
+      email = list.find((item) => item.primary && item.verified)?.email || list.find((item) => item.verified)?.email;
     }
-    if (!json.id || !email) throw new UnauthorizedException('GitHub account has no email');
+    if (!json.id || !email) throw new UnauthorizedException('GitHub account has no verified email');
     return { id: String(json.id), email, name: json.name || json.login || email };
   }
 
@@ -323,16 +323,15 @@ export class SecurityService {
     );
   }
 
-  private async takeChallenge(kind: string, userId?: string) {
-    const row = await this.db.one<{ id: string; challenge: string }>(
-      `SELECT id, challenge FROM webauthn_challenges
-       WHERE kind = $1 AND ($2::text IS NULL OR "userId" = $2)
-       ORDER BY "expiresAt" DESC
-       LIMIT 1`,
-      [kind, userId ?? null],
+  private async takeChallenge(kind: string, challenge: string) {
+    if (!challenge) throw new UnauthorizedException('Passkey challenge expired');
+    const row = await this.db.one<{ challenge: string }>(
+      `DELETE FROM webauthn_challenges
+       WHERE kind = $1 AND challenge = $2 AND "expiresAt" > now()
+       RETURNING challenge`,
+      [kind, challenge],
     );
     if (!row) throw new UnauthorizedException('Passkey challenge expired');
-    await this.db.query('DELETE FROM webauthn_challenges WHERE id = $1', [row.id]);
     return row.challenge;
   }
 
@@ -350,3 +349,12 @@ export class SecurityService {
 }
 
 type AuthenticatorTransport = 'ble' | 'cable' | 'hybrid' | 'internal' | 'nfc' | 'smart-card' | 'usb';
+
+export function clientDataChallenge(clientDataJSON: string) {
+  try {
+    const json = JSON.parse(Buffer.from(clientDataJSON, 'base64url').toString('utf8')) as { challenge?: unknown };
+    return typeof json.challenge === 'string' ? json.challenge : '';
+  } catch {
+    return '';
+  }
+}

@@ -262,16 +262,22 @@ export class ToolsService {
         const localComments = new Map<string, string>();
         for (const comment of item.comments ?? []) {
           if (!comment.content) continue;
-          const commentId = newId();
-          if (comment.wpId) localComments.set(comment.wpId, commentId);
-          await this.db.query(
-            `INSERT INTO comments (id, "contentId", "guestName", "guestEmail", body, status)
-             SELECT $1, $2, $3, $4, $5, $6::"CommentStatus"
-             WHERE NOT EXISTS (
-               SELECT 1 FROM comments WHERE "contentId" = $2 AND body = $5 AND COALESCE("guestEmail", '') = $4
-             )`,
-            [commentId, id, comment.author || 'Imported', comment.email || '', comment.content.slice(0, 10000), comment.approved ? 'APPROVED' : 'PENDING'],
+          const body = comment.content.slice(0, 10000);
+          const email = comment.email || '';
+          const existing = await this.db.one<{ id: string }>(
+            `SELECT id FROM comments WHERE "contentId" = $1 AND body = $2 AND COALESCE("guestEmail", '') = $3`,
+            [id, body, email],
           );
+          let commentId = existing?.id;
+          if (!commentId) {
+            commentId = newId();
+            await this.db.query(
+              `INSERT INTO comments (id, "contentId", "guestName", "guestEmail", body, status)
+               VALUES ($1, $2, $3, $4, $5, $6::"CommentStatus")`,
+              [commentId, id, comment.author || 'Imported', email, body, comment.approved ? 'APPROVED' : 'PENDING'],
+            );
+          }
+          if (comment.wpId) localComments.set(comment.wpId, commentId);
         }
         for (const comment of item.comments ?? []) {
           if (!comment.wpId || !comment.parent || comment.parent === '0') continue;

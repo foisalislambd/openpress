@@ -1,6 +1,11 @@
 import { Controller, Get, Headers, Param, Query, Req } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { can } from '../auth/capabilities';
+import { ApiKeyService } from '../auth/api-key.service';
+import { JwtPayload } from '../auth/jwt.strategy';
+import { scopeAllows } from '../cms/publishing';
+import { DbService } from '../db/db.service';
 import { WpService } from './wp.service';
 
 @Controller('wp/v2')
@@ -8,10 +13,12 @@ export class WpController {
   constructor(
     private wp: WpService,
     private jwt: JwtService,
+    private keys: ApiKeyService,
+    private db: DbService,
   ) {}
 
   @Get('posts')
-  posts(
+  async posts(
     @Query('page') page?: string,
     @Query('per_page') perPage?: string,
     @Query('search') search?: string,
@@ -19,7 +26,7 @@ export class WpController {
     @Query('_embed') embed?: string,
     @Headers('authorization') authorization?: string,
   ) {
-    const publicOnly = !this.trusted(authorization);
+    const publicOnly = !(await this.trusted(authorization));
     return this.wp.posts({ page, per_page: perPage, search, status }, embed != null, publicOnly).then((result) => result.items);
   }
 
@@ -69,13 +76,25 @@ export class WpController {
     };
   }
 
-  private trusted(authorization?: string) {
+  private async trusted(authorization?: string) {
     if (!authorization?.toLowerCase().startsWith('bearer ')) return false;
     const token = authorization.slice(7).trim();
-    if (token.startsWith('opk_')) return true;
+    if (token.startsWith('opk_')) {
+      const user = await this.keys.authenticate(authorization);
+      return Boolean(
+        user && can(user.role, 'edit_posts') && scopeAllows(user.scopes, 'GET', '/api/content'),
+      );
+    }
     try {
-      this.jwt.verify(token);
-      return true;
+      const payload = this.jwt.verify<JwtPayload>(token);
+      if (payload.purpose && payload.purpose !== 'access') return false;
+      if (!can(payload.role, 'edit_posts')) return false;
+      if (!payload.sid) return true;
+      const session = await this.db.one<{ id: string }>(
+        'SELECT id FROM user_sessions WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL',
+        [payload.sid, payload.sub],
+      );
+      return Boolean(session);
     } catch {
       return false;
     }

@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { buildPermalink, isPlainPermalink, matchPermalink, templateCandidates } from '../cms/publishing';
+import { permalinkDecision, templateCandidates } from '../cms/publishing';
 import { DbService } from '../db/db.service';
 import { SettingsService } from '../settings/settings.service';
 
@@ -15,28 +15,10 @@ export class PermalinksController {
     if (!path.startsWith('/') || path.includes('..')) return { action: 'none' };
     const settings = await this.settings.getAll();
     const structure = String(settings.permalinkStructure ?? '/%postname%/');
-    if (isPlainPermalink(structure)) return { action: 'none' };
-    const matched = matchPermalink(structure, path);
-    if (matched) {
-      const row = await this.lookup(matched.slug);
-      if (!row) return { action: 'none' };
-      return { action: 'rewrite', slug: row.slug };
-    }
-    const slug = path.replace(/^\//, '').replace(/\/$/, '');
-    if (!slug || slug.includes('/')) return { action: 'none' };
+    const slug = path.split('/').filter(Boolean).at(-1);
+    if (!slug) return { action: 'none' };
     const row = await this.lookup(slug);
-    if (!row || row.status !== 'PUBLISHED') return { action: 'none' };
-    const canonical = buildPermalink(structure, {
-      slug: row.slug,
-      publishedAt: row.publishedAt,
-      category: row.category,
-      author: row.author,
-    });
-    const normalized = path.endsWith('/') && canonical.endsWith('/') ? path : path.replace(/\/$/, '');
-    if (canonical !== path && canonical !== normalized && canonical !== `${normalized}/`) {
-      return { action: 'redirect', to: canonical, statusCode: 301 };
-    }
-    return { action: 'none' };
+    return permalinkDecision(structure, path, row);
   }
 
   @Get('templates')

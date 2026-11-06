@@ -54,6 +54,44 @@ export function buildPermalink(structure: string | null | undefined, input: Perm
   return path;
 }
 
+export function permalinkDecision(
+  structure: string | null | undefined,
+  pathname: string,
+  row: {
+    slug: string;
+    status: string;
+    publishedAt?: string | Date | null;
+    category?: string | null;
+    author?: string | null;
+  } | null,
+): { action: 'none' } | { action: 'rewrite'; slug: string } | { action: 'redirect'; to: string; statusCode: 301 } {
+  if (isPlainPermalink(structure)) return { action: 'none' };
+  if (!row || row.status !== 'PUBLISHED') return { action: 'none' };
+  const canonical = buildPermalink(structure, {
+    slug: row.slug,
+    publishedAt: row.publishedAt,
+    category: row.category,
+    author: row.author,
+  });
+  const matched = matchPermalink(structure, pathname);
+  if (matched?.slug === row.slug && samePath(pathname, canonical)) {
+    return { action: 'rewrite', slug: row.slug };
+  }
+  const slug = pathname.replace(/^\//, '').replace(/\/$/, '');
+  if (slug && !slug.includes('/') && slug === row.slug && !samePath(pathname, canonical)) {
+    return { action: 'redirect', to: canonical, statusCode: 301 };
+  }
+  return { action: 'none' };
+}
+
+function samePath(left: string, right: string) {
+  const normalize = (value: string) => {
+    const path = value.startsWith('/') ? value : `/${value}`;
+    return path.length > 1 ? path.replace(/\/+$/, '') : path;
+  };
+  return normalize(left) === normalize(right);
+}
+
 export function matchPermalink(structure: string | null | undefined, pathname: string) {
   if (isPlainPermalink(structure)) return null;
   const tokens = String(structure)

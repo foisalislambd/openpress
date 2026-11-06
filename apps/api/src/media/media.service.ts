@@ -278,7 +278,12 @@ export class MediaService {
   private async removeSizeFiles(sizes: Record<string, SizeFile> | null) {
     if (!sizes) return;
     for (const size of Object.values(sizes)) {
-      if (size?.filename) await unlink(this.filePath(size.filename)).catch(() => {});
+      const names = [size?.filename, size?.formats?.webp?.filename, size?.formats?.avif?.filename];
+      for (const name of names) {
+        if (!name) continue;
+        await unlink(this.filePath(name)).catch(() => {});
+        await removeObject(name);
+      }
     }
   }
 

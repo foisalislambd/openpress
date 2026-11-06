@@ -311,18 +311,22 @@ export class ModelingService {
       [[...ids]],
     );
     const synced = new Map(rows.filter((row) => row.synced && Array.isArray(row.content)).map((row) => [row.id, row.content as unknown[]]));
-    const replace = (list: unknown[]): unknown[] =>
+    const replace = (list: unknown[], seen: Set<string>): unknown[] =>
       list.flatMap((block) => {
         if (!block || typeof block !== 'object') return [block];
         const record = block as { type?: string; props?: { patternId?: string }; children?: unknown[] };
-        if (record.type === 'pattern' && record.props?.patternId && synced.has(record.props.patternId)) {
-          return replace(synced.get(record.props.patternId) ?? []);
+        const patternId = record.props?.patternId;
+        if (record.type === 'pattern' && patternId && synced.has(patternId)) {
+          if (seen.has(patternId)) return [];
+          const next = new Set(seen);
+          next.add(patternId);
+          return replace(synced.get(patternId) ?? [], next);
         }
         if (Array.isArray(record.children)) {
-          return [{ ...record, children: replace(record.children) }];
+          return [{ ...record, children: replace(record.children, seen) }];
         }
         return [block];
       });
-    return replace(blocks);
+    return replace(blocks, new Set());
   }
 }

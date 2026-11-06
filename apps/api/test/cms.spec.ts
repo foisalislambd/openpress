@@ -7,10 +7,12 @@ import {
   diffLines,
   isPlainPermalink,
   matchPermalink,
+  permalinkDecision,
   sanitizeCss,
   scopeAllows,
   templateCandidates,
 } from '../src/cms/publishing';
+import { clientDataChallenge } from '../src/auth/security.service';
 import { decryptTotpSecret, encryptTotpSecret, totpCode, verifyTotp } from '../src/auth/totp';
 import { htmlToBlocks, parseEmDash } from '../src/feeds/emdash';
 import { parseWxr } from '../src/feeds/wxr';
@@ -25,6 +27,15 @@ describe('permalinks', () => {
     assert.equal(matchPermalink('/%category%/%postname%/', '/news/hello')?.slug, 'hello');
     assert.equal(matchPermalink('/%year%/%monthnum%/%postname%/', '/category/news'), null);
     assert.equal(buildPermalink('/%author%/%postname%/', input), '/ada/hello/');
+    const row = { slug: 'hello', status: 'PUBLISHED', publishedAt: input.publishedAt, category: 'news', author: 'ada' };
+    assert.equal(permalinkDecision('/%year%/%monthnum%/%postname%/', '/2026/11/hello/', row).action, 'rewrite');
+    assert.equal(permalinkDecision('/%year%/%monthnum%/%postname%/', '/1999/01/hello/', row).action, 'none');
+    assert.deepEqual(permalinkDecision('/%year%/%monthnum%/%postname%/', '/hello', row), {
+      action: 'redirect',
+      to: '/2026/11/hello/',
+      statusCode: 301,
+    });
+    assert.equal(permalinkDecision('/%year%/%monthnum%/%postname%/', '/2026/11/hello/', { ...row, status: 'DRAFT' }).action, 'none');
   });
 });
 
@@ -89,6 +100,15 @@ describe('revision diff and css', () => {
     const rows = diffLines(['Title: A', 'Hello'], ['Title: A', 'Hello', 'World']);
     assert.equal(rows.filter((row) => row.kind === 'ins').length, 1);
     assert.equal(sanitizeCss('body{color:red}@import "x";</style><script>'), 'body{color:red}');
+  });
+});
+
+describe('passkey client data', () => {
+  it('reads the challenge from a webauthn clientDataJSON payload', () => {
+    const challenge = 'abc-challenge';
+    const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge, origin: 'http://localhost:3000' })).toString('base64url');
+    assert.equal(clientDataChallenge(clientDataJSON), challenge);
+    assert.equal(clientDataChallenge('not-json'), '');
   });
 });
 

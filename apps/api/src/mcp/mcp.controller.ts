@@ -1,5 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
+import { can } from '../auth/capabilities';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtPayload } from '../auth/jwt.strategy';
@@ -86,11 +87,15 @@ export class McpController {
     const name = String(params.name ?? '');
     const args = (params.arguments ?? params.args ?? {}) as Record<string, unknown>;
     if (name === 'content.search') {
-      const found = await this.content.findAll({
-        search: String(args.query ?? ''),
-        type: args.type === 'PAGE' ? 'PAGE' : 'POST',
-        perPage: '10',
-      });
+      const library = can(user.role, 'edit_posts') || can(user.role, 'edit_pages');
+      const found = await this.content.findAll(
+        {
+          search: String(args.query ?? ''),
+          type: args.type === 'PAGE' ? 'PAGE' : 'POST',
+          perPage: '10',
+        },
+        !library,
+      );
       return { content: found.items.map((item) => ({ id: item.id, title: item.title, slug: item.slug, status: item.status })) };
     }
     if (name === 'content.draft') {
