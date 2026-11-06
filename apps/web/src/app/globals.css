@@ -228,6 +228,10 @@ html:has(.op-login) body {
   text-align: center;
   text-decoration: none;
 }
+.op-login-logo .op-mark {
+  width: 84px;
+  height: 84px;
+}
 .op-login form {
   margin-top: 16px;
   padding: 26px 24px 34px;

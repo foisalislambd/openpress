@@ -11,12 +11,13 @@ export function OpenPressMark({
 }) {
   return (
     <svg
-      className={className}
+      className={`op-mark ${className}`.trim()}
       width={size}
       height={size}
       viewBox="0 0 512 512"
       aria-hidden="true"
       focusable="false"
+      style={{ width: size, height: size, flex: '0 0 auto' }}
     >
       <circle cx="256" cy="256" r="256" fill="#2271b1" />
       <circle cx="256" cy="256" r="228" fill="none" stroke="#ffffff" strokeWidth="16" />
