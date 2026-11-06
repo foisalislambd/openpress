@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { permalinkDecision, templateCandidates } from '../cms/publishing';
 import { DbService } from '../db/db.service';
 import { SettingsService } from '../settings/settings.service';
+import { currentSiteId } from '../sites/site-context';
 
 @Controller('permalinks')
 export class PermalinksController {
@@ -50,8 +51,8 @@ export class PermalinksController {
               u.name AS author
        FROM contents c
        JOIN users u ON u.id = c."authorId"
-       WHERE c.slug = $1`,
-      [slug],
+       WHERE c.slug = $1 AND c."siteId" = $2`,
+      [slug, currentSiteId()],
     );
   }
 }

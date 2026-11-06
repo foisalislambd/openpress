@@ -44,6 +44,9 @@ export async function api<T = unknown>(
       ? {}
       : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(typeof window !== 'undefined' && localStorage.getItem('op_site')
+      ? { 'X-OpenPress-Site': localStorage.getItem('op_site') as string }
+      : {}),
     ...((options.headers as Record<string, string>) ?? {}),
   };
   const res = await fetch(`${API_URL}/api${path}`, { ...options, headers });

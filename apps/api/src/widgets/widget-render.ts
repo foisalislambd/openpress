@@ -1,3 +1,5 @@
+import { kses } from '../html/kses';
+
 /** Core widget definitions. Plugin widgets stay strings rendered by their own code. */
 
 export const CORE_WIDGETS = [
@@ -79,7 +81,7 @@ export function sanitizeWidgetSettings(type: string, settings: Record<string, un
   const title = stringSetting(settings.title).slice(0, 120);
   if (title) next.title = title;
   if (type === 'text' || type.includes('/')) {
-    const text = stringSetting(settings.text).slice(0, 5000);
+    const text = kses(stringSetting(settings.text)).slice(0, 5000);
     if (text) next.text = text;
   }
   return next;

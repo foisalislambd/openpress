@@ -135,6 +135,51 @@ describe('menus and widgets', () => {
   });
 });
 
+describe('meta and tax queries', () => {
+  it('builds an OR group and a category tree match', () => {
+    const built = buildContentQuery({
+      siteId: 'site_main',
+      meta: {
+        relation: 'OR',
+        clauses: [
+          { key: 'color', value: 'blue' },
+          { key: 'price', value: 10, compare: 'gte', type: 'numeric' },
+        ],
+      },
+      tax: {
+        relation: 'AND',
+        clauses: [{ taxonomy: 'category', terms: ['news'], includeChildren: true }],
+      },
+    });
+    assert.match(built.where, / OR /);
+    assert.match(built.where, /WITH RECURSIVE tree/);
+    assert.equal(built.params.includes('color'), true);
+    assert.equal(built.params.includes('site_main'), true);
+  });
+
+  it('rejects a meta key that is not an identifier inside a group', () => {
+    assert.throws(
+      () => buildContentQuery({ meta: { relation: 'AND', clauses: [{ key: 'a;drop', compare: 'exists' }] } }),
+      ContentQueryError,
+    );
+  });
+});
+
+describe('kses and locks', () => {
+  it('drops script tags and javascript links', async () => {
+    const { kses } = await import('../src/html/kses');
+    const { lockIsHeld, lockUntil } = await import('../src/content/content-lock');
+    const html = kses('<p>Hi</p><script>alert(1)</script><a href="javascript:alert(1)">x</a><a href="https://example.com">ok</a>');
+    assert.match(html, /<p>Hi<\/p>/);
+    assert.doesNotMatch(html, /script/);
+    assert.doesNotMatch(html, /javascript:/);
+    assert.match(html, /https:\/\/example.com/);
+    const now = new Date('2026-01-01T00:00:00Z');
+    assert.equal(lockIsHeld({ userId: 'a', expiresAt: lockUntil(now) }, 'b', now), true);
+    assert.equal(lockIsHeld({ userId: 'a', expiresAt: now }, 'b', new Date(now.getTime() + 1)), false);
+  });
+});
+
 describe('options', () => {
   const posts: OptionDefinition = {
     key: 'postsPerPage',

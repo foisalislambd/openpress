@@ -13,9 +13,12 @@ import { publishCapability } from '../auth/capabilities';
 import { CapabilitiesService } from '../auth/capabilities.service';
 import { validateBlocks } from '../blocks/block-document';
 import { buildContentQuery, ContentQueryError, ContentQueryInput } from './content-query';
+import { lockIsHeld, lockUntil } from './content-lock';
+import { MetaGroup, TaxGroup } from '../query/meta-tax-query';
+import { currentSiteId } from '../sites/site-context';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { Db, DbService } from '../db/db.service';
-import { isUniqueViolation } from '../db/errors';
+import { isUndefinedTable, isUniqueViolation } from '../db/errors';
 import { newId } from '../db/ids';
 import { buildPermalink, buildSeoDocument, templateCandidates } from '../cms/publishing';
 import { ExtensionRegistry } from '../extensions/extension-registry';
@@ -101,6 +104,7 @@ export class ContentService {
     const filtered = await this.hooks.applyFilters('content.query', this.toQueryInput(shaped, publicOnly));
     const request = filtered && typeof filtered === 'object' ? (filtered as ContentQueryInput) : this.toQueryInput(shaped, publicOnly);
     if (publicOnly) request.publicOnly = true;
+    request.siteId = currentSiteId();
     let built;
     try {
       built = buildContentQuery(request);
@@ -148,7 +152,37 @@ export class ContentService {
     const content = await this.findRow('id', id);
     if (!content) throw new NotFoundException('Content not found');
     if (publicOnly) return this.presentPublic(content, unlock);
-    return { ...content, meta: await this.listMeta(id) };
+    return { ...content, meta: await this.listMeta(id), lock: await this.currentLock(id) };
+  }
+
+  async acquireLock(id: string, user: JwtPayload) {
+    const existing = await this.findRow('id', id);
+    if (!existing) throw new NotFoundException('Content not found');
+    await this.assertCanEdit(user, existing);
+    const now = new Date();
+    const held = await this.currentLock(id);
+    if (lockIsHeld(held, user.sub, now) && !await this.caps.allows(user.sub, 'edit_others_posts')) {
+      throw new ConflictException('Someone else is editing this');
+    }
+    const expiresAt = lockUntil(now);
+    await this.db.query(
+      `INSERT INTO content_locks ("contentId", "userId", "expiresAt")
+       VALUES ($1, $2, $3)
+       ON CONFLICT ("contentId") DO UPDATE SET "userId" = EXCLUDED."userId", "expiresAt" = EXCLUDED."expiresAt"`,
+      [id, user.sub, expiresAt],
+    );
+    return { userId: user.sub, expiresAt };
+  }
+
+  async releaseLock(id: string, user: JwtPayload) {
+    const existing = await this.findRow('id', id);
+    if (!existing) throw new NotFoundException('Content not found');
+    await this.assertCanEdit(user, existing);
+    await this.db.query(
+      `DELETE FROM content_locks WHERE "contentId" = $1 AND ("userId" = $2 OR $3::boolean)`,
+      [id, user.sub, await this.caps.allows(user.sub, 'edit_others_posts')],
+    );
+    return { released: true };
   }
 
   async unlock(slug: string, password: string) {
@@ -183,10 +217,10 @@ export class ContentService {
           `INSERT INTO contents (
              id, type, "postType", locale, "translationGroup", status, visibility, sticky, "commentStatus", title, slug, excerpt,
              blocks, seo, "coverImage", "passwordHash", "publishedAt", "scheduledAt",
-             "authorId", "updatedAt"
+             "authorId", "updatedAt", "siteId"
            ) VALUES (
              $1, $2::"ContentType", $3, $4, $5, $6::"ContentStatus", $7, $8, $9, $10, $11, $12,
-             $13::jsonb, $14::jsonb, $15, $16, $17, $18, $19, now()
+             $13::jsonb, $14::jsonb, $15, $16, $17, $18, $19, now(), $20
            )`,
           [
             id,
@@ -208,6 +242,7 @@ export class ContentService {
             status === 'PUBLISHED' ? new Date() : null,
             dto.scheduledAt ? new Date(dto.scheduledAt) : null,
             user.sub,
+            currentSiteId(),
           ],
         );
         await this.linkTerms(sql, id, dto.categoryIds, dto.tagIds, false);
@@ -689,7 +724,6 @@ export class ContentService {
       search: query.search,
       category: query.category,
       tag: query.tag,
-      meta,
       after: query.after,
       before: query.before,
       orderBy: query.orderBy as ContentQueryInput['orderBy'],
@@ -698,7 +732,25 @@ export class ContentService {
       publicOnly,
       page: query.page,
       perPage: query.perPage,
+      siteId: currentSiteId(),
+      meta: query.metaQuery ? parseQueryJson<MetaClauseList>(query.metaQuery, 'meta') : meta,
+      tax: query.taxQuery ? parseQueryJson<TaxGroup>(query.taxQuery, 'tax') : undefined,
     };
+  }
+
+  private async currentLock(id: string) {
+    try {
+      const row = await this.db.one<{ userId: string; expiresAt: Date; name: string }>(
+        `SELECT l."userId", l."expiresAt", u.name
+         FROM content_locks l JOIN users u ON u.id = l."userId"
+         WHERE l."contentId" = $1 AND l."expiresAt" > now()`,
+        [id],
+      );
+      return row ?? null;
+    } catch (error) {
+      if (isUndefinedTable(error)) return null;
+      throw error;
+    }
   }
 
   private async findRow(column: 'id' | 'slug', value: string) {
@@ -707,8 +759,8 @@ export class ContentService {
               json_build_object('id', u.id, 'name', u.name, 'avatarUrl', u."avatarUrl") AS author
        FROM contents c
        JOIN users u ON u.id = c."authorId"
-       WHERE c."${column}" = $1`,
-      [value],
+       WHERE c."${column}" = $1 AND c."siteId" = $2`,
+      [value, currentSiteId()],
     );
     if (!row) return null;
     const [content] = await this.hydrate([row]);
@@ -855,8 +907,8 @@ export class ContentService {
     let i = 1;
     for (;;) {
       const clash = await sql.one<{ id: string }>(
-        'SELECT id FROM contents WHERE slug = $1',
-        [slug],
+        'SELECT id FROM contents WHERE slug = $1 AND "siteId" = $2',
+        [slug, currentSiteId()],
       );
       if (!clash || clash.id === excludeId) return slug;
       i += 1;
@@ -875,6 +927,16 @@ function group<T extends { contentId: string }>(rows: T[]) {
     map.set(contentId, list);
   }
   return map;
+}
+
+type MetaClauseList = ContentQueryInput['meta'];
+
+function parseQueryJson<T>(value: string, label: string): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    throw new BadRequestException(`Invalid ${label} query`);
+  }
 }
 
 function parseMetaValue(value: string | undefined) {

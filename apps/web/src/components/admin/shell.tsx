@@ -174,6 +174,7 @@ const MENU: MenuEntry[] = [
       { href: '/admin/tools/assistant', label: 'Assistant', roles: STAFF, exact: true },
       { href: '/admin/tools/export', label: 'Export', roles: STAFF, exact: true },
       { href: '/admin/tools/cron', label: 'Scheduled Events', roles: ['ADMIN'], exact: true },
+      { href: '/admin/sites', label: 'Sites', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/site-health', label: 'Site Health', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/export-personal-data', label: 'Export Personal Data', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/erase-personal-data', label: 'Erase Personal Data', roles: ['ADMIN'], exact: true },
@@ -314,6 +315,8 @@ export function AdminShell({
   const [pending, setPending] = useState(0);
   const [pluginPages, setPluginPages] = useState<{ pluginId: string; slug: string; menuTitle: string }[]>([]);
   const [siteTitle, setSiteTitle] = useState('OpenPress');
+  const [sites, setSites] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [siteSlug, setSiteSlug] = useState('');
   const [menuOpen, setMenuOpen] = useState<'new' | 'site' | 'user' | null>(null);
   const barRef = useRef<HTMLElement>(null);
   const routeKey = `${pathname}#${hash}`;
@@ -341,6 +344,8 @@ export function AdminShell({
       .then((s) => setSiteTitle(s.siteTitle || 'OpenPress'))
       .catch(() => {});
     if (user.role === 'ADMIN') {
+      setSiteSlug(localStorage.getItem('op_site') ?? 'primary');
+      api<{ id: string; name: string; slug: string }[]>('/sites').then(setSites).catch(() => {});
       api<{ menus: { pluginId: string; slug: string; menuTitle: string }[] }>('/plugins/registry')
         .then((registry) => setPluginPages(registry.menus))
         .catch(() => setPluginPages([]));
@@ -413,6 +418,23 @@ export function AdminShell({
             <Icon name="external" />
             Visit Site
           </a>
+          {sites.length > 1 ? (
+            <label className="mt-2 block text-[12px] text-[#dcdcde]">
+              Site
+              <select
+                className="mt-1 w-full bg-[#1e1e1e] text-white"
+                value={siteSlug}
+                onChange={(event) => {
+                  localStorage.setItem('op_site', event.target.value);
+                  window.location.reload();
+                }}
+              >
+                {sites.map((site) => (
+                  <option key={site.id} value={site.slug}>{site.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </BarMenu>
         <BarMenu
           icon="plus"

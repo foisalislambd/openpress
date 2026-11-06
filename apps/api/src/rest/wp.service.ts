@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { blocksToHtml } from '../cms/publishing';
 import { ContentService } from '../content/content.service';
 import { DbService } from '../db/db.service';
+import { currentSiteId } from '../sites/site-context';
 
 type WpStatus = 'publish' | 'draft' | 'pending' | 'future' | 'trash';
 
@@ -49,9 +50,10 @@ export class WpService {
     return this.db.query(
       `SELECT id, filename, url, alt, caption, "mimeType", width, height, "createdAt"
        FROM media
+       WHERE "siteId" = $3
        ORDER BY "createdAt" DESC
        LIMIT $1 OFFSET $2`,
-      [limit, offset],
+      [limit, offset, currentSiteId()],
     ).then((rows) =>
       rows.map((row) => ({
         id: row.id,
@@ -71,7 +73,8 @@ export class WpService {
 
   categories() {
     return this.db.query<{ id: string; name: string; slug: string; description: string | null; parentId: string | null }>(
-      'SELECT id, name, slug, description, "parentId" FROM categories ORDER BY name',
+      'SELECT id, name, slug, description, "parentId" FROM categories WHERE "siteId" = $1 ORDER BY name',
+      [currentSiteId()],
     ).then((rows) =>
       rows.map((row) => ({
         id: row.id,
@@ -84,7 +87,7 @@ export class WpService {
   }
 
   tags() {
-    return this.db.query<{ id: string; name: string; slug: string }>('SELECT id, name, slug FROM tags ORDER BY name').then(
+    return this.db.query<{ id: string; name: string; slug: string }>('SELECT id, name, slug FROM tags WHERE "siteId" = $1 ORDER BY name', [currentSiteId()]).then(
       (rows) => rows.map((row) => ({ id: row.id, name: row.name, slug: row.slug })),
     );
   }

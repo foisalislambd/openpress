@@ -78,6 +78,11 @@ export interface PluginContext {
     set: (key: string, value: unknown) => Promise<unknown>;
     delete: (key: string) => Promise<unknown>;
   };
+  transients?: {
+    get: (key: string) => Promise<unknown>;
+    set: (key: string, value: unknown, ttlSeconds?: number) => Promise<unknown>;
+    delete: (key: string) => Promise<unknown>;
+  };
   settings: {
     get: () => Promise<Record<string, unknown>>;
     set: (values: Record<string, unknown>) => Promise<unknown>;

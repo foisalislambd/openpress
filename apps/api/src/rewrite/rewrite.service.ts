@@ -5,6 +5,7 @@ import { isUndefinedTable } from '../db/errors';
 import { newId } from '../db/ids';
 import { SettingsService } from '../settings/settings.service';
 import { compileRewrite, findConflicts, matchRewrite, RewriteRule, ruleTouchesReserved, structureRule } from './rewrite-rules';
+import { currentSiteId } from '../sites/site-context';
 
 @Injectable()
 export class RewriteService {
@@ -47,16 +48,16 @@ export class RewriteService {
     const own = conflicts.filter((conflict) => conflict.rules.includes(rule.id));
     if (own.length) throw new ConflictException({ message: 'Rewrite rule conflicts with an existing rule', conflicts: own });
     await this.db.query(
-      `INSERT INTO rewrite_rules (id, pattern, query, source, priority) VALUES ($1, $2, $3::jsonb, 'custom', $4)`,
-      [rule.id, rule.pattern, JSON.stringify(rule.query), rule.priority],
+      `INSERT INTO rewrite_rules (id, pattern, query, source, priority, "siteId") VALUES ($1, $2, $3::jsonb, 'custom', $4, $5)`,
+      [rule.id, rule.pattern, JSON.stringify(rule.query), rule.priority, currentSiteId()],
     );
     return rule;
   }
 
   async remove(id: string) {
     const removed = await this.db.one(
-      `DELETE FROM rewrite_rules WHERE id = $1 AND source = 'custom' RETURNING id`,
-      [id],
+      `DELETE FROM rewrite_rules WHERE id = $1 AND source = 'custom' AND "siteId" = $2 RETURNING id`,
+      [id, currentSiteId()],
     );
     if (!removed) throw new NotFoundException('Rewrite rule not found');
     return removed;
@@ -70,7 +71,8 @@ export class RewriteService {
   private async custom(): Promise<RewriteRule[]> {
     try {
       const rows = await this.db.query<{ id: string; pattern: string; query: Record<string, string>; source: string; priority: number }>(
-        'SELECT id, pattern, query, source, priority FROM rewrite_rules ORDER BY priority ASC',
+        'SELECT id, pattern, query, source, priority FROM rewrite_rules WHERE "siteId" = $1 ORDER BY priority ASC',
+        [currentSiteId()],
       );
       return rows;
     } catch (error) {

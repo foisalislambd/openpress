@@ -81,6 +81,27 @@ export class TaxonomyController {
     return this.taxonomy.createTag(dto.name);
   }
 
+  @Get('categories/:id/meta')
+  @UseGuards(JwtAuthGuard)
+  async categoryMeta(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertTerms(user);
+    return this.taxonomy.listTermMeta('category', id);
+  }
+
+  @Post('categories/:id/meta')
+  @UseGuards(JwtAuthGuard)
+  async setCategoryMeta(@Param('id') id: string, @Body() body: { key?: string; value?: unknown }, @CurrentUser() user: JwtPayload) {
+    await this.assertTerms(user);
+    return this.taxonomy.upsertTermMeta('category', id, String(body.key ?? ''), body.value);
+  }
+
+  @Delete('categories/:id/meta/:key')
+  @UseGuards(JwtAuthGuard)
+  async deleteCategoryMeta(@Param('id') id: string, @Param('key') key: string, @CurrentUser() user: JwtPayload) {
+    await this.assertTerms(user);
+    return this.taxonomy.deleteTermMeta('category', id, key);
+  }
+
   @Delete('tags/:id')
   @UseGuards(JwtAuthGuard)
   async removeTag(@Param('id') id: string, @CurrentUser() user: JwtPayload) {

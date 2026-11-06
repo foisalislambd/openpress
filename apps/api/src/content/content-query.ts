@@ -3,13 +3,11 @@
  * that turns it into SQL. Filters may change the structure, never the SQL text.
  */
 
-export class ContentQueryError extends Error {}
+import { compileMetaQuery, compileTaxQuery, MetaClause, MetaGroup, TaxGroup } from '../query/meta-tax-query';
+import { ContentQueryError } from '../query/query-error';
 
-export interface MetaClause {
-  key: string;
-  value?: unknown;
-  compare?: 'eq' | 'neq' | 'gt' | 'lt' | 'like' | 'exists';
-}
+export { ContentQueryError };
+export type { MetaClause, MetaGroup, TaxGroup };
 
 export interface ContentQueryInput {
   type?: string | string[];
@@ -23,7 +21,9 @@ export interface ContentQueryInput {
   search?: string;
   category?: string | string[];
   tag?: string | string[];
-  meta?: MetaClause[];
+  meta?: MetaClause[] | MetaGroup;
+  tax?: TaxGroup;
+  siteId?: string;
   after?: string;
   before?: string;
   dateColumn?: 'publishedAt' | 'createdAt' | 'updatedAt';
@@ -46,7 +46,6 @@ export interface BuiltContentQuery {
 const TYPES = new Set(['POST', 'PAGE']);
 const STATUSES = new Set(['DRAFT', 'PENDING', 'PUBLISHED', 'SCHEDULED', 'TRASHED']);
 const VISIBILITY = new Set(['PUBLIC', 'PRIVATE', 'PASSWORD']);
-const META_KEY = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/i;
 const POST_TYPE = /^[a-z0-9][a-z0-9_-]{0,40}$/;
 const LOCALE = /^[a-zA-Z0-9_-]{2,16}$/;
@@ -92,6 +91,11 @@ export function buildContentQuery(input: ContentQueryInput): BuiltContentQuery {
     const visibility = asList(input.visibility);
     if (visibility.some((item) => !VISIBILITY.has(item))) throw new ContentQueryError('Invalid visibility');
     if (visibility.length) add('c.visibility = ANY($?::text[])', visibility);
+  }
+
+  if (input.siteId) {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(input.siteId)) throw new ContentQueryError('Invalid site');
+    add('c."siteId" = $?', input.siteId);
   }
 
   if (input.authorId) {
@@ -151,39 +155,14 @@ export function buildContentQuery(input: ContentQueryInput): BuiltContentQuery {
   if (input.sticky === 'only') clauses.push('c.sticky = true');
   if (input.sticky === 'exclude') clauses.push('c.sticky = false');
 
-  for (const meta of input.meta ?? []) {
-    if (!META_KEY.test(meta.key)) throw new ContentQueryError('Invalid meta key');
-    const compare = meta.compare ?? (meta.value === undefined ? 'exists' : 'eq');
-    if (compare === 'exists') {
-      add(`EXISTS (SELECT 1 FROM content_meta m WHERE m."contentId" = c.id AND m."metaKey" = $?)`, meta.key);
-      continue;
-    }
-    if (compare === 'gt' || compare === 'lt') {
-      const number = Number(meta.value);
-      if (!Number.isFinite(number)) throw new ContentQueryError('Meta comparison needs a number');
-      const op = compare === 'gt' ? '>' : '<';
-      add(
-        `EXISTS (SELECT 1 FROM content_meta m WHERE m."contentId" = c.id AND m."metaKey" = $? AND (m."metaValue"#>>'{}')::numeric ${op} $?)`,
-        meta.key,
-        number,
-      );
-      continue;
-    }
-    if (compare === 'like') {
-      add(
-        `EXISTS (SELECT 1 FROM content_meta m WHERE m."contentId" = c.id AND m."metaKey" = $? AND m."metaValue"#>>'{}' ILIKE $?)`,
-        meta.key,
-        `%${String(meta.value ?? '').replace(/[\\%_]/g, (char) => `\\${char}`)}%`,
-      );
-      continue;
-    }
-    const op = compare === 'neq' ? '<>' : '=';
-    add(
-      `EXISTS (SELECT 1 FROM content_meta m WHERE m."contentId" = c.id AND m."metaKey" = $? AND m."metaValue" ${op} $?::jsonb)`,
-      meta.key,
-      JSON.stringify(meta.value ?? null),
-    );
-  }
+  const push = (value: unknown) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  const metaSql = compileMetaQuery(input.meta, push);
+  if (metaSql) clauses.push(metaSql);
+  const taxSql = compileTaxQuery(input.tax, push, input.siteId);
+  if (taxSql) clauses.push(taxSql);
 
   const page = clamp(input.page, 1, 1, 1_000_000);
   const perPage = clamp(input.perPage, 10, 1, 50);

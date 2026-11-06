@@ -17,6 +17,7 @@ import { hashPackageFiles, SIGNATURE_FILE, verifyPackageHash, compareVersions, P
 import { hostAllowed, PluginRegistration, SandboxHandle, startPluginSandbox } from './sandbox/plugin-sandbox';
 import { PluginManifest, PluginPermission, validatePluginManifest } from './plugin-manifest';
 import { CoreRegistry, optionType } from '../core/core-registry';
+import { TransientsService } from '../sites/transients.service';
 
 export type { PluginManifest };
 
@@ -50,6 +51,7 @@ export class PluginsService implements OnModuleInit {
     private hooks: HooksService,
     private registry: ExtensionRegistry,
     private core: CoreRegistry,
+    private transients: TransientsService,
   ) {}
 
   async onModuleInit() {
@@ -424,6 +426,12 @@ export class PluginsService implements OnModuleInit {
       ]);
       return true;
     }
+    if (method === 'transient.get') return this.transients.get(String(args[0] ?? ''));
+    if (method === 'transient.set') {
+      const ttl = args[2] === undefined ? undefined : Number(args[2]);
+      return this.transients.set(String(args[0] ?? ''), args[1], ttl);
+    }
+    if (method === 'transient.delete') return this.transients.delete(String(args[0] ?? ''));
     if (method === 'settings.get') return this.getSettings(manifest.id);
     if (method === 'settings.set') {
       const values = (args[0] ?? {}) as Record<string, unknown>;

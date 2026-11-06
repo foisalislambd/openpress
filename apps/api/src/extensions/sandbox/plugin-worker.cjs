@@ -176,6 +176,20 @@ const ctx = {
       });
     },
   },
+  transients: {
+    get: (key) => {
+      allow('settings');
+      return rpc('transient.get', [String(key || '')]);
+    },
+    set: (key, value, ttlSeconds) => {
+      allow('settings');
+      return rpc('transient.set', [String(key || ''), value, ttlSeconds]);
+    },
+    delete: (key) => {
+      allow('settings');
+      return rpc('transient.delete', [String(key || '')]);
+    },
+  },
   capabilities: {
     register: (cap) => {
       allow('settings');

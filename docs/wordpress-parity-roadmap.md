@@ -23,19 +23,19 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core. Stat
 |----------------------|--------|---------------|--------------------------------------|
 | Roles & capabilities | Done | Builtin roles live in `roles`. Custom roles, per-user grants and denies, and a role editor. Writes check the capability, not only the role name. Deny wins. Administrator cannot be stripped or minted by another role. | No multisite super-admin. Better: checks are consistent on write routes and resolved from the database, so a grant applies without waiting for a stale token. |
 | Options / settings API | Done | Typed registry (string, number, boolean, JSON), autoload flag, validation, plugin `settings.register`. | No visual settings-field builder. Better: values are validated before they are stored. |
-| Content query | Done | `buildContentQuery` is the only SQL builder for lists used by REST, GraphQL, and themes. Type, post type, taxonomy, meta, status, date, search, and order are structured. Public queries cannot ask for drafts. | No meta `OR` groups or `meta_query` relation trees. Better: filters change the object, never the SQL string. |
+| Content query | Done | `buildContentQuery` is the only SQL builder for lists used by REST, GraphQL, and themes. Type, post type, taxonomy, meta, status, date, search, and order are structured. Meta and tax groups support AND/OR, nested clauses, and category children. Public queries cannot ask for drafts, and the current site is forced after filters. | No `REGEXP` compares. Better: filters change the object, never the SQL string. |
 | Cron | Done | `cron_events` in Postgres: one-shot and recurring, row locks, backoff. Seeded publish, trash/autosave purge, and health beat. BullMQ remains for imports and image work when Redis is set. | No cron UI for every hook argument shape. Better: jobs survive without Redis. |
-| Menus | Partial | `nav_menus` / items / locations. Nested items, cycle checks, safe URLs. The theme reads locations. Saving the existing Menus screen copies JSON into the tables. | No drag-and-drop. Better: a parent cycle cannot be stored. |
+| Menus | Partial | `nav_menus` / items / locations, scoped per site. Nested items, cycle checks, safe URLs. The theme reads locations. Saving the existing Menus screen copies JSON into the tables for the current site only. | No drag-and-drop. Better: a parent cycle cannot be stored, and one site cannot wipe another's menus. |
 | Widgets | Partial | Sidebar and footer instances. Core search, recent posts, categories, and text widgets render as data, not unsanitized HTML. | No customizer drag-and-drop. Better: core widgets are typed instead of PHP class instances. |
 | Rewrite rules | Partial | Registry with anchored patterns, conflict detection against the active permalink structure, and middleware rewrites. Dated permalinks still use the existing resolver. | Not a full `WP_Rewrite` tag map. Better: a rule that matches `/admin` or `/api` is rejected. |
 | Users & profile | Partial | User meta, staff-only `_` keys, user list filters by role, search, and capability. Application passwords, sessions, TOTP, and passkeys already exist. | No front-end membership product. |
 | Hooks | Partial | Plugins can register capabilities, settings, rewrite rules, and widgets from the sandbox, and adjust `content.query`. | No hook-reference screen. |
 | Block editor | Partial | BlockNote in admin. Server validates and HTML-serializes the document (`POST /api/content/blocks/render`). Unknown types are rejected on save. This is a foundation, not Gutenberg. | No block canvas rewrite, patterns directory, or collaboration. |
-| Content modeling | Done | Custom post types, taxonomies, field groups, patterns, pending review. | Term meta is still light. |
+| Content modeling | Done | Custom post types, taxonomies, field groups, patterns, pending review, and term meta on categories, tags, and custom terms. | |
 | Permalinks | Done | Structure templates route through Next.js middleware, including year/month/name. | |
 | Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. | PDF thumbnails still missing. |
 | SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | Shipped in the CMS power pack. | Marketplace UI is intentionally out of this repository. |
-| Multisite | Missing | Not started. A fake network switch on one content table would break single-site assumptions. | Next phase: a `sites` table and network options before any switcher. |
+| Multisite | Partial | `sites` and `site_options`, a seeded primary site, and `siteId` on content, terms, media, menus, widgets, and rewrites. The admin switcher sends `X-OpenPress-Site`. Public pages follow the request host. Users and roles stay network-wide. | No per-site roles, no domain mapping UI beyond a domain column, no separate database per site. |
 | Full Gutenberg UI | Missing | Not in this tranche. | The block document model is the base. |
 | PHP plugins / gettext `.po` | Missing | Out of scope. | The string catalog is the translation store. |
 
@@ -93,7 +93,15 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core. Stat
 
 ### Shipped in the core power tranche
 
-Migration `005_core_power.sql` turns `users.role` into text and adds roles, user capabilities, user meta, option autoload, cron events, nav menus, widget instances, and rewrite rules. Apply it with `pnpm db:migrate`. Existing menu and widget JSON is copied into the tables the next time those settings are saved. Built-in roles are seeded; the Administrator capability set cannot be reduced. No PHP was added.
+Migration `005_core_power.sql` turns `users.role` into text and adds roles, user capabilities, user meta, option autoload, cron events, nav menus, widget instances, and rewrite rules. Migration `006_core_depth.sql` adds sites, site options, term and comment meta, transients, edit locks, and a `siteId` on content, terms, media, menus, widgets, and rewrites. Apply both with `pnpm db:migrate`. Existing rows belong to the primary site. Existing menu and widget JSON is copied into the tables the next time those settings are saved. Built-in roles are seeded; the Administrator capability set cannot be reduced. No PHP was added.
+
+### Shipped in the core depth pass
+
+- Meta and taxonomy query trees (AND/OR, nesting, `IN` / `BETWEEN` / `EXISTS`, category children).
+- Term meta and comment meta. Comment bodies and text widgets pass an HTML allow-list.
+- Transients in Postgres, including from a TypeScript plugin (`settings` permission).
+- Post edit locks (150 seconds). Someone with `edit_others_posts` can take over.
+- Multisite foundation: one primary site by default, extra sites from **Tools → Sites**, content scoped to the selected site. Roles are still shared.
 
 ### Next runs
 
@@ -101,4 +109,4 @@ Migration `005_core_power.sql` turns `users.role` into text and adds roles, user
 
 ### Explicitly later
 
-Multisite and a network admin, the public plugin directory itself, automatic updates from a remote feed, a Gutenberg clone, and a PHP compatibility layer. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work. Full gettext catalogs and a visual theme-file editor are still open; the string catalog and template hierarchy are the foundation.
+Per-site roles, a full network admin, the public plugin directory, automatic updates from a remote feed, a Gutenberg clone, and a PHP compatibility layer. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work. Full gettext catalogs and a visual theme-file editor are still open; the string catalog and template hierarchy are the foundation.

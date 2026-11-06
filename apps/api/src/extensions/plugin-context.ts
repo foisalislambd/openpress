@@ -4,6 +4,7 @@ import { HooksService } from '../hooks/hooks.service';
 import { ExtensionRegistry } from './extension-registry';
 import { PluginManifest, PluginPermission } from './plugin-manifest';
 import { CoreRegistry, optionType } from '../core/core-registry';
+import { TransientsService } from '../sites/transients.service';
 
 export function createPluginContext(options: {
   manifest: PluginManifest;
@@ -12,6 +13,7 @@ export function createPluginContext(options: {
   db: Db;
   pluginDir: string;
   core?: CoreRegistry;
+  transients?: TransientsService;
 }) {
   const permissions = new Set<PluginPermission>(options.manifest.permissions ?? []);
   const allow = (permission: PluginPermission) => {
@@ -79,6 +81,23 @@ export function createPluginContext(options: {
         query: options.db.query.bind(options.db),
         one: options.db.one.bind(options.db),
       };
+    },
+    transients: {
+      get: (key: string) => {
+        allow('settings');
+        if (!options.transients) throw new Error('Transients are not available');
+        return options.transients.get(String(key));
+      },
+      set: (key: string, value: unknown, ttlSeconds?: number) => {
+        allow('settings');
+        if (!options.transients) throw new Error('Transients are not available');
+        return options.transients.set(String(key), value, ttlSeconds);
+      },
+      delete: (key: string) => {
+        allow('settings');
+        if (!options.transients) throw new Error('Transients are not available');
+        return options.transients.delete(String(key));
+      },
     },
     settings: {
       /** This plugin's own options. Does not read or write site settings. */

@@ -4,6 +4,7 @@ import { isUndefinedTable } from '../db/errors';
 import { newId } from '../db/ids';
 import { FlatMenuItem, menuParentError, nestMenuItems, safeMenuUrl } from './menu-tree';
 import slugify from 'slugify';
+import { currentSiteId } from '../sites/site-context';
 
 @Injectable()
 export class MenusService {
@@ -11,7 +12,8 @@ export class MenusService {
 
   async list() {
     const menus = await this.db.query<{ id: string; name: string; slug: string }>(
-      'SELECT id, name, slug FROM nav_menus ORDER BY name ASC',
+      'SELECT id, name, slug FROM nav_menus WHERE "siteId" = $1 ORDER BY name ASC',
+      [currentSiteId()],
     );
     const items = await this.db.query<FlatMenuItem & { menuId: string }>(
       `SELECT id, "menuId", "parentId", position, title, url, type, "objectId", target
@@ -32,7 +34,7 @@ export class MenusService {
     if (!label) throw new BadRequestException('Menu name is required');
     const slug = await this.uniqueSlug(label);
     const id = newId();
-    await this.db.query('INSERT INTO nav_menus (id, name, slug) VALUES ($1, $2, $3)', [id, label, slug]);
+    await this.db.query('INSERT INTO nav_menus (id, name, slug, "siteId") VALUES ($1, $2, $3, $4)', [id, label, slug, currentSiteId()]);
     await this.syncSettings();
     return this.one(id);
   }
@@ -40,14 +42,14 @@ export class MenusService {
   async rename(id: string, name: string) {
     const label = name.trim().slice(0, 80);
     if (!label) throw new BadRequestException('Menu name is required');
-    const updated = await this.db.one('UPDATE nav_menus SET name = $2 WHERE id = $1 RETURNING id', [id, label]);
+    const updated = await this.db.one('UPDATE nav_menus SET name = $2 WHERE id = $1 AND "siteId" = $3 RETURNING id', [id, label, currentSiteId()]);
     if (!updated) throw new NotFoundException('Menu not found');
     await this.syncSettings();
     return this.one(id);
   }
 
   async remove(id: string) {
-    const removed = await this.db.one('DELETE FROM nav_menus WHERE id = $1 RETURNING id', [id]);
+    const removed = await this.db.one('DELETE FROM nav_menus WHERE id = $1 AND "siteId" = $2 RETURNING id', [id, currentSiteId()]);
     if (!removed) throw new NotFoundException('Menu not found');
     await this.syncSettings();
     return removed;
@@ -124,9 +126,9 @@ export class MenusService {
         if (!menu) throw new BadRequestException('Menu was not found');
       }
       await this.db.query(
-        `INSERT INTO menu_locations (location, "menuId") VALUES ($1, $2)
-         ON CONFLICT (location) DO UPDATE SET "menuId" = EXCLUDED."menuId"`,
-        [location, menuId],
+        `INSERT INTO menu_locations ("siteId", location, "menuId") VALUES ($1, $2, $3)
+         ON CONFLICT ("siteId", location) DO UPDATE SET "menuId" = EXCLUDED."menuId"`,
+        [currentSiteId(), location, menuId],
       );
     }
     await this.syncSettings();
@@ -136,8 +138,11 @@ export class MenusService {
   async importSettings(menus: unknown, locations: unknown) {
     if (!Array.isArray(menus)) return;
     await this.db.tx(async (sql) => {
-      await sql.query('DELETE FROM nav_menu_items');
-      await sql.query('DELETE FROM nav_menus');
+      await sql.query(
+        `DELETE FROM nav_menu_items WHERE "menuId" IN (SELECT id FROM nav_menus WHERE "siteId" = $1)`,
+        [currentSiteId()],
+      );
+      await sql.query('DELETE FROM nav_menus WHERE "siteId" = $1', [currentSiteId()]);
       const ids = new Map<string, string>();
       const slugs = new Set<string>();
       for (const menu of menus) {
@@ -154,7 +159,7 @@ export class MenusService {
         }
         slugs.add(unique);
         ids.set(name, id);
-        await sql.query('INSERT INTO nav_menus (id, name, slug) VALUES ($1, $2, $3)', [id, name, unique]);
+        await sql.query('INSERT INTO nav_menus (id, name, slug, "siteId") VALUES ($1, $2, $3, $4)', [id, name, unique, currentSiteId()]);
         const items = (menu as { items?: unknown }).items;
         if (Array.isArray(items)) await insertTree(sql, id, items, null);
       }
@@ -162,9 +167,9 @@ export class MenusService {
       for (const location of ['primary', 'footer']) {
         const name = typeof map[location] === 'string' ? map[location] : '';
         await sql.query(
-          `INSERT INTO menu_locations (location, "menuId") VALUES ($1, $2)
-           ON CONFLICT (location) DO UPDATE SET "menuId" = EXCLUDED."menuId"`,
-          [location, name ? ids.get(String(name)) ?? null : null],
+          `INSERT INTO menu_locations ("siteId", location, "menuId") VALUES ($1, $2, $3)
+           ON CONFLICT ("siteId", location) DO UPDATE SET "menuId" = EXCLUDED."menuId"`,
+          [currentSiteId(), location, name ? ids.get(String(name)) ?? null : null],
         );
       }
     });
@@ -173,7 +178,7 @@ export class MenusService {
   async overlay(current: Record<string, unknown>) {
     let count: { count: number } | null;
     try {
-      count = await this.db.one<{ count: number }>('SELECT count(*)::int AS count FROM nav_menus');
+      count = await this.db.one<{ count: number }>('SELECT count(*)::int AS count FROM nav_menus WHERE "siteId" = $1', [currentSiteId()]);
     } catch (error) {
       if (isUndefinedTable(error)) return current;
       throw error;
@@ -196,7 +201,8 @@ export class MenusService {
 
   private async locations() {
     const rows = await this.db.query<{ location: string; menuId: string | null }>(
-      'SELECT location, "menuId" FROM menu_locations',
+      'SELECT location, "menuId" FROM menu_locations WHERE "siteId" = $1',
+      [currentSiteId()],
     );
     return {
       primary: rows.find((row) => row.location === 'primary')?.menuId ?? null,
@@ -216,7 +222,7 @@ export class MenusService {
     let slug = base;
     let n = 1;
     for (;;) {
-      const clash = await this.db.one('SELECT id FROM nav_menus WHERE slug = $1', [slug]);
+      const clash = await this.db.one('SELECT id FROM nav_menus WHERE slug = $1 AND "siteId" = $2', [slug, currentSiteId()]);
       if (!clash) return slug;
       n += 1;
       slug = `${base}-${n}`;

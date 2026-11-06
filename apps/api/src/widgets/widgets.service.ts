@@ -4,6 +4,7 @@ import { isUndefinedTable } from '../db/errors';
 import { newId } from '../db/ids';
 import { ExtensionRegistry } from '../extensions/extension-registry';
 import { CORE_WIDGETS, coreWidgetView, isCoreWidget, sanitizeWidgetSettings, widgetPlainText, WidgetView } from './widget-render';
+import { currentSiteId } from '../sites/site-context';
 
 @Injectable()
 export class WidgetsService {
@@ -34,14 +35,14 @@ export class WidgetsService {
     const area = areaOf(input.area);
     this.assertType(input.type);
     const position = await this.db.one<{ max: number }>(
-      'SELECT COALESCE(max(position), -1)::int AS max FROM widget_instances WHERE area = $1',
-      [area],
+      'SELECT COALESCE(max(position), -1)::int AS max FROM widget_instances WHERE area = $1 AND "siteId" = $2',
+      [area, currentSiteId()],
     );
     const id = newId();
     const settings = sanitizeWidgetSettings(input.type, { title: input.title ?? '', text: input.text ?? '' });
     await this.db.query(
-      `INSERT INTO widget_instances (id, area, type, position, settings) VALUES ($1, $2, $3, $4, $5::jsonb)`,
-      [id, area, input.type, (position?.max ?? -1) + 1, JSON.stringify(settings)],
+      `INSERT INTO widget_instances (id, area, type, position, settings, "siteId") VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+      [id, area, input.type, (position?.max ?? -1) + 1, JSON.stringify(settings), currentSiteId()],
     );
     await this.syncSettings();
     return { id };
@@ -49,8 +50,8 @@ export class WidgetsService {
 
   async update(id: string, input: { title?: string; text?: string; position?: number; area?: string }) {
     const current = await this.db.one<{ id: string; type: string; settings: Record<string, unknown>; area: string; position: number }>(
-      'SELECT id, type, settings, area, position FROM widget_instances WHERE id = $1',
-      [id],
+      'SELECT id, type, settings, area, position FROM widget_instances WHERE id = $1 AND "siteId" = $2',
+      [id, currentSiteId()],
     );
     if (!current) throw new NotFoundException('Widget not found');
     const settings = sanitizeWidgetSettings(current.type, {
@@ -68,7 +69,7 @@ export class WidgetsService {
   }
 
   async remove(id: string) {
-    const removed = await this.db.one('DELETE FROM widget_instances WHERE id = $1 RETURNING id', [id]);
+    const removed = await this.db.one('DELETE FROM widget_instances WHERE id = $1 AND "siteId" = $2 RETURNING id', [id, currentSiteId()]);
     if (!removed) throw new NotFoundException('Widget not found');
     await this.syncSettings();
     return removed;
@@ -82,11 +83,13 @@ export class WidgetsService {
     const source = rows.length ? rows : await this.legacyRows();
     const posts = await this.db.query<{ title: string; slug: string }>(
       `SELECT title, slug FROM contents
-       WHERE status = 'PUBLISHED' AND visibility = 'PUBLIC' AND type = 'POST' AND "postType" = 'post'
+       WHERE status = 'PUBLISHED' AND visibility = 'PUBLIC' AND type = 'POST' AND "postType" = 'post' AND "siteId" = $1
        ORDER BY "publishedAt" DESC NULLS LAST LIMIT 5`,
+      [currentSiteId()],
     );
     const categories = await this.db.query<{ name: string; slug: string }>(
-      'SELECT name, slug FROM categories ORDER BY name ASC LIMIT 20',
+      'SELECT name, slug FROM categories WHERE "siteId" = $1 ORDER BY name ASC LIMIT 20',
+      [currentSiteId()],
     );
     const render = async (area: 'sidebar' | 'footer') => {
       const views: WidgetView[] = [];
@@ -162,7 +165,8 @@ export class WidgetsService {
 
   private async instances() {
     return this.db.query<{ id: string; area: 'sidebar' | 'footer'; type: string; position: number; settings: Record<string, unknown> }>(
-      'SELECT id, area, type, position, settings FROM widget_instances ORDER BY position ASC',
+      'SELECT id, area, type, position, settings FROM widget_instances WHERE "siteId" = $1 ORDER BY position ASC',
+      [currentSiteId()],
     );
   }
 

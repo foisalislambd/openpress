@@ -171,8 +171,18 @@ export class QueryContentDto {
   metaValue?: string;
 
   @IsOptional()
-  @IsIn(['eq', 'neq', 'gt', 'lt', 'like', 'exists'])
-  metaCompare?: 'eq' | 'neq' | 'gt' | 'lt' | 'like' | 'exists';
+  @IsIn(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'not_like', 'in', 'not_in', 'between', 'exists', 'not_exists'])
+  metaCompare?: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'not_like' | 'in' | 'not_in' | 'between' | 'exists' | 'not_exists';
+
+  /** JSON meta_query object or list. */
+  @IsOptional()
+  @IsString()
+  metaQuery?: string;
+
+  /** JSON tax_query object. */
+  @IsOptional()
+  @IsString()
+  taxQuery?: string;
 }
 
 export class UnlockDto {

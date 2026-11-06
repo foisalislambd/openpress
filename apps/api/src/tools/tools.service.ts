@@ -12,6 +12,7 @@ import { FieldMapping, parseEmDash } from '../feeds/emdash';
 import { buildWxr, parseWxrBundle, WxrBundle, WxrItem } from '../feeds/wxr';
 import { isPublicHostname } from '../extensions/sandbox/plugin-sandbox';
 import { SettingsService } from '../settings/settings.service';
+import { currentSiteId } from '../sites/site-context';
 
 @Injectable()
 export class ToolsService {
@@ -35,7 +36,9 @@ export class ToolsService {
     }>(
       `SELECT id, type, status, visibility, title, slug, excerpt, blocks, sticky
        FROM contents
+       WHERE "siteId" = $1
        ORDER BY "createdAt" ASC`,
+      [currentSiteId()],
     );
     const ids = rows.map((row) => row.id);
     const [categories, tags] = ids.length

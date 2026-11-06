@@ -29,6 +29,7 @@ import { CronModule } from './cron/cron.module';
 import { MenusModule } from './menus/menus.module';
 import { RewriteModule } from './rewrite/rewrite.module';
 import { WidgetsModule } from './widgets/widgets.module';
+import { SitesModule } from './sites/sites.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { WidgetsModule } from './widgets/widgets.module';
     // Global rate limit: 120 requests/minute per IP
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     DbModule,
+    SitesModule,
     HooksModule,
     CapabilitiesModule,
     PlatformModule,

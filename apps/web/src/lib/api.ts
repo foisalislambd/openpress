@@ -1,4 +1,5 @@
 // Server-side API helpers (used by public site RSC pages)
+import { headers } from 'next/headers';
 import type {
   Comment,
   Content,
@@ -9,8 +10,18 @@ import type {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 async function get<T>(path: string, unlock?: string): Promise<T> {
+  let host = '';
+  try {
+    const incoming = await headers();
+    host = incoming.get('x-forwarded-host') ?? incoming.get('host') ?? '';
+  } catch {
+    host = '';
+  }
   const res = await fetch(`${API_URL}/api${path}`, {
-    headers: unlock ? { 'x-openpress-unlock': unlock } : undefined,
+    headers: {
+      ...(host ? { 'x-openpress-host': host } : {}),
+      ...(unlock ? { 'x-openpress-unlock': unlock } : {}),
+    },
     ...(unlock ? { cache: 'no-store' as const } : { next: { revalidate: 10 } }),
   });
   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);

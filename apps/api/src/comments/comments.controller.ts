@@ -92,6 +92,27 @@ export class CommentsController {
     return this.comments.setStatus(id, dto.status);
   }
 
+  @Get(':id/meta')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('moderate_comments')
+  meta(@Param('id') id: string) {
+    return this.comments.listMeta(id);
+  }
+
+  @Post(':id/meta')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('moderate_comments')
+  upsertMeta(@Param('id') id: string, @Body() body: { key?: string; value?: unknown }) {
+    return this.comments.upsertMeta(id, String(body.key ?? ''), body.value);
+  }
+
+  @Delete(':id/meta/:key')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('moderate_comments')
+  deleteMeta(@Param('id') id: string, @Param('key') key: string) {
+    return this.comments.deleteMeta(id, key);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard, CapabilitiesGuard)
   @RequireCaps('moderate_comments')

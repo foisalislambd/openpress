@@ -118,6 +118,18 @@ export class ContentController {
     return this.content.deleteMeta(id, key, user);
   }
 
+  @Post(':id/lock')
+  @UseGuards(JwtAuthGuard)
+  lock(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.content.acquireLock(id, user);
+  }
+
+  @Delete(':id/lock')
+  @UseGuards(JwtAuthGuard)
+  unlockEdit(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.content.releaseLock(id, user);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
