@@ -22,8 +22,10 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: {
       icon: [
         { url: '/favicon.ico', sizes: 'any' },
+        { url: '/favicon-16.png', type: 'image/png', sizes: '16x16' },
         { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
         { url: '/icon.png', type: 'image/png', sizes: '192x192' },
+        { url: '/openpress-icon-512.png', type: 'image/png', sizes: '512x512' },
         { url: '/openpress-icon.svg', type: 'image/svg+xml' },
       ],
       apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],

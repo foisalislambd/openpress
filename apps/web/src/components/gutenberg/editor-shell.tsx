@@ -158,7 +158,7 @@ export function EditorShell({
       <header className="op-gb-header">
         <div className="op-gb-tools" role="toolbar" aria-label="Document tools">
           <Link className="op-gb-back" href={backHref} aria-label={backLabel}>
-            <OpenPressMark size={22} />
+            <OpenPressMark size={24} />
           </Link>
           {!focus ? (
             <button

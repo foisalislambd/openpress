@@ -190,7 +190,7 @@ export function buildRuntimeTheme(
                 gap: '0.5rem',
               }}
             >
-              <OpenPressMark size={28} />
+              <OpenPressMark size={24} />
               {settings.siteTitle}
             </Link>
             <nav style={{ display: 'flex', gap: '1.25rem' }}>

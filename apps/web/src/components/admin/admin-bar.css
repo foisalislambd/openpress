@@ -51,8 +51,14 @@
 
 .op-ab-top.is-icon {
   width: 32px;
+  min-width: 32px;
   justify-content: center;
   padding: 0;
+}
+
+.op-ab-top.is-icon .op-mark {
+  width: 20px;
+  height: 20px;
 }
 
 .op-ab-label {

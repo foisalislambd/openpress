@@ -1,10 +1,10 @@
-# <img src="docs/brand/openpress-icon-64.png" alt="" width="32" height="32" /> OpenPress
+# <img src="docs/brand/openpress-icon-64.png" alt="" width="28" height="28" /> OpenPress
 
 **WordPress-shaped publishing, on a TypeScript monorepo you can actually extend.**
 
-[![Full tour: admin to published site in ~50s — click for the video](docs/media/walkthrough.gif)](docs/media/walkthrough.mp4)
+[![Full tour: admin to published site in ~54s — click for the video](docs/media/walkthrough.gif)](docs/media/walkthrough.mp4)
 
-*Full tour: admin to published site in ~50s — click for the video.*
+*Full tour: admin to published site in ~54s — click for the video.*
 
 [![Release](https://img.shields.io/github/v/release/foisalislambd/openpress?display_name=tag)](https://github.com/foisalislambd/openpress/releases)
 [![GHCR](https://img.shields.io/badge/ghcr.io-openpress-2496ED)](https://github.com/foisalislambd/openpress/pkgs/container/openpress-api)
@@ -25,7 +25,7 @@ No install required. The clips below are from a local site with seeded posts, th
 | Review a plugin, then install | Import WordPress |
 | ![Installed plugins and a dependency](docs/media/plugins.gif) | ![WordPress WXR import](docs/media/import.gif) |
 
-The full pass (dashboard, editor, media, themes, plugins, menus, network, comments, scheduled events, import, public site) is [docs/media/walkthrough.mp4](docs/media/walkthrough.mp4), about 50 seconds.
+The full pass (dashboard, editor, media, themes, plugins, menus, network, comments, scheduled events, import, public site) is [docs/media/walkthrough.mp4](docs/media/walkthrough.mp4), about 54 seconds.
 
 Still images of the same screens are in [docs/screenshots](docs/screenshots).
 

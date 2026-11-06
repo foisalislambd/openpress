@@ -124,6 +124,10 @@
   font-weight: 600;
   text-decoration: none;
 }
+.op-gb-back .op-mark {
+  width: 24px;
+  height: 24px;
+}
 
 .op-gb-back:hover {
   background: #f0f0f0;
