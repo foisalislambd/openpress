@@ -191,6 +191,8 @@ export {
   registerBlockType,
 } from './block-registry';
 export type { BlockAttribute, BlockCategory, BlockDefinition, BlockEdit } from './block-registry';
+export { formatSiteDate, weekStartsOnName } from './site-date';
+export type { SiteDateOptions } from './site-date';
 
 export interface SiteSettings {
   siteTitle: string;

@@ -9,9 +9,12 @@ import { Notice, Screen } from '@/components/admin/screen';
 export function TermScreen({ kind }: { kind: 'categories' | 'tags' }) {
   const [items, setItems] = useState<(Category | Tag)[]>([]);
   const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [parentId, setParentId] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const path = kind === 'categories' ? '/taxonomy/categories' : '/taxonomy/tags';
   const title = kind === 'categories' ? 'Categories' : 'Tags';
   const singular = kind === 'categories' ? 'Category' : 'Tag';
@@ -22,26 +25,46 @@ export function TermScreen({ kind }: { kind: 'categories' | 'tags' }) {
 
   useEffect(load, [load]);
 
-  async function add(event: FormEvent) {
+  function resetForm() {
+    setEditing(null);
+    setName('');
+    setSlug('');
+    setDescription('');
+    setParentId('');
+  }
+
+  function beginEdit(item: Category | Tag) {
+    setEditing(item.id);
+    setName(item.name);
+    setSlug(item.slug);
+    setDescription((item as Category).description ?? '');
+    setParentId((item as Category).parentId ?? '');
+    setError('');
+    setNotice('');
+  }
+
+  async function save(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return;
     setError('');
+    setNotice('');
+    const body = {
+      name: name.trim(),
+      slug: slug.trim() || undefined,
+      ...(kind === 'categories'
+        ? { description: description.trim(), parentId: parentId || null }
+        : {}),
+    };
     try {
-      await api(path, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: name.trim(),
-          ...(kind === 'categories'
-            ? { description: description.trim() || undefined, parentId: parentId || undefined }
-            : {}),
-        }),
+      await api(editing ? `${path}/${editing}` : path, {
+        method: editing ? 'PATCH' : 'POST',
+        body: JSON.stringify(body),
       });
-      setName('');
-      setDescription('');
-      setParentId('');
+      setNotice(editing ? `${singular} updated.` : `${singular} added.`);
+      resetForm();
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not add');
+      setError(err instanceof Error ? err.message : 'Could not save');
     }
   }
 
@@ -50,12 +73,16 @@ export function TermScreen({ kind }: { kind: 'categories' | 'tags' }) {
   return (
     <Screen title={title}>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      {notice ? <Notice kind="success">{notice}</Notice> : null}
       <div className="op-split">
-        <form className="op-split-form" onSubmit={add}>
-          <h2>Add {singular}</h2>
+        <form className="op-split-form" onSubmit={save}>
+          <h2>{editing ? `Edit ${singular}` : `Add ${singular}`}</h2>
           <label htmlFor="term-name">Name</label>
           <Input id="term-name" value={name} onChange={(e) => setName(e.target.value)} required />
           <p className="op-description">The name is how it appears on your site.</p>
+          <label htmlFor="term-slug">Slug</label>
+          <Input id="term-slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
+          <p className="op-description">The “slug” is the URL-friendly version of the name. It is usually all lowercase and contains only letters, numbers, and hyphens.</p>
           {kind === 'categories' ? (
             <>
               <label htmlFor="term-parent">Parent {singular}</label>
@@ -72,8 +99,13 @@ export function TermScreen({ kind }: { kind: 'categories' | 'tags' }) {
               <p className="op-description">The description is not prominent by default.</p>
             </>
           ) : null}
-          <p className="mt-3">
-            <Button type="submit">Add {singular}</Button>
+          <p className="mt-3 flex gap-2">
+            <Button type="submit">{editing ? `Update ${singular}` : `Add ${singular}`}</Button>
+            {editing ? (
+              <Button type="button" variant="secondary" onClick={resetForm}>
+                Cancel
+              </Button>
+            ) : null}
           </p>
         </form>
         <div>
@@ -92,6 +124,9 @@ export function TermScreen({ kind }: { kind: 'categories' | 'tags' }) {
                   <td>
                     <span className="op-row-title">{item.name}</span>
                     <div className="op-row-actions">
+                      <button type="button" onClick={() => beginEdit(item)}>
+                        Edit
+                      </button>
                       <button
                         type="button"
                         className="is-delete"

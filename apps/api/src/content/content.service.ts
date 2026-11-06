@@ -31,6 +31,7 @@ import {
   QueryContentDto,
   UpdateContentDto,
 } from './content.dto';
+import { categoryIdsForPost } from './default-category';
 import { redactPasswordContent, signUnlock, verifyUnlock } from './visibility';
 
 const CONTENT_COLUMNS = `c.id, c.type, c.status, c.visibility, c.sticky, c."commentStatus",
@@ -245,7 +246,7 @@ export class ContentService {
             currentSiteId(),
           ],
         );
-        await this.linkTerms(sql, id, dto.categoryIds, dto.tagIds, false);
+        await this.linkTerms(sql, id, await this.categoriesFor(type, dto.categoryIds, true), dto.tagIds, false);
       });
     } catch (error) {
       if (isUniqueViolation(error)) throw new ConflictException('Slug already in use');
@@ -330,7 +331,13 @@ export class ContentService {
           'DELETE FROM autosaves WHERE "contentId" = $1 AND "authorId" = $2',
           [id, user.sub],
         );
-        await this.linkTerms(sql, id, dto.categoryIds, dto.tagIds, true);
+        await this.linkTerms(
+          sql,
+          id,
+          await this.categoriesFor(dto.type ?? existing.type, dto.categoryIds, dto.categoryIds !== undefined),
+          dto.tagIds,
+          true,
+        );
       });
     } catch (error) {
       if (isUniqueViolation(error)) throw new ConflictException('Slug already in use');
@@ -847,6 +854,18 @@ export class ContentService {
         _count: { comments: countsByContent.get(row.id) ?? 0 },
       };
     });
+  }
+
+  private async categoriesFor(type: string, explicit: string[] | undefined, applyDefault: boolean) {
+    if (!applyDefault) return explicit;
+    const settings = await this.settings.getAll();
+    const next = categoryIdsForPost(type, explicit, settings.defaultCategoryId);
+    if (!next?.length || next === explicit) return next;
+    const row = await this.db.one<{ id: string }>(
+      `SELECT id FROM categories WHERE id = $1 AND "siteId" = $2`,
+      [next[0], currentSiteId()],
+    );
+    return row ? next : explicit;
   }
 
   private async linkTerms(
