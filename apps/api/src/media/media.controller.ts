@@ -113,12 +113,32 @@ export class MediaController {
   ) {}
 
   @Get()
-  async findAll(@Query('page') page?: string, @Query('perPage') perPage?: string) {
-    const [items, total] = await this.media.findAll(
-      Number(page ?? 1),
-      Number(perPage ?? 24),
-    );
-    return { items, total };
+  findAll(
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('search') search?: string,
+    @Query('month') month?: string,
+    @Query('mime') mime?: string,
+    @Query('author') author?: string,
+    @CurrentUser() user?: JwtPayload,
+  ) {
+    return this.media.findAll({
+      page,
+      perPage,
+      search,
+      month,
+      mime,
+      authorId: author === 'me' ? user?.sub : undefined,
+      viewerId: user?.sub,
+    });
+  }
+
+  @Post('bulk-delete')
+  async bulkDelete(@Body() body: { ids?: string[] }, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) {
+      throw new ForbiddenException('You cannot delete files');
+    }
+    return this.media.removeMany(Array.isArray(body.ids) ? body.ids : []);
   }
 
   @Post('upload')
