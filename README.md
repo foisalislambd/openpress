@@ -2,9 +2,9 @@
 
 **WordPress-shaped publishing, on a TypeScript monorepo you can actually extend.**
 
-[![Full tour: admin to published site in ~54s — click for the video](docs/media/walkthrough.gif)](docs/media/walkthrough.mp4)
+[![Full tour: admin to published site in ~44s — click for the video](docs/media/walkthrough.gif)](docs/media/walkthrough.mp4)
 
-*Full tour: admin to published site in ~54s — click for the video.*
+*Full tour: admin to published site in ~44s — click for the video.*
 
 [![Release](https://img.shields.io/github/v/release/foisalislambd/openpress?display_name=tag)](https://github.com/foisalislambd/openpress/releases)
 [![GHCR](https://img.shields.io/badge/ghcr.io-openpress-2496ED)](https://github.com/foisalislambd/openpress/pkgs/container/openpress-api)
@@ -25,9 +25,9 @@ No install required. The clips below are from a local site with seeded posts, th
 | Review a plugin, then install | Import WordPress |
 | ![Installed plugins and a dependency](docs/media/plugins.gif) | ![WordPress WXR import](docs/media/import.gif) |
 
-The full pass (dashboard, editor, media, themes, plugins, menus, network, comments, scheduled events, import, public site) is [docs/media/walkthrough.mp4](docs/media/walkthrough.mp4), about 54 seconds.
+The full pass (dashboard, posts list, block editor, media, themes, plugins, menus, categories, tools, import, and the public site) is [docs/media/walkthrough.mp4](docs/media/walkthrough.mp4), about 44 seconds. The public clip shows the site date and the privacy-policy link.
 
-Still images of the same screens are in [docs/screenshots](docs/screenshots).
+Still images of the same screens are in [docs/screenshots](docs/screenshots), including the [posts list](docs/screenshots/posts-list.webp), [category edit](docs/screenshots/categories.webp), [tools](docs/screenshots/tools.webp), and [discussion settings](docs/screenshots/discussion.webp).
 
 ## Why OpenPress
 
