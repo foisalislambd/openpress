@@ -42,7 +42,7 @@ export function serializeBlocks(blocks: BlockNode[]): string {
 }
 
 function serializeBlock(block: BlockNode, parent?: string): string {
-  return renderServerBlock(block, {
+  const html = renderServerBlock(block, {
     parent,
     inline: inlineHtml,
     children: (current) => (current.children ?? []).map((child) => serializeBlock(child, current.type)).join(''),
@@ -50,6 +50,12 @@ function serializeBlock(block: BlockNode, parent?: string): string {
     url: safeUrl,
     align: aligned,
   });
+  const anchor = typeof block.props?.anchor === 'string' ? block.props.anchor : '';
+  const className = typeof block.props?.className === 'string' ? block.props.className : '';
+  const id = /^[A-Za-z][\w:-]{0,60}$/.test(anchor) ? ` id="${escapeHtml(anchor)}"` : '';
+  const cls = className ? ` class="${escapeHtml(className.slice(0, 200))}"` : '';
+  if (!id && !cls) return html;
+  return `<div${id}${cls}>${html}</div>`;
 }
 
 export function escapeHtml(value: string) {

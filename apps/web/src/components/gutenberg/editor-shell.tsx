@@ -7,6 +7,7 @@ import { BlockInspector } from './block-inspector';
 import { BlockCanvas } from './canvas';
 import { Inserter, rememberBlock } from './inserter';
 import { ListView } from './list-view';
+import { WpIcon } from './wp-icons';
 import './editor.css';
 import {
   asBlocks,
@@ -18,7 +19,6 @@ import {
   moveSibling,
   removeBlock,
   reorder,
-  textOf,
   transformBlock,
   updateBlock,
   wrapInGroup,
@@ -65,6 +65,7 @@ export function EditorShell({
   const [sidebar, setSidebar] = useState(true);
   const [tab, setTab] = useState<'block' | 'document'>('document');
   const [focus, setFocus] = useState(false);
+  const [more, setMore] = useState(false);
   const history = useRef<CanvasBlock[][]>([]);
   const future = useRef<CanvasBlock[][]>([]);
   const blocksRef = useRef(blocks);
@@ -106,12 +107,21 @@ export function EditorShell({
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable));
+      if (event.key === 'Escape') {
+        setInserter(false);
+        setMore(false);
+      }
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === 'o') {
+        event.preventDefault();
+        setListView((value) => !value);
+        setInserter(false);
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !typing) {
         event.preventDefault();
         if (event.shiftKey) redo();
         else undo();
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && (event.shiftKey || event.metaKey) && typing && event.shiftKey) {
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'z' && typing) {
         event.preventDefault();
         redo();
       }
@@ -145,36 +155,53 @@ export function EditorShell({
   return (
     <div className={`op-gb ${focus ? 'is-focus' : ''}`}>
       <header className="op-gb-header">
-        <Link className="op-gb-back" href={backHref}>
-          <span className="dashicons dashicons-arrow-left-alt2" aria-hidden />
-          {backLabel}
-        </Link>
-        <div className="op-gb-header-center">
-          <button type="button" className={`op-gb-icon ${inserter ? 'is-on' : ''}`} aria-label="Toggle block inserter" aria-pressed={inserter} onClick={() => { setInserter((value) => !value); setListView(false); }}>
-            <span className="dashicons dashicons-plus" />
-          </button>
-          <button type="button" className="op-gb-icon" aria-label="Undo" onClick={undo}>
-            <span className="dashicons dashicons-undo" />
-          </button>
-          <button type="button" className="op-gb-icon" aria-label="Redo" onClick={redo}>
-            <span className="dashicons dashicons-redo" />
-          </button>
-          <button type="button" className={`op-gb-icon ${listView ? 'is-on' : ''}`} aria-label="List view" aria-pressed={listView} onClick={() => { setListView((value) => !value); setInserter(false); }}>
-            <span className="dashicons dashicons-list-view" />
-          </button>
+        <div className="op-gb-tools" role="toolbar" aria-label="Document tools">
+          <Link className="op-gb-back" href={backHref} aria-label={backLabel}>
+            <WpIcon name="wordpress" />
+          </Link>
+          {!focus ? (
+            <button
+              type="button"
+              className={`op-gb-plus ${inserter ? 'is-on' : ''}`}
+              aria-label={inserter ? 'Close block inserter' : 'Block Inserter'}
+              aria-expanded={inserter}
+              onClick={() => { setInserter((value) => !value); setListView(false); }}
+            >
+              <WpIcon name="plus" />
+            </button>
+          ) : null}
+          <button type="button" className="op-gb-icon" aria-label="Undo" onClick={undo}><WpIcon name="undo" /></button>
+          <button type="button" className="op-gb-icon" aria-label="Redo" onClick={redo}><WpIcon name="redo" /></button>
+          {!focus ? (
+            <button type="button" className={`op-gb-icon ${listView ? 'is-on' : ''}`} aria-label="Document Overview" aria-pressed={listView} onClick={() => { setListView((value) => !value); setInserter(false); }}>
+              <WpIcon name="list-view" />
+            </button>
+          ) : null}
         </div>
+        <div className="op-gb-docbar" title={title || 'Untitled'}>{title || 'Untitled'}</div>
         <div className="op-gb-header-end">
-          <span style={{ color: '#757575' }}>{statusLabel}</span>
-          {viewHref ? <a href={viewHref} target="_blank" rel="noreferrer">View</a> : null}
-          <button type="button" className="op-gb-textbtn" disabled={saving} onClick={onSaveDraft}>Save draft</button>
-          <button type="button" className="op-gb-textbtn" disabled={saving} onClick={onReview}>Review</button>
+          <span className="op-gb-saved">{saving ? 'Saving…' : statusLabel}</span>
+          {viewHref ? (
+            <a className="op-gb-icon" href={viewHref} target="_blank" rel="noreferrer" aria-label="View">
+              <WpIcon name="external" />
+            </a>
+          ) : null}
           <button type="button" className="op-gb-publish" disabled={saving} onClick={onPublish}>{publishLabel}</button>
           <button type="button" className={`op-gb-icon ${sidebar ? 'is-on' : ''}`} aria-label="Settings" aria-pressed={sidebar} onClick={() => setSidebar((value) => !value)}>
-            <span className="dashicons dashicons-admin-generic" />
+            <WpIcon name="drawer-right" />
           </button>
-          <button type="button" className={`op-gb-icon ${focus ? 'is-on' : ''}`} aria-label="Distraction free" aria-pressed={focus} onClick={() => setFocus((value) => !value)}>
-            <span className="dashicons dashicons-editor-expand" />
-          </button>
+          <span className="op-gb-more">
+            <button type="button" className="op-gb-icon" aria-label="Options" aria-expanded={more} onClick={() => setMore((value) => !value)}>
+              <WpIcon name="more-vertical" />
+            </button>
+            {more ? (
+              <div className="op-gb-menu" role="menu">
+                <button type="button" disabled={saving} onClick={() => { onSaveDraft(); setMore(false); }}>Save draft</button>
+                <button type="button" disabled={saving} onClick={() => { onReview(); setMore(false); }}>Submit for review</button>
+                <button type="button" onClick={() => { setFocus((value) => !value); setMore(false); }}>Distraction free</button>
+              </div>
+            ) : null}
+          </span>
         </div>
       </header>
       {notices ? <div className="op-gb-notices">{notices}</div> : null}
@@ -225,12 +252,24 @@ export function EditorShell({
               }}
               onReorder={(fromId, toId) => commit((current) => reorder(current, fromId, toId))}
             />
-            <div className="op-gb-appender">
-              <button type="button" className="op-gb-icon" aria-label="Add block" onClick={(event) => { event.stopPropagation(); setInserter(true); }}>
-                <span className="dashicons dashicons-plus" />
+            {blocks.length === 0 ? (
+              <button
+                type="button"
+                className="op-gb-placeholder"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  insert('paragraph', null);
+                }}
+              >
+                Type / to choose a block
               </button>
-              <span>{textOf(blocks[0] ?? createBlock('paragraph')) ? '' : 'Type / to choose a block'}</span>
-            </div>
+            ) : (
+              <div className="op-gb-appender">
+                <button type="button" className="op-gb-icon" aria-label="Add block" onClick={(event) => { event.stopPropagation(); setInserter(true); setListView(false); }}>
+                  <WpIcon name="plus" />
+                </button>
+              </div>
+            )}
           </div>
         </main>
         {sidebar && !focus ? (

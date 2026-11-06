@@ -10,20 +10,74 @@
 }
 
 .op-gb-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px;
   height: 60px;
-  padding: 0 8px;
+  padding: 0 8px 0 4px;
   border-bottom: 1px solid #e0e0e0;
   background: #fff;
 }
 
-.op-gb-header-center {
-  display: flex;
-  flex: 1;
+.op-gb-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.op-gb-plus {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 2px;
+  background: #3858e9;
+  color: #fff;
+  cursor: pointer;
+}
+
+.op-gb-plus svg {
+  transition: transform 0.2s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.op-gb-plus.is-on svg {
+  transform: rotate(45deg);
+}
+
+.op-gb-docbar {
+  min-width: 0;
+  padding: 0 12px;
+  overflow: hidden;
+  color: #1e1e1e;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.op-gb-saved {
+  color: #757575;
+  font-size: 13px;
+}
+
+.op-gb-more {
+  position: relative;
+}
+
+.op-gb-placeholder {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: #757575;
+  font-size: 18px;
+  line-height: 1.6;
+  text-align: left;
+  cursor: text;
 }
 
 .op-gb-header-end {
@@ -106,7 +160,7 @@
 .op-gb-inserter,
 .op-gb-list,
 .op-gb-sidebar {
-  width: 320px;
+  width: 350px;
   overflow: auto;
   background: #fff;
   border-right: 1px solid #e0e0e0;
@@ -245,6 +299,26 @@
   text-transform: uppercase;
 }
 
+.op-gb-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 0 8px;
+}
+
+.op-gb-cats button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.op-gb-cats button.is-on {
+  border-bottom-color: #1e1e1e;
+  font-weight: 600;
+}
+
 .op-gb-search {
   width: 100%;
   margin-bottom: 12px;
@@ -323,6 +397,22 @@
 }
 
 .op-gb-outline.is-on {
+  background: #3858e9;
+  color: #fff;
+}
+
+.wp-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.wp-icon svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+.op-gb-icon.is-on {
   background: #1e1e1e;
   color: #fff;
 }

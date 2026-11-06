@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BLOCK_CATEGORIES, getBlockTypes, type BlockDefinition } from '@openpress/shared';
 import { api } from '@/lib/client-api';
+import { WpIcon } from './wp-icons';
 
 const RECENT = 'op_recent_blocks';
 
@@ -23,6 +24,7 @@ function recentNames() {
 export function Inserter({ onInsert }: { onInsert: (type: string) => void }) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<'blocks' | 'patterns'>('blocks');
+  const [category, setCategory] = useState('all');
   const [patterns, setPatterns] = useState<{ id: string; title: string; content: unknown[] }[]>([]);
   const blocks = getBlockTypes().filter((block) => block.inserter);
   const recent = recentNames()
@@ -65,6 +67,14 @@ export function Inserter({ onInsert }: { onInsert: (type: string) => void }) {
         ) : (
           <>
             <input className="op-gb-search" placeholder="Search" value={query} aria-label="Search blocks" onChange={(event) => setQuery(event.target.value)} />
+            {!needle ? (
+              <div className="op-gb-cats" role="tablist" aria-label="Block categories">
+                <button type="button" className={category === 'all' ? 'is-on' : ''} onClick={() => setCategory('all')}>All</button>
+                {BLOCK_CATEGORIES.map((item) => (
+                  <button key={item.name} type="button" className={category === item.name ? 'is-on' : ''} onClick={() => setCategory(item.name)}>{item.title}</button>
+                ))}
+              </div>
+            ) : null}
             {!needle && recent.length ? (
               <>
                 <p className="op-gb-cat">Recent</p>
@@ -75,12 +85,13 @@ export function Inserter({ onInsert }: { onInsert: (type: string) => void }) {
                 </div>
               </>
             ) : null}
-            {BLOCK_CATEGORIES.map((category) => {
-              const items = filtered.filter((block) => block.category === category.name);
+            {BLOCK_CATEGORIES.map((item) => {
+              if (category !== 'all' && item.name !== category) return null;
+              const items = filtered.filter((block) => block.category === item.name);
               if (!items.length) return null;
               return (
-                <section key={category.name}>
-                  <p className="op-gb-cat">{category.title}</p>
+                <section key={item.name}>
+                  <p className="op-gb-cat">{item.title}</p>
                   <div className="op-gb-grid">
                     {items.map((block) => (
                       <BlockCard key={block.name} block={block} onInsert={onInsert} />
@@ -99,7 +110,7 @@ export function Inserter({ onInsert }: { onInsert: (type: string) => void }) {
 function BlockCard({ block, onInsert }: { block: BlockDefinition; onInsert: (type: string) => void }) {
   return (
     <button type="button" className="op-gb-card" onClick={() => onInsert(block.name)}>
-      <span className={`dashicons dashicons-${block.icon}`} aria-hidden />
+      <WpIcon name={block.icon} />
       <span>{block.title}</span>
     </button>
   );
@@ -115,7 +126,7 @@ export function SlashMenu({ query, onPick }: { query: string; onPick: (type: str
     <div className="op-gb-slash" role="listbox" aria-label="Slash inserter">
       {items.map((block) => (
         <button key={block.name} type="button" onClick={() => onPick(block.name)}>
-          <span className={`dashicons dashicons-${block.icon}`} aria-hidden /> {block.title}
+          <WpIcon name={block.icon} /> {block.title}
         </button>
       ))}
     </div>

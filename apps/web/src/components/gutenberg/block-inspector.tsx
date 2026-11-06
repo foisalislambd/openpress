@@ -43,6 +43,23 @@ export function BlockInspector({
           )}
         </label>
       ))}
+      <p className="op-gb-cat">Advanced</p>
+      <label className="op-gb-field">
+        HTML anchor
+        <input
+          type="text"
+          value={String(block.props.anchor ?? '')}
+          onChange={(event) => onChange({ props: { ...block.props, anchor: event.target.value } })}
+        />
+      </label>
+      <label className="op-gb-field">
+        Additional CSS class(es)
+        <input
+          type="text"
+          value={String(block.props.className ?? '')}
+          onChange={(event) => onChange({ props: { ...block.props, className: event.target.value } })}
+        />
+      </label>
       {definition?.supports.align ? (
         <label className="op-gb-field">
           Alignment

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { getBlockType } from '@openpress/shared';
 import type { CanvasBlock } from './tree';
+import { WpIcon } from './wp-icons';
 
 export function BlockToolbar({
   block,
@@ -44,18 +45,18 @@ export function BlockToolbar({
           event.dataTransfer.effectAllowed = 'move';
         }}
       >
-        <span className="dashicons dashicons-menu" />
+        <WpIcon name="drag-handle" />
       </button>
       <button type="button" aria-label="Move up" onClick={() => onMove(-1)}>
-        <span className="dashicons dashicons-arrow-up-alt2" />
+        <WpIcon name="chevron-up" />
       </button>
       <button type="button" aria-label="Move down" onClick={() => onMove(1)}>
-        <span className="dashicons dashicons-arrow-down-alt2" />
+        <WpIcon name="chevron-down" />
       </button>
       {targets.length ? (
         <span style={{ position: 'relative' }}>
           <button type="button" aria-label="Transform" onClick={() => { setTransform((value) => !value); setMore(false); }}>
-            <span className="dashicons dashicons-randomize" />
+            <WpIcon name="block-default" />
           </button>
           {transform ? (
             <div className="op-gb-menu" role="menu">
@@ -69,16 +70,13 @@ export function BlockToolbar({
         </span>
       ) : null}
       {definition?.supports.align ? (
-        <select
-          aria-label="Alignment"
-          value={String(block.props.align ?? 'left')}
-          onChange={(event) => onAlign(event.target.value)}
-          style={{ height: 32, border: 0, background: 'transparent' }}
-        >
-          <option value="left">Left</option>
-          <option value="center">Center</option>
-          <option value="right">Right</option>
-        </select>
+        <>
+          {(['left', 'center', 'right'] as const).map((align) => (
+            <button key={align} type="button" aria-label={`Align ${align}`} aria-pressed={String(block.props.align ?? 'left') === align} onClick={() => onAlign(align)}>
+              <WpIcon name={`align-${align}`} />
+            </button>
+          ))}
+        </>
       ) : null}
       {block.type === 'heading' ? (
         <span>
@@ -91,7 +89,7 @@ export function BlockToolbar({
       ) : null}
       <span style={{ position: 'relative' }}>
         <button type="button" aria-label="Options" onClick={() => { setMore((value) => !value); setTransform(false); }}>
-          <span className="dashicons dashicons-ellipsis" />
+          <WpIcon name="more-vertical" />
         </button>
         {more ? (
           <div className="op-gb-menu" role="menu">

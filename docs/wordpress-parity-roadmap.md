@@ -136,6 +136,7 @@ Migration `008_core_parity.sql` adds `gettext_entries`, `reusable_blocks`, and `
 - Block inserter with search, categories, and recent blocks. Type `/` in a text block to insert.
 - Selected-block toolbar: drag, move, transform, alignment, duplicate, copy, group, and remove.
 - Core blocks are registered definitions. The server allowlist renders each type from its own module. Storage stays BlockNode JSON, so older posts still open.
+- Editor chrome uses the WordPress Gutenberg icon set (GPL-2.0-or-later), copied from `packages/icons`. The inserter toggle, document tools, list view, and block toolbar follow the current `edit-post` / `editor` header.
 
 ### Next runs
 

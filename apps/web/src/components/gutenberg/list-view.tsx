@@ -2,6 +2,7 @@
 
 import { getBlockType } from '@openpress/shared';
 import { outline, textOf, type CanvasBlock } from './tree';
+import { WpIcon } from './wp-icons';
 
 export function ListView({
   blocks,
@@ -18,7 +19,7 @@ export function ListView({
   return (
     <aside className="op-gb-list" aria-label="List view">
       <div className="op-gb-panel">
-        <p className="op-gb-label">List view</p>
+        <p className="op-gb-label">List View</p>
         {rows.length === 0 ? <p style={{ color: '#757575' }}>No blocks yet.</p> : null}
         {rows.map(({ block, depth }) => {
           const title = getBlockType(block.type)?.title ?? block.type;
@@ -30,14 +31,14 @@ export function ListView({
                 className={`op-gb-outline ${selected === block.id ? 'is-on' : ''}`}
                 onClick={() => onSelect(block.id)}
               >
-                <span className={`dashicons dashicons-${getBlockType(block.type)?.icon ?? 'block-default'}`} aria-hidden />
+                <WpIcon name={getBlockType(block.type)?.icon ?? 'block-default'} />
                 <span>{preview || title}</span>
               </button>
               <button type="button" className="op-gb-icon" aria-label={`Move ${title} up`} onClick={() => onMove(block.id, -1)}>
-                <span className="dashicons dashicons-arrow-up-alt2" />
+                <WpIcon name="chevron-up" />
               </button>
               <button type="button" className="op-gb-icon" aria-label={`Move ${title} down`} onClick={() => onMove(block.id, 1)}>
-                <span className="dashicons dashicons-arrow-down-alt2" />
+                <WpIcon name="chevron-down" />
               </button>
             </div>
           );
