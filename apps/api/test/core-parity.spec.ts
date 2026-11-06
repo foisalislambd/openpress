@@ -6,6 +6,8 @@ import { commentDepth, threadComments } from '../src/comments/comment-thread';
 import { themeFileError } from '../src/themes/theme-files';
 import { skippedIntervals } from '../src/cron/cron-schedule';
 import { serializeBlocks, validateBlocks } from '../src/blocks/block-document';
+import { serverBlockNames } from '../src/blocks/render-types';
+import { getBlockTypes } from '../../../packages/shared/src/block-registry';
 import { compileJsonCatalog, compileMo, parsePo, readMoHeader } from '../src/i18n/po';
 import { pdfPreviewArgs } from '../src/media/pdf-preview';
 
@@ -89,6 +91,31 @@ describe('gettext compile', () => {
 describe('pdf thumbnails', () => {
   it('asks poppler for the first page only', () => {
     assert.deepEqual(pdfPreviewArgs('/tmp/a.pdf', '/tmp/a-pdf'), ['-png', '-f', '1', '-l', '1', '-singlefile', '-scale-to', '1024', '/tmp/a.pdf', '/tmp/a-pdf']);
+  });
+});
+
+describe('gutenberg registry', () => {
+  it('accepts the registered core blocks and escapes custom html', () => {
+    const names = getBlockTypes().map((block) => block.name);
+    const validated = validateBlocks([
+      { type: 'list', props: { ordered: false }, children: [{ type: 'bulletListItem', content: [{ type: 'text', text: 'One' }] }] },
+      { type: 'gallery', children: [{ type: 'image', props: { url: 'https://cdn.example/a.png' } }] },
+      { type: 'preformatted', content: [{ type: 'text', text: 'keep  spaces' }] },
+      { type: 'html', props: { html: '<p>ok</p><script>alert(1)</script>' } },
+      { type: 'cover', props: { url: 'https://cdn.example/cover.png', dim: 40 }, content: [{ type: 'text', text: 'Hero' }] },
+    ]);
+    assert.equal(validated.ok, true);
+    if (!validated.ok) return;
+    const html = serializeBlocks(validated.blocks);
+    assert.match(html, /<ul class="op-list"><li>One<\/li><\/ul>/);
+    assert.match(html, /op-gallery/);
+    assert.match(html, /op-preformatted/);
+    assert.match(html, /<p>ok<\/p>/);
+    assert.doesNotMatch(html, /script/);
+    assert.match(html, /Hero/);
+    const allowed = serverBlockNames();
+    for (const name of names) assert.equal(allowed.has(name), true, name);
+    assert.equal(names.length, allowed.size);
   });
 });
 

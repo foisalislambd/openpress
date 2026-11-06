@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Network admin and per-site roles, a block canvas in the editor, and drag-and-drop menus
 - Parity depth: richer blocks, plugin dependency order, safe theme files, gettext messages, comment threads, attachment terms, and cron catch-up
 - Block list view, undo, and copy/paste; `.po` compile to JSON and `.mo`; PDF page thumbnails
+- Gutenberg-style editor shell: toolbar, inserter, list view, block toolbar, and a registered core block set
 
 ### Changed
 

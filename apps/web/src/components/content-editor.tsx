@@ -1,6 +1,5 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Category, Content, ContentMeta, Tag } from '@openpress/shared';
@@ -8,13 +7,8 @@ import { api } from '@/lib/client-api';
 import { Button, Input, Label, Textarea } from '@/components/ui';
 import { Notice } from '@/components/admin/screen';
 import { RevisionsPanel } from '@/components/revisions-panel';
-import { FieldGroups, MediaModal, PatternInserter, TranslationBox } from '@/components/editor-tools';
-import type { Media } from '@openpress/shared';
-
-const BlockEditor = dynamic(
-  () => import('@/components/block-editor').then((m) => m.BlockEditor),
-  { ssr: false, loading: () => <div className="min-h-[420px] border border-[#c3c4c7] bg-white p-6 text-[13px] text-[#646970]">Loading editor…</div> },
-);
+import { FieldGroups, TranslationBox } from '@/components/editor-tools';
+import { EditorShell } from '@/components/gutenberg/editor-shell';
 
 export function ContentEditor({
   type,
@@ -41,7 +35,6 @@ export function ContentEditor({
   const [seoImage, setSeoImage] = useState('');
   const [locale, setLocale] = useState('en');
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
-  const [mediaOpen, setMediaOpen] = useState(false);
   const [coverImage, setCoverImage] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -192,100 +185,46 @@ export function ContentEditor({
 
   const noun = type === 'POST' ? 'Post' : 'Page';
   return (
-    <div>
-      <div className="op-editor-bar">
-        <strong>
-          {contentId ? 'Edit' : 'Add'} {noun}
-        </strong>
-        <span className="text-[#646970]">
-          {existing?.status ?? 'DRAFT'}
-          {visibility === 'PRIVATE' ? ' · Private' : ''}
-          {visibility === 'PASSWORD' ? ' · Password' : ''}
-        </span>
-        <span className="ml-auto flex gap-2">
-          {existing?.status === 'PUBLISHED' ? (
-            <a href={`/${existing.slug}`} target="_blank" rel="noreferrer">
-              View
-            </a>
+    <EditorShell
+      key={editorKey}
+      initialBlocks={blocks}
+      onChange={setBlocks}
+      title={title}
+      onTitleChange={setTitle}
+      backHref={base}
+      backLabel={noun === 'Post' ? 'Posts' : 'Pages'}
+      statusLabel={`${existing?.status ?? 'DRAFT'}${visibility === 'PRIVATE' ? ' · Private' : ''}${visibility === 'PASSWORD' ? ' · Password' : ''}`}
+      viewHref={existing?.status === 'PUBLISHED' ? `/${existing.slug}` : undefined}
+      saving={saving}
+      onSaveDraft={() => save('DRAFT')}
+      onReview={() => save('PENDING')}
+      onPublish={() => save('PUBLISHED')}
+      publishLabel={existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
+      notices={
+        <>
+          {error ? <Notice kind="error">{error}</Notice> : null}
+          {notice ? <Notice kind="success">{notice}</Notice> : null}
+          {autosave ? (
+            <Notice kind="success">
+              An autosave from {new Date(autosave.updatedAt).toLocaleString()} is newer than the saved copy.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setTitle(autosave.title);
+                  setExcerpt(autosave.excerpt ?? '');
+                  setBlocks(autosave.blocks ?? []);
+                  setEditorKey((key) => key + 1);
+                  setAutosave(null);
+                }}
+              >
+                Restore autosave
+              </button>
+            </Notice>
           ) : null}
-          <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
-            Save Draft
-          </Button>
-          <Button variant="secondary" disabled={saving} onClick={() => save('PENDING')}>
-            Submit for review
-          </Button>
-          <Button disabled={saving} onClick={() => save('PUBLISHED')}>
-            {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
-          </Button>
-        </span>
-      </div>
-      {error ? <Notice kind="error">{error}</Notice> : null}
-      {notice ? <Notice kind="success">{notice}</Notice> : null}
-      {autosave ? (
-        <Notice kind="success">
-          An autosave from {new Date(autosave.updatedAt).toLocaleString()} is newer than the saved copy.{' '}
-          <button
-            type="button"
-            onClick={() => {
-              setTitle(autosave.title);
-              setExcerpt(autosave.excerpt ?? '');
-              setBlocks(autosave.blocks ?? []);
-              setEditorKey((key) => key + 1);
-              setAutosave(null);
-            }}
-          >
-            Restore autosave
-          </button>
-        </Notice>
-      ) : null}
-      {contentId ? <div id="op-revision-compare" /> : null}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-3">
-          <Input
-            placeholder="Add title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="!px-3 !py-2 !text-[1.7em] !font-normal"
-          />
-          <BlockEditor key={editorKey} initialBlocks={blocks} onChange={setBlocks} />
-          <div className="flex flex-wrap items-end gap-3">
-            <PatternInserter
-              onInsert={(extra) => {
-                setBlocks((current) => [...current, ...extra]);
-                setEditorKey((key) => key + 1);
-              }}
-            />
-            <Button type="button" variant="secondary" onClick={() => setMediaOpen(true)}>
-              Add media
-            </Button>
-          </div>
-          <MediaModal
-            open={mediaOpen}
-            onClose={() => setMediaOpen(false)}
-            onPick={(item: Media) => {
-              setBlocks((current) => [
-                ...current,
-                {
-                  id: `media-${item.id}`,
-                  type: 'image',
-                  props: {
-                    url: item.url,
-                    caption: item.caption || item.alt || '',
-                    alt: item.alt || '',
-                    srcset: item.srcset || '',
-                    webpSrcset: item.webpSrcset || '',
-                    focalX: item.focalX ?? 0.5,
-                    focalY: item.focalY ?? 0.5,
-                  },
-                  content: [],
-                  children: [],
-                },
-              ]);
-              setEditorKey((key) => key + 1);
-              setMediaOpen(false);
-            }}
-          />
-        </div>
+          {contentId ? <div id="op-revision-compare" /> : null}
+        </>
+      }
+      documentPanel={
         <div className="space-y-3">
           <div className="op-postbox">
             <h2 className="px-3 py-2">Publish</h2>
@@ -509,7 +448,7 @@ export function ContentEditor({
           />
           <TranslationBox contentId={contentId} base={base} />
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

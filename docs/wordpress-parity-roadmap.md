@@ -36,7 +36,7 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core. Stat
 | Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. Attachment terms attach existing taxonomy terms to a file. A PDF upload renders page one with Poppler into a PNG thumbnail. | Poppler must be installed (`pdftoppm`). Without it the file is kept and the thumbnail is skipped. |
 | SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | String catalog, gettext rows, and a `.po` compile that writes those rows, a JSON catalog, and a `.mo` file. Comments thread to five levels. `/wp/v2` adds comments and users. GraphQL can list approved comments. Marketplace UI is intentionally out of this repository. | Plural rules cover one-form languages and the English two-form rule, not every CLDR formula. |
 | Multisite | Partial | `sites`, `site_options`, and `site_users`. Network admin lists sites, activates, deactivates, and deletes them, edits network settings, and reviews users. The admin switcher sends `X-OpenPress-Site`. Public pages follow the request host. | No separate database per site and no domain-mapping wizard. Roles are per site; users stay network-wide. |
-| Full Gutenberg UI | Partial | List view, inspector, undo, redo, and copy and paste sit on the OpenPress document. | Not a block-library clone and not collaborative. |
+| Full Gutenberg UI | Partial | The post editor uses a Gutenberg-style shell: top toolbar, writing canvas, slash and panel inserter, block toolbar, list view, and Block / Document settings. Blocks are registered with `registerBlockType` and still stored as OpenPress BlockNode JSON. | Full site editing, the pattern directory, collaboration, and PHP `parse_blocks` HTML stay out. |
 | PHP plugins / gettext `.po` | Partial | PHP stays out. A `.po` file compiles to gettext rows, JSON, and `.mo`. | Not a full gettext toolchain (no `msgfmt` plural expressions). |
 
 ## Where OpenPress should beat WordPress
@@ -129,6 +129,13 @@ Migration `008_core_parity.sql` adds `gettext_entries`, `reusable_blocks`, and `
 - Block canvas: list view, alignment in the inspector, undo and redo, copy and paste, pullquote, and verse.
 - Settings → Languages compiles a `.po` file into the gettext table, a JSON catalog, and a `.mo` file.
 - PDF uploads render the first page to a PNG thumbnail when `pdftoppm` is on the server.
+
+### Shipped in the Gutenberg shell pass
+
+- Full-screen editor chrome: document toolbar, center canvas, optional list view, and a Block / Document sidebar.
+- Block inserter with search, categories, and recent blocks. Type `/` in a text block to insert.
+- Selected-block toolbar: drag, move, transform, alignment, duplicate, copy, group, and remove.
+- Core blocks are registered definitions. The server allowlist renders each type from its own module. Storage stays BlockNode JSON, so older posts still open.
 
 ### Next runs
 
