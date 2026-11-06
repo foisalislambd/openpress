@@ -232,6 +232,19 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
     }
   }
 
+  function finishRow(message: string) {
+    setError('');
+    setNotice(message);
+    refreshMeta();
+    setPage(1);
+    setTick((value) => value + 1);
+  }
+
+  function failRow(err: unknown) {
+    setNotice('');
+    setError(err instanceof Error ? err.message : 'Could not update the row');
+  }
+
   function saveScreen(event: FormEvent) {
     event.preventDefault();
     const next = Math.min(100, Math.max(1, Number(perPageDraft) || 20));
@@ -448,6 +461,7 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
               <option value="PUBLISHED">Published</option>
               <option value="DRAFT">Draft</option>
               <option value="PENDING">Pending</option>
+              <option value="SCHEDULED">Scheduled</option>
             </select>
           </div>
           <div className="op-inline-actions">
@@ -509,16 +523,12 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
                           type="button"
                           className="is-delete"
                           onClick={() => {
-                            setSelected([item.id]);
                             void api(`/content/${item.id}`, {
                               method: 'PATCH',
                               body: JSON.stringify({ status: 'TRASHED' }),
-                            }).then(() => {
-                              setNotice(`1 ${noun} moved to the Trash.`);
-                              refreshMeta();
-                              setPage(1);
-                              setTick((value) => value + 1);
-                            });
+                            })
+                              .then(() => finishRow(`1 ${noun} moved to the Trash.`))
+                              .catch(failRow);
                           }}
                         >
                           Trash
@@ -535,12 +545,9 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
                             void api(`/content/${item.id}`, {
                               method: 'PATCH',
                               body: JSON.stringify({ status: 'DRAFT' }),
-                            }).then(() => {
-                              setNotice(`1 ${noun} restored from the Trash.`);
-                              refreshMeta();
-                              setPage(1);
-                              setTick((value) => value + 1);
-                            });
+                            })
+                              .then(() => finishRow(`1 ${noun} restored from the Trash.`))
+                              .catch(failRow);
                           }}
                         >
                           Restore
@@ -549,12 +556,9 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
                           type="button"
                           className="is-delete"
                           onClick={() => {
-                            void api(`/content/${item.id}`, { method: 'DELETE' }).then(() => {
-                              setNotice(`1 ${noun} permanently deleted.`);
-                              refreshMeta();
-                              setPage(1);
-                              setTick((value) => value + 1);
-                            });
+                            void api(`/content/${item.id}`, { method: 'DELETE' })
+                              .then(() => finishRow(`1 ${noun} permanently deleted.`))
+                              .catch(failRow);
                           }}
                         >
                           Delete Permanently
