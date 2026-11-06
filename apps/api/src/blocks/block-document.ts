@@ -5,33 +5,8 @@
  * It understands the BlockNote-shaped trees OpenPress already stores.
  */
 
-const CORE_TYPES = new Set([
-  'paragraph',
-  'heading',
-  'bulletListItem',
-  'numberedListItem',
-  'checkListItem',
-  'toggleListItem',
-  'quote',
-  'codeBlock',
-  'image',
-  'video',
-  'audio',
-  'file',
-  'table',
-  'separator',
-  'spacer',
-  'group',
-  'columns',
-  'column',
-  'buttons',
-  'button',
-  'embed',
-  'reusable',
-  'pullquote',
-  'verse',
-  'pluginBlock',
-]);
+import './render-widgets';
+import { renderServerBlock, serverBlockNames } from './render-types';
 
 const MAX_NODES = 2000;
 const MAX_DEPTH = 12;
@@ -51,7 +26,7 @@ export type BlockValidation =
 
 export function validateBlocks(input: unknown, extraTypes: readonly string[] = []): BlockValidation {
   if (!Array.isArray(input)) return { ok: false, errors: ['Blocks must be an array'] };
-  const allowed = new Set([...CORE_TYPES, ...extraTypes]);
+  const allowed = new Set([...serverBlockNames(), ...extraTypes]);
   const errors: string[] = [];
   let count = 0;
   const blocks = input.map((node, index) => readBlock(node, allowed, errors, `blocks[${index}]`, 0, () => {
@@ -64,6 +39,23 @@ export function validateBlocks(input: unknown, extraTypes: readonly string[] = [
 
 export function serializeBlocks(blocks: BlockNode[]): string {
   return blocks.map((block) => serializeBlock(block)).join('');
+}
+
+function serializeBlock(block: BlockNode, parent?: string): string {
+  const html = renderServerBlock(block, {
+    parent,
+    inline: inlineHtml,
+    children: (current) => (current.children ?? []).map((child) => serializeBlock(child, current.type)).join(''),
+    escape: escapeHtml,
+    url: safeUrl,
+    align: aligned,
+  });
+  const anchor = typeof block.props?.anchor === 'string' ? block.props.anchor : '';
+  const className = typeof block.props?.className === 'string' ? block.props.className : '';
+  const id = /^[A-Za-z][\w:-]{0,60}$/.test(anchor) ? ` id="${escapeHtml(anchor)}"` : '';
+  const cls = className ? ` class="${escapeHtml(className.slice(0, 200))}"` : '';
+  if (!id && !cls) return html;
+  return `<div${id}${cls}>${html}</div>`;
 }
 
 export function escapeHtml(value: string) {
@@ -159,72 +151,6 @@ function readInline(node: unknown, depth: number): unknown {
     ? record.content.map((child) => readInline(child, depth + 1)).filter((child) => child !== null)
     : undefined;
   return { type, text, href, styles, content };
-}
-
-function serializeBlock(block: BlockNode): string {
-  const inner = inlineHtml(block.content);
-  const children = (block.children ?? []).map((child) => serializeBlock(child)).join('');
-  switch (block.type) {
-    case 'heading': {
-      const level = Math.min(6, Math.max(1, Number(block.props?.level ?? 2)));
-      return aligned(`<h${level}>${inner}</h${level}>${children}`, block.props);
-    }
-    case 'bulletListItem':
-      return `<ul><li>${inner}${children}</li></ul>`;
-    case 'numberedListItem':
-      return `<ol><li>${inner}${children}</li></ol>`;
-    case 'quote':
-      return aligned(`<blockquote>${inner}</blockquote>${children}`, block.props);
-    case 'pullquote':
-      return aligned(`<figure class="op-pullquote"><blockquote>${inner}</blockquote></figure>`, block.props);
-    case 'verse':
-      return aligned(`<pre class="op-verse">${inner}</pre>`, block.props);
-    case 'codeBlock':
-      return `<pre><code>${inner}</code></pre>`;
-    case 'image':
-    case 'video':
-    case 'audio':
-    case 'file': {
-      const url = safeUrl(String(block.props?.url ?? ''));
-      const caption = escapeHtml(String(block.props?.caption ?? block.props?.name ?? ''));
-      if (!url) return '';
-      if (block.type === 'image') {
-        return `<figure><img src="${escapeHtml(url)}" alt="${caption}" />${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
-      }
-      return `<p><a href="${escapeHtml(url)}">${caption || escapeHtml(url)}</a></p>`;
-    }
-    case 'separator':
-      return '<hr />';
-    case 'spacer': {
-      const height = Math.min(240, Math.max(0, Number(block.props?.height ?? 24)));
-      return `<div style="height:${height}px" aria-hidden="true"></div>`;
-    }
-    case 'group':
-      return `<div class="op-group">${inner}${children}</div>`;
-    case 'columns':
-      return `<div class="op-columns">${children}</div>`;
-    case 'column':
-      return `<div class="op-column">${inner}${children}</div>`;
-    case 'buttons':
-      return `<div class="op-buttons">${children}</div>`;
-    case 'button': {
-      const href = safeUrl(String(block.props?.url ?? ''));
-      const label = inner || escapeHtml(String(block.props?.label ?? 'Button'));
-      return href ? `<a class="op-button" href="${escapeHtml(href)}">${label}</a>` : `<span class="op-button">${label}</span>`;
-    }
-    case 'embed': {
-      const href = safeUrl(String(block.props?.url ?? ''));
-      return href ? `<p><a href="${escapeHtml(href)}">${escapeHtml(href)}</a></p>` : '';
-    }
-    case 'reusable':
-      return children || inner;
-    case 'pluginBlock':
-      return `<aside data-block="${escapeHtml(String(block.props?.name ?? 'plugin'))}">${escapeHtml(String(block.props?.title ?? ''))}</aside>`;
-    case 'table':
-      return `<div data-block="table">${inner}</div>`;
-    default:
-      return aligned(`<p>${inner}</p>${children}`, block.props);
-  }
 }
 
 function aligned(html: string, props?: Record<string, string | number | boolean>) {

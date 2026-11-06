@@ -184,6 +184,14 @@ export interface ThemeDefinition {
   templates?: Record<string, ComponentType<ThemeHomeProps> | ComponentType<ThemeSingleProps> | ComponentType<ThemeArchiveProps>>;
 }
 
+export {
+  BLOCK_CATEGORIES,
+  getBlockType,
+  getBlockTypes,
+  registerBlockType,
+} from './block-registry';
+export type { BlockAttribute, BlockCategory, BlockDefinition, BlockEdit } from './block-registry';
+
 export interface SiteSettings {
   siteTitle: string;
   siteDescription: string;
