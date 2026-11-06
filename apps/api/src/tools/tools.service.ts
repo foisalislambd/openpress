@@ -7,6 +7,8 @@ import { newId } from '../db/ids';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { enqueue } from '../jobs/queue';
+import { FieldMapping, parseEmDash } from '../feeds/emdash';
 import { buildWxr, parseWxrBundle, WxrBundle, WxrItem } from '../feeds/wxr';
 import { isPublicHostname } from '../extensions/sandbox/plugin-sandbox';
 import { SettingsService } from '../settings/settings.service';
@@ -89,17 +91,92 @@ export class ToolsService {
     const jobId = newId();
     const total = bundle.items.length + bundle.attachments.length + bundle.menuItems.length;
     await this.db.query(
-      `INSERT INTO jobs (id, type, status, progress, total, message) VALUES ($1, 'wxr', 'QUEUED', 0, $2, 'Waiting')`,
-      [jobId, total],
+      `INSERT INTO jobs (id, type, status, progress, total, message, payload)
+       VALUES ($1, 'wxr', 'QUEUED', 0, $2, 'Waiting', $3::jsonb)`,
+      [jobId, total, JSON.stringify({ bundle, user })],
     );
-    void this.runWxrImport(jobId, bundle, user).catch(async (error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Import failed';
-      await this.db.query(
-        `UPDATE jobs SET status = 'FAILED', message = $2, "updatedAt" = now() WHERE id = $1`,
-        [jobId, message],
-      );
-    });
-    return { jobId, total };
+    const queued = await enqueue('imports', { jobId });
+    if (!queued) {
+      void this.runQueuedImport(jobId).catch(async (error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Import failed';
+        await this.db.query(
+          `UPDATE jobs SET status = 'FAILED', message = $2, "updatedAt" = now() WHERE id = $1`,
+          [jobId, message],
+        );
+      });
+    }
+    return { jobId, total, queued };
+  }
+
+  async runQueuedImport(jobId: string) {
+    const job = await this.db.one<{ payload: { bundle?: WxrBundle; user?: JwtPayload }; status: string }>(
+      'SELECT payload, status FROM jobs WHERE id = $1',
+      [jobId],
+    );
+    if (!job?.payload?.bundle || !job.payload.user) return;
+    if (job.status === 'DONE' || job.status === 'RUNNING') return;
+    await this.runWxrImport(jobId, job.payload.bundle, job.payload.user);
+  }
+
+  async importEmDash(document: unknown, mapping: FieldMapping | undefined, user: JwtPayload) {
+    const entries = parseEmDash(document, mapping);
+    if (entries.length === 0) {
+      throw new BadRequestException('No entries found. Map the title field if the file uses different names.');
+    }
+    let imported = 0;
+    for (const entry of entries) {
+      const slug = await this.uniqueSlug(entry.slug || entry.title);
+      const id = newId();
+      try {
+        await this.db.query(
+          `INSERT INTO contents (
+             id, type, "postType", status, visibility, title, slug, excerpt, blocks, seo,
+             "publishedAt", "authorId", "updatedAt"
+           ) VALUES (
+             $1, $2::"ContentType", $3, $4::"ContentStatus", $5, $6, $7, $8, $9::jsonb, '{}'::jsonb,
+             $10, $11, now()
+           )`,
+          [
+            id,
+            entry.type,
+            entry.type === 'PAGE' ? 'page' : 'post',
+            entry.status,
+            entry.visibility,
+            entry.title,
+            slug,
+            entry.excerpt || null,
+            JSON.stringify(entry.blocks),
+            entry.status === 'PUBLISHED' ? (entry.publishedAt ? new Date(entry.publishedAt) : new Date()) : null,
+            user.sub,
+          ],
+        );
+        const categoryIds = await this.ensureTerms('categories', entry.categories.map((name) => ({ name, slug: name })));
+        const tagIds = entry.type === 'POST' ? await this.ensureTerms('tags', entry.tags.map((name) => ({ name, slug: name }))) : [];
+        await this.linkTerms(id, categoryIds, tagIds);
+        for (const [key, value] of Object.entries(entry.fields)) {
+          await this.db.query(
+            `INSERT INTO content_meta (id, "contentId", "metaKey", "metaValue")
+             VALUES ($1, $2, $3, $4::jsonb)
+             ON CONFLICT ("contentId", "metaKey") DO UPDATE SET "metaValue" = EXCLUDED."metaValue"`,
+            [newId(), id, key, JSON.stringify(value)],
+          );
+        }
+        imported += 1;
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+      }
+    }
+    return { imported, total: entries.length };
+  }
+
+  previewEmDash(document: unknown, mapping?: FieldMapping) {
+    const entries = parseEmDash(document, mapping);
+    const sample = asRecords(document)[0];
+    return {
+      keys: sample ? Object.keys(sample) : [],
+      total: entries.length,
+      preview: entries.slice(0, 5).map((entry) => ({ title: entry.title, status: entry.status, type: entry.type })),
+    };
   }
 
   async job(id: string) {
@@ -182,16 +259,36 @@ export class ToolsService {
             [newId(), id, meta.key.slice(0, 80), JSON.stringify(meta.value.slice(0, 5000))],
           );
         }
+        const localComments = new Map<string, string>();
         for (const comment of item.comments ?? []) {
           if (!comment.content) continue;
-          await this.db.query(
-            `INSERT INTO comments (id, "contentId", "guestName", "guestEmail", body, status)
-             SELECT $1, $2, $3, $4, $5, $6::"CommentStatus"
-             WHERE NOT EXISTS (
-               SELECT 1 FROM comments WHERE "contentId" = $2 AND body = $5 AND COALESCE("guestEmail", '') = $4
-             )`,
-            [newId(), id, comment.author || 'Imported', comment.email || '', comment.content.slice(0, 10000), comment.approved ? 'APPROVED' : 'PENDING'],
+          const body = comment.content.slice(0, 10000);
+          const email = comment.email || '';
+          const existing = await this.db.one<{ id: string }>(
+            `SELECT id FROM comments WHERE "contentId" = $1 AND body = $2 AND COALESCE("guestEmail", '') = $3`,
+            [id, body, email],
           );
+          let commentId = existing?.id;
+          if (!commentId) {
+            commentId = newId();
+            await this.db.query(
+              `INSERT INTO comments (id, "contentId", "guestName", "guestEmail", body, status)
+               VALUES ($1, $2, $3, $4, $5, $6::"CommentStatus")`,
+              [commentId, id, comment.author || 'Imported', email, body, comment.approved ? 'APPROVED' : 'PENDING'],
+            );
+          }
+          if (comment.wpId) localComments.set(comment.wpId, commentId);
+        }
+        for (const comment of item.comments ?? []) {
+          if (!comment.wpId || !comment.parent || comment.parent === '0') continue;
+          const local = localComments.get(comment.wpId);
+          const parent = localComments.get(comment.parent);
+          if (local && parent) {
+            await this.db.query('UPDATE comments SET "parentId" = $2 WHERE id = $1', [local, parent]);
+          }
+        }
+        if (item.type === 'PAGE') {
+          await this.db.query(`UPDATE contents SET "postType" = 'page' WHERE id = $1`, [id]);
         }
         if (item.link) {
           const from = safePath(item.link);
@@ -338,6 +435,15 @@ export class ToolsService {
       slug = `${base}-${i}`;
     }
   }
+}
+
+function asRecords(document: unknown) {
+  if (!document || typeof document !== 'object') return [] as Record<string, unknown>[];
+  const root = document as Record<string, unknown>;
+  for (const key of ['entries', 'posts', 'items', 'records', 'documents']) {
+    if (Array.isArray(root[key])) return root[key] as Record<string, unknown>[];
+  }
+  return [];
 }
 
 function safePath(link: string) {

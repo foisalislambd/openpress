@@ -29,6 +29,10 @@ export interface ThemeManifest {
   tokens?: ThemeTokens;
   /** Entry file for a `react-v1` theme. */
   entry?: string;
+  /** npm packages this theme imports. Installed when THEME_INSTALL_DEPS=true. */
+  dependencies?: Record<string, string>;
+  /** Template hierarchy names this theme implements, such as single-post. */
+  templates?: string[];
 }
 
 export function defineTheme<T extends ThemeManifest>(manifest: T): T {

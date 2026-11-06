@@ -83,21 +83,26 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core (wp-a
 3. Signed package review, trusted keys, local catalog version check, and rollback.
 4. Health check, login audit log, redirect lookup used by the Next.js middleware, and production Dockerfiles (`docker-compose.prod.yml`).
 
+### Shipped in the CMS power pack
+
+1. **Content modeling** — custom post types and taxonomies from the admin, field groups, synced and unsynced patterns, pending review, a revision diff, and a media modal in the editor.
+2. **SEO** — Open Graph, Twitter cards, JSON-LD, canonical tags, and robots controls. Redirects were already in place.
+3. **Jobs** — BullMQ on Redis for imports and image derivatives, with an inline fallback when `REDIS_URL` is unset. Signed webhooks, scoped `opk_` API keys, and `POST /api/graphql`.
+4. **Auth** — TOTP, passkeys, Google and GitHub when client credentials are set, and a session list. JWT and application passwords stay.
+5. **Media** — rotate, flip, and resize, srcset, WebP and AVIF, focal point, and an S3-compatible driver (`STORAGE_DRIVER=s3`). Local disk stays the default.
+6. **Permalinks** — `permalinkStructure` templates resolve through Next.js middleware.
+7. **Themes** — template hierarchy and customizer theme mods plus additional CSS. A theme manifest can list npm dependencies; they install when `THEME_INSTALL_DEPS=true`.
+8. **REST compatibility** — `/wp-json/wp/v2` posts, pages, media, categories, and tags, with `_embed`.
+9. **Comments** — email notifications when SMTP is configured, and authenticated commenters on the public form.
+10. **Languages** — per-post translations, a switcher, hreflang, an admin string catalog, and `dir=rtl` for Arabic, Hebrew, Persian, and Urdu.
+11. **AI and MCP** — `POST /api/mcp` tools `content.search`, `content.draft`, `content.schedule`, and `media.search`, plus an `assistant.complete` filter. The default provider is a stub unless `AI_PROVIDER=openai`.
+12. **Import** — EmDash JSON (a dump or `{ records, mapping }`) and WXR comment parents plus pending status.
+13. **Demo** — `POST /api/platform/demo/reset` when `DEMO_MODE=true`. Production Compose runs Redis and a worker.
+
 ### Next runs
 
-1. **Marketplace UI** — browse a remote registry, one-click update from a URL, and theme signing. The local catalog and signature check are the contract that UI should call.
-2. **AI and MCP** — scoped tokens and a content tool server (search, draft, schedule, media), plus an assistant hook plugins can implement.
-3. **Languages** — per-post translations, a switcher, hreflang, and admin string catalogs.
-4. **SEO** — Open Graph, Twitter cards, JSON-LD, canonical tags, robots controls. Redirects already exist.
-5. **Auth** — TOTP, passkeys, OAuth/SSO, and a session list. Login is already rate-limited and written to the audit log.
-6. **Jobs and cache** — Redis, a real worker for imports and image derivatives, webhooks, scoped API keys, GraphQL. Import jobs today run in the API process after the response is sent.
-7. **Media** — rotate/resize UI, srcset, WebP/AVIF, focal point, S3.
-8. **Content modeling** — custom post types and custom taxonomies from the admin, field groups, patterns, and template editing. Also a pending-review status, revision diff, and a media modal in the editor.
-9. **Theme system** — template hierarchy, theme npm dependencies, and a customizer. Menu locations and widget areas already render.
-10. **REST compatibility** — `/wp/v2/posts` style routes and `_embed`, enough for headless WordPress clients.
-11. **Comments** — notifications and authenticated commenters.
-12. **Multisite and demo hosting** — network admin, and a resettable read-only demo. Production Docker Compose is in the repo. A network admin on top of a single content table would be a fake, so this waits on content modeling.
+1. **Marketplace UI** — browse a remote registry, one-click update from a URL, and theme signing. The local catalog and signature check are the contract that UI should call. This stays out of the product until the client decides.
 
 ### Explicitly later
 
-Multisite, the public plugin directory itself, automatic updates from a remote feed, and a PHP compatibility layer. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work.
+Multisite and a network admin, the public plugin directory itself, automatic updates from a remote feed, a Gutenberg clone, and a PHP compatibility layer. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work. Full gettext catalogs and a visual theme-file editor are still open; the string catalog and template hierarchy are the foundation.

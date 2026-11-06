@@ -14,8 +14,11 @@ import { JwtPayload } from '../auth/jwt.strategy';
 import { Db, DbService } from '../db/db.service';
 import { isUniqueViolation } from '../db/errors';
 import { newId } from '../db/ids';
+import { buildPermalink, buildSeoDocument, templateCandidates } from '../cms/publishing';
 import { ExtensionRegistry } from '../extensions/extension-registry';
 import { HooksService } from '../hooks/hooks.service';
+import { ModelingService } from '../modeling/modeling.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   AutosaveDto,
   CreateContentDto,
@@ -25,7 +28,7 @@ import {
 import { redactPasswordContent, signUnlock, verifyUnlock } from './visibility';
 
 const CONTENT_COLUMNS = `c.id, c.type, c.status, c.visibility, c.sticky, c."commentStatus",
-  c.title, c.slug, c.excerpt, c.blocks, c.seo,
+  c.title, c.slug, c.excerpt, c.blocks, c.seo, c."postType", c.locale, c."translationGroup",
   c."coverImage", c."publishedAt", c."scheduledAt", c."authorId", c."createdAt", c."updatedAt"`;
 
 const META_KEY = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
@@ -35,6 +38,9 @@ type Author = { id: string; name: string; avatarUrl: string | null };
 type ContentRow = {
   id: string;
   type: string;
+  postType: string;
+  locale: string;
+  translationGroup: string | null;
   status: string;
   visibility: string;
   sticky: boolean;
@@ -79,6 +85,8 @@ export class ContentService {
     private db: DbService,
     private hooks: HooksService,
     private registry: ExtensionRegistry,
+    private settings: SettingsService,
+    private modeling: ModelingService,
     config: ConfigService,
   ) {
     this.unlockSecret = config.get<string>('JWT_SECRET') ?? 'openpress-dev-secret';
@@ -147,7 +155,8 @@ export class ContentService {
   }
 
   async create(dto: CreateContentDto, user: JwtPayload) {
-    const type = dto.type ?? 'POST';
+    const resolved = await this.resolvedPostType(dto.type ?? 'POST', dto.postType);
+    const type = resolved.type;
     this.assertCanCreate(user, type);
     const status = dto.status ?? 'DRAFT';
     this.assertCanSetStatus(user, status, type);
@@ -163,16 +172,19 @@ export class ContentService {
       await this.db.tx(async (sql) => {
         await sql.query(
           `INSERT INTO contents (
-             id, type, status, visibility, sticky, "commentStatus", title, slug, excerpt,
+             id, type, "postType", locale, "translationGroup", status, visibility, sticky, "commentStatus", title, slug, excerpt,
              blocks, seo, "coverImage", "passwordHash", "publishedAt", "scheduledAt",
              "authorId", "updatedAt"
            ) VALUES (
-             $1, $2::"ContentType", $3::"ContentStatus", $4, $5, $6, $7, $8, $9,
-             $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16, now()
+             $1, $2::"ContentType", $3, $4, $5, $6::"ContentStatus", $7, $8, $9, $10, $11, $12,
+             $13::jsonb, $14::jsonb, $15, $16, $17, $18, $19, now()
            )`,
           [
             id,
             type,
+            resolved.postType,
+            (dto.locale || 'en').toLowerCase(),
+            dto.translationGroup ?? null,
             status,
             visibility,
             dto.sticky ?? false,
@@ -195,6 +207,8 @@ export class ContentService {
       if (isUniqueViolation(error)) throw new ConflictException('Slug already in use');
       throw error;
     }
+    if (dto.termIds) await this.modeling.replaceContentTerms(id, dto.termIds);
+    await this.writeFields(id, dto.fields);
     const content = await this.findOne(id);
     await this.hooks.doAction('content.created', content);
     if (status === 'PUBLISHED') await this.hooks.doAction('content.published', content);
@@ -244,6 +258,9 @@ export class ContentService {
         if (dto.title != null) add('title', dto.title);
         if (dto.slug) add('slug', await this.uniqueSlug(dto.slug, id, sql));
         if (dto.type != null) add('type', dto.type, '::"ContentType"');
+        if (dto.postType != null) add('"postType"', (await this.resolvedPostType(dto.type ?? existing.type, dto.postType)).postType);
+        if (dto.locale != null) add('locale', dto.locale.toLowerCase());
+        if (dto.translationGroup !== undefined) add('"translationGroup"', dto.translationGroup || null);
         if (dto.status != null) add('status', dto.status, '::"ContentStatus"');
         if (dto.visibility != null) add('visibility', dto.visibility);
         if (dto.sticky != null) add('sticky', dto.sticky);
@@ -275,6 +292,8 @@ export class ContentService {
       if (isUniqueViolation(error)) throw new ConflictException('Slug already in use');
       throw error;
     }
+    if (dto.termIds) await this.modeling.replaceContentTerms(id, dto.termIds);
+    await this.writeFields(id, dto.fields);
 
     const content = await this.findOne(id);
     await this.hooks.doAction('content.updated', content);
@@ -447,7 +466,8 @@ export class ContentService {
   }
 
   private async decoratePublic<T extends { title: string; excerpt: string | null; blocks: unknown }>(view: T) {
-    const expanded = await this.registry.expandBlocks(Array.isArray(view.blocks) ? view.blocks : []);
+    const withPatterns = await this.modeling.expandSyncedPatterns(Array.isArray(view.blocks) ? view.blocks : []);
+    const expanded = await this.registry.expandBlocks(withPatterns);
     const filteredRaw = await this.hooks.applyFilters('content.public', { ...view, blocks: expanded });
     const filtered =
       filteredRaw && typeof filteredRaw === 'object'
@@ -456,12 +476,13 @@ export class ContentService {
     const title = await this.hooks.applyFilters('the_title', filtered.title, filtered);
     const excerpt = await this.hooks.applyFilters('the_excerpt', filtered.excerpt ?? '', filtered);
     const blocks = await this.hooks.applyFilters('the_content', filtered.blocks, filtered);
-    return {
+    const viewOut = {
       ...filtered,
       title: typeof title === 'string' ? title : filtered.title,
       excerpt: typeof excerpt === 'string' ? excerpt : filtered.excerpt,
       blocks: Array.isArray(blocks) ? blocks : filtered.blocks,
     };
+    return { ...viewOut, seoHead: await this.seoHead(viewOut) };
   }
 
   private async filterBlocks(blocks: unknown[], user: JwtPayload, id?: string) {
@@ -490,6 +511,91 @@ export class ContentService {
       [id],
     );
     return row?.passwordHash ?? null;
+  }
+
+  async createTranslation(id: string, locale: string, user: JwtPayload) {
+    const existing = await this.findOne(id);
+    this.assertCanEdit(user, existing);
+    const normalized = locale.trim().toLowerCase();
+    if (!/^[a-z]{2}(-[a-z0-9]{2,8})?$/.test(normalized)) {
+      throw new BadRequestException('Locale looks like en or en-gb');
+    }
+    const group = existing.translationGroup || newId();
+    if (!existing.translationGroup) {
+      await this.db.query('UPDATE contents SET "translationGroup" = $2 WHERE id = $1', [id, group]);
+    }
+    const duplicate = (existing.translations ?? []).find((item) => item.locale === normalized);
+    if (duplicate) return this.findOne(duplicate.id);
+    return this.create(
+      {
+        title: `${existing.title}`,
+        type: existing.type === 'PAGE' ? 'PAGE' : 'POST',
+        postType: existing.postType,
+        locale: normalized,
+        translationGroup: group,
+        status: 'DRAFT',
+        excerpt: existing.excerpt ?? undefined,
+        blocks: existing.blocks,
+      },
+      user,
+    );
+  }
+
+  private async resolvedPostType(type: string, requested?: string) {
+    const postType = (requested || (type === 'PAGE' ? 'page' : 'post')).trim().toLowerCase();
+    if (postType === 'page') return { type: 'PAGE' as const, postType };
+    if (postType === 'post') return { type: 'POST' as const, postType };
+    const row = await this.db.one('SELECT slug FROM post_types WHERE slug = $1', [postType]);
+    if (!row) throw new BadRequestException('Unknown post type');
+    return { type: 'POST' as const, postType };
+  }
+
+  private async writeFields(contentId: string, fields?: Record<string, unknown>) {
+    if (!fields) return;
+    for (const [key, value] of Object.entries(fields)) {
+      if (!META_KEY.test(key)) throw new BadRequestException(`Invalid field key ${key}`);
+      const json = JSON.stringify(value ?? null);
+      if (json.length > 10_000) throw new BadRequestException('Field value is too large');
+      await this.db.query(
+        `INSERT INTO content_meta (id, "contentId", "metaKey", "metaValue")
+         VALUES ($1, $2, $3, $4::jsonb)
+         ON CONFLICT ("contentId", "metaKey") DO UPDATE SET "metaValue" = EXCLUDED."metaValue"`,
+        [newId(), contentId, key, json],
+      );
+    }
+  }
+
+  private async seoHead(view: {
+    title: string;
+    excerpt?: string | null;
+    slug?: string;
+    permalink?: string;
+    type?: string;
+    coverImage?: string | null;
+    publishedAt?: Date | string | null;
+    seo?: unknown;
+    author?: { name?: string };
+    translations?: { locale: string; permalink: string }[];
+  }) {
+    const settings = await this.settings.getAll();
+    const siteUrl = (process.env.WEB_ORIGIN ?? 'http://localhost:3000').replace(/\/$/, '');
+    return buildSeoDocument({
+      siteTitle: String(settings.siteTitle ?? 'OpenPress'),
+      siteDescription: String(settings.siteDescription ?? ''),
+      siteUrl,
+      blogPublic: settings.blogPublic !== false,
+      defaultOgImage: typeof settings.defaultOgImage === 'string' ? settings.defaultOgImage : '',
+      twitterSite: typeof settings.twitterSite === 'string' ? settings.twitterSite : '',
+      title: view.title,
+      description: view.excerpt,
+      permalink: view.permalink || `/${view.slug ?? ''}`,
+      type: view.type || 'POST',
+      coverImage: view.coverImage,
+      publishedAt: view.publishedAt,
+      authorName: view.author?.name,
+      seo: view.seo && typeof view.seo === 'object' ? (view.seo as Record<string, unknown>) : {},
+      alternates: view.translations,
+    });
   }
 
   private assertCanCreate(user: JwtPayload, type: string) {
@@ -555,6 +661,9 @@ export class ContentService {
     };
 
     if (query.type) add('c.type = $?::"ContentType"', query.type);
+    if (query.postType) add('c."postType" = $?', query.postType);
+    else if (query.type === 'POST') add(`c."postType" = 'post'`);
+    if (query.locale) add('c.locale = $?', query.locale);
     if (publicOnly) {
       add(`c.status = 'PUBLISHED'`);
       add(`c.visibility IN ('PUBLIC', 'PASSWORD')`);
@@ -655,14 +764,53 @@ export class ContentService {
     const categoriesByContent = group(categories);
     const tagsByContent = group(tags);
     const countsByContent = new Map(counts.map((row) => [row.contentId, row.count]));
+    const settings = await this.settings.getAll();
+    const structure = String(settings.permalinkStructure ?? '/%postname%/');
+    const groups = rows.map((row) => row.translationGroup).filter((group): group is string => Boolean(group));
+    const translations = groups.length
+      ? await this.db.query<{ id: string; slug: string; locale: string; translationGroup: string; publishedAt: Date | null; postType: string }>(
+          `SELECT id, slug, locale, "translationGroup", "publishedAt", "postType"
+           FROM contents WHERE "translationGroup" = ANY($1::text[])`,
+          [groups],
+        )
+      : [];
+    const customTerms = await this.db.query<{ contentId: string; id: string; taxonomy: string; name: string; slug: string }>(
+      `SELECT ct."contentId", t.id, t.taxonomy, t.name, t.slug
+       FROM content_terms ct
+       JOIN terms t ON t.id = ct."termId"
+       WHERE ct."contentId" = ANY($1::text[])`,
+      [ids],
+    );
 
-    return rows.map((row) => ({
-      ...row,
-      passwordProtected: row.visibility === 'PASSWORD',
-      categories: categoriesByContent.get(row.id) ?? [],
-      tags: tagsByContent.get(row.id) ?? [],
-      _count: { comments: countsByContent.get(row.id) ?? 0 },
-    }));
+    return rows.map((row) => {
+      const rowCategories = categoriesByContent.get(row.id) ?? [];
+      const authorName = row.author?.name;
+      const permalink = buildPermalink(structure, {
+        slug: row.slug,
+        publishedAt: row.publishedAt,
+        category: rowCategories[0]?.slug,
+        author: authorName ? slugify(authorName, { lower: true, strict: true }) : null,
+      });
+      const siblings = translations
+        .filter((item) => item.translationGroup === row.translationGroup)
+        .map((item) => ({
+          id: item.id,
+          locale: item.locale,
+          slug: item.slug,
+          permalink: buildPermalink(structure, { slug: item.slug, publishedAt: item.publishedAt }),
+        }));
+      return {
+        ...row,
+        passwordProtected: row.visibility === 'PASSWORD',
+        categories: rowCategories,
+        tags: tagsByContent.get(row.id) ?? [],
+        terms: customTerms.filter((term) => term.contentId === row.id),
+        translations: siblings,
+        permalink,
+        templates: templateCandidates({ kind: 'single', postType: row.postType, slug: row.slug }),
+        _count: { comments: countsByContent.get(row.id) ?? 0 },
+      };
+    });
   }
 
   private async linkTerms(

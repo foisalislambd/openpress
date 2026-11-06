@@ -1,5 +1,6 @@
 import { getPublicPosts, getSettings } from '@/lib/api';
 import { resolveTheme } from '@/lib/themes';
+import { renderTemplate } from '@/lib/templates';
 
 export default async function CategoryPage({
   params,
@@ -17,8 +18,9 @@ export default async function CategoryPage({
     page: page ?? 1,
     perPage: settings.postsPerPage ?? 10,
   }).catch(() => ({ items: [], total: 0, page: 1, perPage: 10, totalPages: 0 }));
-  const { Archive } = theme;
-  return (
-    <Archive settings={settings} title={`Category: ${slug}`} posts={posts} />
-  );
+  return renderTemplate(theme, [`archive-category-${slug}`, 'archive-category', 'archive'], theme.Archive, {
+    settings,
+    title: `Category: ${slug}`,
+    posts,
+  });
 }

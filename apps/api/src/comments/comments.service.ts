@@ -102,11 +102,14 @@ export class CommentsService {
     }
     const flags = await this.db.query<{ key: string; value: unknown }>(
       `SELECT key, value FROM settings WHERE key = ANY($1::text[])`,
-      [['allowComments', 'commentModeration']],
+      [['allowComments', 'commentModeration', 'commentRegistration']],
     );
     const flag = Object.fromEntries(flags.map((row) => [row.key, row.value]));
     if (flag.allowComments === false) {
       throw new BadRequestException('Comments are closed');
+    }
+    if (flag.commentRegistration === true && !data.authorId) {
+      throw new BadRequestException('Sign in to leave a comment');
     }
     const status = initialCommentStatus({
       body: data.body,

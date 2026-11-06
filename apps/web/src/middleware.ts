@@ -15,6 +15,25 @@ export async function middleware(request: NextRequest) {
       const data = (await response.json()) as { to?: string | null; statusCode?: number };
       if (data.to) return NextResponse.redirect(new URL(data.to, request.url), data.statusCode || 301);
     }
+    const permalinks = await fetch(`${api}/api/permalinks/resolve?path=${encodeURIComponent(pathname)}`, {
+      cache: 'no-store',
+    });
+    if (permalinks.ok) {
+      const resolved = (await permalinks.json()) as {
+        action?: string;
+        slug?: string;
+        to?: string;
+        statusCode?: number;
+      };
+      if (resolved.action === 'redirect' && resolved.to) {
+        return NextResponse.redirect(new URL(resolved.to, request.url), resolved.statusCode || 301);
+      }
+      if (resolved.action === 'rewrite' && resolved.slug) {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${resolved.slug}`;
+        return NextResponse.rewrite(url);
+      }
+    }
   } catch {
     // The public site still renders when the lookup is unavailable.
   }

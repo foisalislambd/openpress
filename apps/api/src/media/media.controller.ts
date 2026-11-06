@@ -13,7 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { can } from '../auth/capabilities';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -34,6 +34,40 @@ class UpdateMediaDto {
   @IsString()
   @MaxLength(1000)
   caption?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  focalX?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  focalY?: number;
+}
+
+class TransformDto {
+  @IsOptional()
+  @IsInt()
+  rotate?: number;
+
+  @IsOptional()
+  @IsIn(['horizontal', 'vertical'])
+  flip?: 'horizontal' | 'vertical';
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(8000)
+  width?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(8000)
+  height?: number;
 }
 
 class CropDto {
@@ -118,9 +152,26 @@ export class MediaController {
     return this.media.create(file, user.sub, alt);
   }
 
+  @Get(':id')
+  one(@Param('id') id: string) {
+    return this.media.findOne(id);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateMediaDto) {
     return this.media.update(id, dto);
+  }
+
+  @Post(':id/transform')
+  transform(@Param('id') id: string, @Body() dto: TransformDto, @CurrentUser() user: JwtPayload) {
+    if (!can(user.role, 'upload_files')) throw new ForbiddenException('You cannot edit files');
+    return this.media.transform(id, dto);
+  }
+
+  @Post(':id/regenerate')
+  regenerate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    if (!can(user.role, 'upload_files')) throw new ForbiddenException('You cannot edit files');
+    return this.media.regenerate(id);
   }
 
   @Post(':id/crop')

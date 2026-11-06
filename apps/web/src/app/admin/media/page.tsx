@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Media } from '@openpress/shared';
 import { api } from '@/lib/client-api';
@@ -105,7 +106,7 @@ export default function MediaPage() {
             {m.mimeType.startsWith('image/') ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
-                src={`${API_URL}${m.url}`}
+                src={m.url.startsWith('http') ? m.url : `${API_URL}${m.url}`}
                 alt={m.alt ?? m.filename}
                 className="aspect-square w-full object-cover"
               />
@@ -125,6 +126,7 @@ export default function MediaPage() {
               >
                 Copy URL
               </button>
+              <Link href={`/admin/media/${m.id}`} onClick={(event) => event.stopPropagation()}>Edit</Link>
               <button
                 type="button"
                 onClick={(event) => {

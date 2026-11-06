@@ -33,7 +33,27 @@ export class PlatformController {
       service: 'openpress-api',
       version: '0.1.0',
       demo: process.env.DEMO_MODE === 'true',
+      storage: (process.env.STORAGE_DRIVER || 'local').toLowerCase(),
+      redis: Boolean(process.env.REDIS_URL),
+      ai: (process.env.AI_PROVIDER || 'stub').toLowerCase(),
+      oauth: {
+        google: Boolean(process.env.GOOGLE_CLIENT_ID),
+        github: Boolean(process.env.GITHUB_CLIENT_ID),
+      },
     };
+  }
+
+  @Post('demo/reset')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async resetDemo() {
+    if (process.env.DEMO_MODE !== 'true') {
+      return { ok: false, message: 'Set DEMO_MODE=true to allow a demo reset.' };
+    }
+    await this.db.query(
+      `TRUNCATE comments, content_meta, autosaves, revisions, "_ContentCategories", "_ContentTags", content_terms, contents RESTART IDENTITY CASCADE`,
+    );
+    return { ok: true, message: 'Content was cleared. Run pnpm db:seed to restore the welcome post.' };
   }
 
   @Get('redirects/lookup')

@@ -5,6 +5,7 @@ import {
   getSettings,
 } from '@/lib/api';
 import { resolveTheme } from '@/lib/themes';
+import { renderTemplate } from '@/lib/templates';
 
 export default async function HomePage({
   searchParams,
@@ -27,8 +28,11 @@ export default async function HomePage({
     }
   }
   if (staticPage) {
-    const { Page } = theme;
-    return <Page settings={settings} content={staticPage.content} comments={staticPage.comments} />;
+    return renderTemplate(theme, staticPage.content.templates ?? ['single-page', 'page'], theme.Page, {
+      settings,
+      content: staticPage.content,
+      comments: staticPage.comments,
+    });
   }
 
   const posts = await getPublicPosts({
@@ -41,6 +45,5 @@ export default async function HomePage({
     perPage: 10,
     totalPages: 0,
   }));
-  const { Home } = theme;
-  return <Home settings={settings} posts={posts} />;
+  return renderTemplate(theme, ['front-page', 'home'], theme.Home, { settings, posts });
 }

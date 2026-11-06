@@ -93,19 +93,38 @@ function BlockView({ block }: { block: Block }) {
           </code>
         </pre>
       );
-    case 'image':
+    case 'image': {
+      const src = String(block.props?.url ?? '');
+      const srcSet = String(block.props?.srcset ?? block.props?.srcSet ?? '');
+      const webp = String(block.props?.webpSrcset ?? '');
+      const focalX = Number(block.props?.focalX ?? 0.5);
+      const focalY = Number(block.props?.focalY ?? 0.5);
+      const img = (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          srcSet={srcSet || undefined}
+          sizes={srcSet ? '(min-width: 900px) 720px, 100vw' : undefined}
+          alt={String(block.props?.alt ?? block.props?.caption ?? '')}
+          style={{ objectPosition: `${focalX * 100}% ${focalY * 100}%` }}
+        />
+      );
       return (
         <figure>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={String(block.props?.url ?? '')}
-            alt={String(block.props?.caption ?? '')}
-          />
+          {webp ? (
+            <picture>
+              <source type="image/webp" srcSet={webp} sizes="(min-width: 900px) 720px, 100vw" />
+              {img}
+            </picture>
+          ) : (
+            img
+          )}
           {block.props?.caption ? (
             <figcaption>{String(block.props.caption)}</figcaption>
           ) : null}
         </figure>
       );
+    }
     case 'pluginBlock':
       return (
         <aside className="my-4 rounded border border-zinc-200 px-3 py-2 text-sm">

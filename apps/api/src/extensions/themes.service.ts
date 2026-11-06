@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import AdmZip from 'adm-zip';
 import { buildSync } from 'esbuild';
+import { execFileSync } from 'child_process';
 import {
   existsSync,
   mkdirSync,
@@ -13,6 +14,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'fs';
 import { join, resolve } from 'path';
 
@@ -27,6 +29,9 @@ export interface ThemeManifestFile {
   engine: 'runtime-v1' | 'react-v1';
   tokens?: Record<string, string>;
   entry?: string;
+  /** npm packages a react-v1 theme imports. Installed only when THEME_INSTALL_DEPS=true. */
+  dependencies?: Record<string, string>;
+  templates?: string[];
 }
 
 export const THEMES_STORE_DIR = resolve(process.cwd(), 'themes-store');
@@ -99,6 +104,7 @@ export class InstalledThemesService implements OnModuleInit {
 
     if (manifest.engine === 'react-v1') {
       try {
+        this.installThemeDeps(dest, manifest);
         this.bundleReactTheme(dest, manifest);
       } catch (err) {
         rmSync(dest, { recursive: true, force: true });
@@ -147,11 +153,22 @@ export class InstalledThemesService implements OnModuleInit {
       platform: 'neutral',
       jsx: 'automatic',
       external: ['react', 'react/jsx-runtime', 'react-dom'],
+      nodePaths: [join(dir, 'node_modules')],
       outfile: join(dir, 'bundle.js'),
       minify: false,
       target: 'es2020',
       logLevel: 'silent',
     });
+  }
+
+  private installThemeDeps(dir: string, manifest: ThemeManifestFile) {
+    const deps = manifest.dependencies;
+    if (!deps || Object.keys(deps).length === 0 || process.env.THEME_INSTALL_DEPS !== 'true') return;
+    const pkg = join(dir, 'package.json');
+    if (!existsSync(pkg)) {
+      writeFileSync(pkg, JSON.stringify({ private: true, dependencies: deps }));
+    }
+    execFileSync('pnpm', ['install', '--ignore-workspace'], { cwd: dir, stdio: 'pipe', timeout: 120_000 });
   }
 
   private validate(manifest: ThemeManifestFile) {
@@ -175,10 +192,20 @@ export class InstalledThemesService implements OnModuleInit {
       if (manifest.entry && manifest.entry.includes('..')) {
         throw new BadRequestException('Invalid "entry" path');
       }
+      if (manifest.dependencies && !plainPackages(manifest.dependencies)) {
+        throw new BadRequestException('dependencies must map package names to versions');
+      }
     } else {
       throw new BadRequestException(
         'theme.json "engine" must be "runtime-v1" (token theme) or "react-v1" (code theme)',
       );
     }
   }
+}
+
+function plainPackages(value: Record<string, string>) {
+  return Object.entries(value).every(
+    ([name, version]) =>
+      /^[a-z0-9@/_.-]+$/i.test(name) && typeof version === 'string' && /^[a-z0-9.^~<>= -]+$/i.test(version),
+  );
 }

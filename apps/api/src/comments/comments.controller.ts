@@ -20,6 +20,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
+import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CommentsService } from './comments.service';
@@ -54,7 +55,10 @@ class SetStatusDto {
 
 @Controller('comments')
 export class CommentsController {
-  constructor(private comments: CommentsService) {}
+  constructor(
+    private comments: CommentsService,
+    private jwt: JwtService,
+  ) {}
 
   // Public: approved comments for one piece of content
   @Get('content/:contentId')
@@ -68,6 +72,7 @@ export class CommentsController {
   create(@Body() dto: CreateCommentDto, @Req() req: Request) {
     return this.comments.create({
       ...dto,
+      authorId: this.reader(req),
       authorIp: req.ip,
       userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
     });
@@ -92,5 +97,17 @@ export class CommentsController {
   @Roles('ADMIN', 'EDITOR')
   remove(@Param('id') id: string) {
     return this.comments.remove(id);
+  }
+
+  private reader(req: Request) {
+    const header = req.headers.authorization;
+    if (!header?.toLowerCase().startsWith('bearer ') || header.slice(7).startsWith('opk_')) return undefined;
+    try {
+      const payload = this.jwt.verify<{ sub?: string; purpose?: string }>(header.slice(7).trim());
+      if (payload.purpose && payload.purpose !== 'access') return undefined;
+      return payload.sub;
+    } catch {
+      return undefined;
+    }
   }
 }
