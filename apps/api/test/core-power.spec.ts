@@ -4,6 +4,7 @@ import { resolveCapabilities, withNetworkAdmin } from '../src/auth/capability-re
 import { ROLE_CAPABILITIES } from '../src/auth/capabilities';
 import { serializeBlocks, validateBlocks } from '../src/blocks/block-document';
 import { buildContentQuery, ContentQueryError } from '../src/content/content-query';
+import { buildMediaQuery } from '../src/media/media-query';
 import { failureDelaySeconds, isDue, nextRun } from '../src/cron/cron-schedule';
 import { menuParentError, nestMenuItems, safeMenuUrl } from '../src/menus/menu-tree';
 import { categoryIdsForPost } from '../src/content/default-category';
@@ -214,6 +215,24 @@ describe('site dates and default category', () => {
     assert.deepEqual(categoryIdsForPost('POST', [], 'cat_news'), ['cat_news']);
     assert.deepEqual(categoryIdsForPost('POST', ['cat_other'], 'cat_news'), ['cat_other']);
     assert.deepEqual(categoryIdsForPost('PAGE', [], 'cat_news'), []);
+  });
+});
+
+describe('media library query', () => {
+  it('pages past a fixed cap and filters by mime, month, and search', () => {
+    const page = buildMediaQuery({ siteId: 'site_main', page: 4, perPage: 20, mime: 'image', month: '202611', search: '100%_hero' });
+    assert.equal(page.perPage, 20);
+    assert.equal(page.offset, 60);
+    assert.match(page.where, /LIKE 'image\/%'/);
+    assert.match(page.where, /YYYYMM/);
+    assert.equal(page.params.includes('%100\\%\\_hero%'), true);
+    const wide = buildMediaQuery({ siteId: 'site_main', page: 2, perPage: 100, mime: 'application/pdf' });
+    assert.equal(wide.perPage, 100);
+    assert.equal(wide.offset, 100);
+    assert.equal(wide.params.includes('application/pdf'), true);
+    const rejected = buildMediaQuery({ siteId: 'site_main', month: '2026', mime: 'image/jpeg;drop' });
+    assert.doesNotMatch(rejected.where, /YYYYMM/);
+    assert.equal(rejected.params.includes('image/jpeg;drop'), false);
   });
 });
 

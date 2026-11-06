@@ -603,6 +603,48 @@ html:has(.op-login) body {
   display: block;
   margin: 10px 0 4px;
 }
+.op-media-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.op-media-mode button,
+.op-media-pager button,
+.op-media-pager select {
+  border: 1px solid #8c8f94;
+  background: #fff;
+  padding: 2px 8px;
+  font-size: 13px;
+}
+.op-media-mode button.is-current {
+  background: #1d2327;
+  color: #fff;
+  border-color: #1d2327;
+}
+.op-media-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #50575e;
+  font-size: 13px;
+}
+.op-media-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.op-media-file img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  background: #f0f0f0;
+}
+.op-media-check {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+}
 .op-media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

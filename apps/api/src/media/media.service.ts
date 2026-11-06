@@ -11,6 +11,7 @@ import { enqueue } from '../jobs/queue';
 import { clampCrop, plannedSizes, SizeSpec } from './image-sizes';
 import { publishObject, publicUrlFor, removeObject, storageDriver } from './storage';
 import { currentSiteId } from '../sites/site-context';
+import { buildMediaQuery, MediaQueryInput } from './media-query';
 import { pdfPreviewArgs } from './pdf-preview';
 
 const execFileAsync = promisify(execFile);
@@ -34,24 +35,67 @@ export class MediaService {
 
   constructor(private db: DbService) {}
 
-  async findAll(page = 1, perPage = 24) {
-    const safePage = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
-    const safePerPage =
-      Number.isFinite(perPage) && perPage >= 1 ? Math.min(100, Math.floor(perPage)) : 24;
-    const [items, total] = await Promise.all([
+  async findAll(input: Omit<MediaQueryInput, 'siteId'> & { viewerId?: string } = {}) {
+    const siteId = currentSiteId();
+    const built = buildMediaQuery({ ...input, siteId });
+    const [items, total, views, months, mimeTypes] = await Promise.all([
       this.db.query<Record<string, unknown>>(
         `SELECT ${MEDIA_COLUMNS},
                 json_build_object('id', u.id, 'name', u.name) AS uploader
          FROM media m
          JOIN users u ON u.id = m."uploaderId"
-         WHERE m."siteId" = $3
+         WHERE ${built.where}
          ORDER BY m."createdAt" DESC
-         LIMIT $1 OFFSET $2`,
-        [safePerPage, (safePage - 1) * safePerPage, currentSiteId()],
+         LIMIT $${built.params.length + 1} OFFSET $${built.params.length + 2}`,
+        [...built.params, built.perPage, built.offset],
       ),
-      this.db.one<{ count: number }>('SELECT count(*)::int AS count FROM media WHERE "siteId" = $1', [currentSiteId()]),
+      this.db.one<{ count: number }>(
+        `SELECT count(*)::int AS count FROM media m WHERE ${built.where}`,
+        built.params,
+      ),
+      this.db.one<{ all: number; mine: number; image: number; audio: number; video: number; document: number; other: number }>(
+        `SELECT
+           count(*)::int AS all,
+           count(*) FILTER (WHERE m."uploaderId" = $2)::int AS mine,
+           count(*) FILTER (WHERE m."mimeType" LIKE 'image/%')::int AS image,
+           count(*) FILTER (WHERE m."mimeType" LIKE 'audio/%')::int AS audio,
+           count(*) FILTER (WHERE m."mimeType" LIKE 'video/%')::int AS video,
+           count(*) FILTER (WHERE m."mimeType" LIKE 'application/%' OR m."mimeType" LIKE 'text/%')::int AS document,
+           count(*) FILTER (WHERE m."mimeType" NOT LIKE 'image/%' AND m."mimeType" NOT LIKE 'audio/%' AND m."mimeType" NOT LIKE 'video/%' AND m."mimeType" NOT LIKE 'application/%' AND m."mimeType" NOT LIKE 'text/%')::int AS other
+         FROM media m
+         WHERE m."siteId" = $1`,
+        [siteId, input.viewerId ?? ''],
+      ),
+      this.db.query<{ value: string; label: string; count: number }>(
+        `SELECT to_char(date_trunc('month', m."createdAt"), 'YYYYMM') AS value,
+                to_char(date_trunc('month', m."createdAt"), 'FMMonth YYYY') AS label,
+                count(*)::int AS count
+         FROM media m
+         WHERE m."siteId" = $1
+         GROUP BY 1, 2
+         ORDER BY 1 DESC`,
+        [siteId],
+      ),
+      this.db.query<{ mimeType: string; count: number }>(
+        `SELECT m."mimeType" AS "mimeType", count(*)::int AS count
+         FROM media m
+         WHERE m."siteId" = $1
+         GROUP BY 1
+         ORDER BY 2 DESC, 1 ASC`,
+        [siteId],
+      ),
     ]);
-    return [items.map((item) => this.present(item)), total?.count ?? 0] as const;
+    const count = total?.count ?? 0;
+    return {
+      items: items.map((item) => this.present(item)),
+      total: count,
+      page: built.page,
+      perPage: built.perPage,
+      totalPages: Math.max(1, Math.ceil(count / built.perPage)),
+      views: views ?? { all: 0, mine: 0, image: 0, audio: 0, video: 0, document: 0, other: 0 },
+      months,
+      mimeTypes,
+    };
   }
 
   async findOne(id: string) {
@@ -202,13 +246,27 @@ export class MediaService {
 
   async remove(id: string) {
     const media = await this.db.one<{ id: string; filename: string; sizes: Record<string, SizeFile> }>(
-      'DELETE FROM media WHERE id = $1 RETURNING id, filename, sizes',
-      [id],
+      'DELETE FROM media WHERE id = $1 AND "siteId" = $2 RETURNING id, filename, sizes',
+      [id, currentSiteId()],
     );
     if (!media) throw new NotFoundException('Media not found');
     await unlink(this.filePath(media.filename)).catch(() => {});
     await this.removeSizeFiles(media.sizes);
     return { id: media.id };
+  }
+
+  async removeMany(ids: string[]) {
+    const unique = [...new Set(ids.filter((id) => typeof id === 'string' && id.length > 0))].slice(0, 100);
+    const removed: string[] = [];
+    for (const id of unique) {
+      try {
+        await this.remove(id);
+        removed.push(id);
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) throw error;
+      }
+    }
+    return { removed };
   }
 
   private async derivatives(path: string, filename: string, mimeType: string) {
