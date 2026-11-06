@@ -25,6 +25,7 @@ import { IsArray } from 'class-validator';
 import {
   AutosaveDto,
   CreateContentDto,
+  EmptyTrashDto,
   MetaDto,
   QueryContentDto,
   UnlockDto,
@@ -84,6 +85,20 @@ export class ContentController {
   async findAll(@Query() query: QueryContentDto, @CurrentUser() user: JwtPayload) {
     await this.assertLibrary(user);
     return this.content.findAll(query);
+  }
+
+  @Get('table')
+  @UseGuards(JwtAuthGuard)
+  async table(@Query('type') type: string, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
+    if (type !== 'POST' && type !== 'PAGE') throw new BadRequestException('Invalid content type');
+    return this.content.tableMeta(type, user.sub);
+  }
+
+  @Post('empty-trash')
+  @UseGuards(JwtAuthGuard)
+  emptyTrash(@Body() body: EmptyTrashDto, @CurrentUser() user: JwtPayload) {
+    return this.content.emptyTrash(body.type, user);
   }
 
   @Get(':id/autosave')

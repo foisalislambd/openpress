@@ -1,4 +1,4 @@
-import { Allow, IsArray, IsBoolean, IsIn, IsISO8601, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Allow, IsArray, IsBoolean, IsIn, IsISO8601, IsObject, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 const TYPES = ['POST', 'PAGE'] as const;
 const STATUSES = ['DRAFT', 'PENDING', 'PUBLISHED', 'SCHEDULED', 'TRASHED'] as const;
@@ -97,6 +97,11 @@ export class UpdateContentDto extends CreateContentDto {
   declare title: string;
 }
 
+export class EmptyTrashDto {
+  @IsIn(TYPES as unknown as string[])
+  type!: (typeof TYPES)[number];
+}
+
 export class QueryContentDto {
   @IsOptional()
   @IsIn(TYPES as unknown as string[])
@@ -135,8 +140,12 @@ export class QueryContentDto {
   perPage?: string;
 
   @IsOptional()
-  @IsIn(VISIBILITY as unknown as string[])
+  @Matches(/^(PUBLIC|PRIVATE|PASSWORD)(,(PUBLIC|PRIVATE|PASSWORD))*$/)
   visibility?: string;
+
+  @IsOptional()
+  @Matches(/^\d{6}$/)
+  month?: string;
 
   @IsOptional()
   @IsString()

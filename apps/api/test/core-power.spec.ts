@@ -56,6 +56,20 @@ describe('content query', () => {
     assert.match(built.order, /ts_rank/);
   });
 
+  it('filters a month and a visibility list without interpolating them', () => {
+    const built = buildContentQuery({
+      type: 'POST',
+      month: '202611',
+      visibility: ['PUBLIC', 'PASSWORD'],
+      perPage: 20,
+    });
+    assert.match(built.where, /to_char\(date_trunc\('month'/);
+    assert.match(built.where, /c\.visibility = ANY\(\$\d+::text\[\]\)/);
+    assert.deepEqual(built.params, ['POST', ['PUBLIC', 'PASSWORD'], '202611']);
+    assert.equal(built.perPage, 20);
+    assert.throws(() => buildContentQuery({ month: '2026-11' }), ContentQueryError);
+  });
+
   it('rejects a meta key that is not an identifier', () => {
     assert.throws(() => buildContentQuery({ meta: [{ key: 'a;drop', compare: 'exists' }] }), ContentQueryError);
   });

@@ -113,7 +113,7 @@ html:has(.op-login) body {
   justify-content: space-between;
   gap: 12px;
   margin: 8px 0;
-  height: 30px;
+  min-height: 30px;
 }
 .op-screen table.op-list {
   width: 100%;
@@ -155,6 +155,10 @@ html:has(.op-login) body {
 .op-screen tr:hover .op-row-actions,
 .op-screen tr:focus-within .op-row-actions {
   visibility: visible;
+}
+.op-screen .op-row-actions > * + *::before {
+  content: " | ";
+  color: #a7aaad;
 }
 .op-screen .op-row-actions button,
 .op-screen .op-row-actions a {
@@ -436,7 +440,68 @@ html:has(.op-login) body {
 }
 .op-screen-meta {
   float: right;
+  display: flex;
+  gap: 6px;
   margin: 8px 0 0 8px;
+}
+.op-screen-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 24px;
+  font-size: 13px;
+}
+.op-screen-options fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.op-screen-options legend {
+  width: 100%;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.op-screen-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.op-screen-options input[type='text'],
+.op-screen-options input:not([type]) {
+  width: 5em;
+}
+.op-inline-edit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+  padding: 8px 4px;
+  font-size: 13px;
+}
+.op-inline-edit label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.op-inline-edit input,
+.op-inline-edit select {
+  width: 100%;
+}
+.op-inline-edit .op-inline-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+.op-list tr.is-inline td {
+  background: #f6f7f7;
+}
+.op-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 .op-screen-meta > button {
   border: 1px solid #c3c4c7;

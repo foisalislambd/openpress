@@ -99,6 +99,77 @@ export class ContentService {
     this.unlockSecret = config.get<string>('JWT_SECRET') ?? 'openpress-dev-secret';
   }
 
+  async tableMeta(type: 'POST' | 'PAGE', authorId: string) {
+    const siteId = currentSiteId();
+    const postType = type === 'POST' ? `AND c."postType" = 'post'` : '';
+    const views = await this.db.one<{
+      all: number;
+      mine: number;
+      published: number;
+      drafts: number;
+      pending: number;
+      scheduled: number;
+      private: number;
+      sticky: number;
+      trash: number;
+    }>(
+      `SELECT
+         count(*) FILTER (WHERE c.status <> 'TRASHED')::int AS all,
+         count(*) FILTER (WHERE c.status <> 'TRASHED' AND c."authorId" = $3)::int AS mine,
+         count(*) FILTER (WHERE c.status = 'PUBLISHED' AND c.visibility <> 'PRIVATE')::int AS published,
+         count(*) FILTER (WHERE c.status <> 'TRASHED' AND c.sticky = true)::int AS sticky,
+         count(*) FILTER (WHERE c.status = 'DRAFT')::int AS drafts,
+         count(*) FILTER (WHERE c.status = 'PENDING')::int AS pending,
+         count(*) FILTER (WHERE c.status = 'SCHEDULED')::int AS scheduled,
+         count(*) FILTER (WHERE c.status = 'PUBLISHED' AND c.visibility = 'PRIVATE')::int AS private,
+         count(*) FILTER (WHERE c.status = 'TRASHED')::int AS trash
+       FROM contents c
+       WHERE c.type = $1::"ContentType" AND c."siteId" = $2 ${postType}`,
+      [type, siteId, authorId],
+    );
+    const months = await this.db.query<{ value: string; label: string; count: number }>(
+      `SELECT to_char(date_trunc('month', coalesce(c."publishedAt", c."scheduledAt", c."createdAt")), 'YYYYMM') AS value,
+              trim(to_char(date_trunc('month', coalesce(c."publishedAt", c."scheduledAt", c."createdAt")), 'FMMonth YYYY')) AS label,
+              count(*)::int AS count
+       FROM contents c
+       WHERE c.type = $1::"ContentType" AND c."siteId" = $2 AND c.status <> 'TRASHED' ${postType}
+       GROUP BY 1, 2
+       ORDER BY 1 DESC`,
+      [type, siteId],
+    );
+    const categories =
+      type === 'POST'
+        ? await this.db.query<{ slug: string; name: string; count: number }>(
+            `SELECT cat.slug, cat.name, count(c.id)::int AS count
+             FROM categories cat
+             LEFT JOIN "_ContentCategories" cc ON cc."A" = cat.id
+             LEFT JOIN contents c ON c.id = cc."B"
+               AND c.type = 'POST' AND c.status <> 'TRASHED' AND c."siteId" = $1 AND c."postType" = 'post'
+             WHERE cat."siteId" = $1
+             GROUP BY cat.id, cat.slug, cat.name
+             HAVING count(c.id) > 0
+             ORDER BY cat.name`,
+            [siteId],
+          )
+        : [];
+    return { views, months, categories };
+  }
+
+  async emptyTrash(type: 'POST' | 'PAGE', user: JwtPayload) {
+    const rows = await this.db.query<{ id: string }>(
+      `SELECT id FROM contents
+       WHERE type = $1::"ContentType" AND status = 'TRASHED' AND "siteId" = $2
+       ${type === 'POST' ? `AND "postType" = 'post'` : ''}`,
+      [type, currentSiteId()],
+    );
+    let deleted = 0;
+    for (const row of rows) {
+      await this.remove(row.id, user);
+      deleted += 1;
+    }
+    return { deleted };
+  }
+
   async findAll(query: QueryContentDto, publicOnly = false) {
     const shaped = publicOnly ? await this.shapePublicQuery(query) : query;
     const filtered = await this.hooks.applyFilters('content.query', this.toQueryInput(shaped, publicOnly));
@@ -719,13 +790,14 @@ export class ContentService {
       constrainBuiltinPosts: !query.postType && query.type === 'POST',
       locale: query.locale,
       status: query.status,
-      visibility: query.visibility,
       authorId: query.authorId,
       search: query.search,
       category: query.category,
       tag: query.tag,
       after: query.after,
       before: query.before,
+      month: query.month,
+      visibility: query.visibility?.includes(',') ? query.visibility.split(',') : query.visibility,
       orderBy: query.orderBy as ContentQueryInput['orderBy'],
       order: query.order === 'ASC' ? 'ASC' : query.order === 'DESC' ? 'DESC' : undefined,
       sticky: query.sticky === 'only' || query.sticky === 'exclude' ? query.sticky : undefined,
