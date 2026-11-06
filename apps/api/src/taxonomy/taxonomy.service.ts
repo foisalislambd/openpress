@@ -71,18 +71,25 @@ export class TaxonomyService {
     }
   }
 
-  async updateCategory(id: string, name?: string, description?: string) {
+  async updateCategory(
+    id: string,
+    input: { name?: string; slug?: string; description?: string; parentId?: string | null },
+  ) {
+    if (input.parentId && input.parentId === id) {
+      throw new BadRequestException('A category cannot be its own parent');
+    }
     const sets: string[] = [];
     const params: unknown[] = [];
     const add = (column: string, value: unknown) => {
       params.push(value);
       sets.push(`${column} = $${params.length}`);
     };
-    if (name !== undefined) {
-      add('name', name);
-      add('slug', slugify(name, { lower: true, strict: true }) || 'term');
+    if (input.name !== undefined) add('name', input.name);
+    if (input.slug !== undefined || input.name !== undefined) {
+      add('slug', await this.uniqueSlug('category', input.slug || input.name || 'term', id));
     }
-    if (description !== undefined) add('description', description);
+    if (input.description !== undefined) add('description', input.description);
+    if (input.parentId !== undefined) add('"parentId"', input.parentId || null);
     if (sets.length === 0) {
       const current = await this.db.one(
         `SELECT id, name, slug, description, "parentId", "createdAt"
@@ -92,11 +99,11 @@ export class TaxonomyService {
       if (!current) throw new NotFoundException('Category not found');
       return current;
     }
-    params.push(id);
+    params.push(id, currentSiteId());
     try {
       const row = await this.db.one(
         `UPDATE categories SET ${sets.join(', ')}
-         WHERE id = $${params.length}
+         WHERE id = $${params.length - 1} AND "siteId" = $${params.length}
          RETURNING id, name, slug, description, "parentId", "createdAt"`,
         params,
       );
@@ -147,6 +154,34 @@ export class TaxonomyService {
     }
   }
 
+  async updateTag(id: string, name?: string, slug?: string) {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const add = (column: string, value: unknown) => {
+      params.push(value);
+      sets.push(`${column} = $${params.length}`);
+    };
+    if (name !== undefined) add('name', name);
+    if (slug !== undefined || name !== undefined) {
+      add('slug', await this.uniqueSlug('tag', slug || name || 'term', id));
+    }
+    if (sets.length === 0) throw new BadRequestException('Nothing to update');
+    params.push(id, currentSiteId());
+    try {
+      const row = await this.db.one(
+        `UPDATE tags SET ${sets.join(', ')}
+         WHERE id = $${params.length - 1} AND "siteId" = $${params.length}
+         RETURNING id, name, slug, "createdAt"`,
+        params,
+      );
+      if (!row) throw new NotFoundException('Tag not found');
+      return row;
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ConflictException('A tag with this slug already exists');
+      throw error;
+    }
+  }
+
   async removeTag(id: string) {
     const row = await this.db.one<{ id: string }>(
       'DELETE FROM tags WHERE id = $1 AND "siteId" = $2 RETURNING id',
@@ -183,15 +218,15 @@ export class TaxonomyService {
     return { deleted: true };
   }
 
-  private async uniqueSlug(kind: 'category' | 'tag', name: string) {
+  private async uniqueSlug(kind: 'category' | 'tag', name: string, exceptId?: string) {
     const base = slugify(name, { lower: true, strict: true }) || 'term';
     const table = kind === 'category' ? 'categories' : 'tags';
     let slug = base;
     let i = 1;
     for (;;) {
       const clash = await this.db.one<{ id: string }>(
-        `SELECT id FROM ${table} WHERE slug = $1 AND "siteId" = $2`,
-        [slug, currentSiteId()],
+        `SELECT id FROM ${table} WHERE slug = $1 AND "siteId" = $2 AND ($3::text IS NULL OR id <> $3)`,
+        [slug, currentSiteId(), exceptId ?? null],
       );
       if (!clash) return slug;
       i += 1;

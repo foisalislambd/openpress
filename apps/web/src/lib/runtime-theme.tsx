@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import React from 'react';
-import type {
-  Content,
-  ThemeArchiveProps,
-  ThemeDefinition,
-  ThemeHomeProps,
-  ThemeLayoutProps,
-  ThemeSingleProps,
+import {
+  formatSiteDate,
+  type Content,
+  type SiteSettings,
+  type ThemeArchiveProps,
+  type ThemeDefinition,
+  type ThemeHomeProps,
+  type ThemeLayoutProps,
+  type ThemeSingleProps,
 } from '@openpress/shared';
 import { BlockRenderer } from '@openpress/theme-default';
 import { OpenPressMark } from '@/components/brand/openpress-mark';
@@ -63,12 +65,14 @@ function normalizeTokens(raw: Record<string, string>): Tokens {
   };
 }
 
-function formatDate(date?: string | null) {
-  if (!date) return '';
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+function formatDate(date?: string | null, settings?: SiteSettings) {
+  return formatSiteDate(date, {
+    dateFormat: typeof settings?.dateFormat === 'string' ? settings.dateFormat : undefined,
+    timeFormat: typeof settings?.timeFormat === 'string' ? settings.timeFormat : undefined,
+    timeZone: typeof settings?.timezone === 'string' ? settings.timezone : undefined,
+    weekStartsOn: typeof settings?.weekStartsOn === 'string' || typeof settings?.weekStartsOn === 'number'
+      ? settings.weekStartsOn
+      : undefined,
   });
 }
 
@@ -77,7 +81,7 @@ export function buildRuntimeTheme(
 ): ThemeDefinition {
   const t = normalizeTokens(manifest.tokens ?? {});
 
-  function PostCard({ post }: { post: Content }) {
+  function PostCard({ post, settings }: { post: Content; settings?: SiteSettings }) {
     return (
       <article
         style={{
@@ -97,13 +101,13 @@ export function buildRuntimeTheme(
           </p>
         ) : null}
         <div style={{ color: t.muted, fontSize: '0.8rem', marginTop: '0.75rem' }}>
-          {post.author?.name} &middot; {formatDate(post.publishedAt)}
+          {post.author?.name} &middot; {formatDate(post.publishedAt, settings)}
         </div>
       </article>
     );
   }
 
-  function PostGrid({ posts }: { posts: ThemeHomeProps['posts'] }) {
+  function PostGrid({ posts, settings }: { posts: ThemeHomeProps['posts']; settings?: SiteSettings }) {
     return (
       <div
         style={
@@ -117,7 +121,7 @@ export function buildRuntimeTheme(
         }
       >
         {posts.items.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} settings={settings} />
         ))}
       </div>
     );
@@ -229,6 +233,16 @@ export function buildRuntimeTheme(
             fontSize: '0.85rem',
           }}
         >
+          {(() => {
+            const privacy = pages.find((page) => page.id === settings.privacyPageId);
+            return privacy ? (
+              <p>
+                <a href={privacy.permalink || `/${privacy.slug}`} style={{ color: t.muted }}>
+                  Privacy Policy
+                </a>
+              </p>
+            ) : null;
+          })()}
           {settings.siteTitle} &mdash; powered by OpenPress ({manifest.name})
         </footer>
       </div>
@@ -244,13 +258,13 @@ export function buildRuntimeTheme(
           </h1>
           <p style={{ color: t.muted }}>{settings.siteDescription}</p>
         </div>
-        <PostGrid posts={posts} />
+        <PostGrid posts={posts} settings={settings} />
         <Pager page={posts.page} totalPages={posts.totalPages} />
       </div>
     );
   }
 
-  function Post({ content, comments }: ThemeSingleProps) {
+  function Post({ content, comments, settings }: ThemeSingleProps) {
     return (
       <article>
         <header style={{ marginBottom: '2rem' }}>
@@ -258,7 +272,7 @@ export function buildRuntimeTheme(
             {content.title}
           </h1>
           <div style={{ color: t.muted, fontSize: '0.9rem', marginTop: '0.5rem' }}>
-            By {content.author?.name} on {formatDate(content.publishedAt)}
+            By {content.author?.name} on {formatDate(content.publishedAt, settings)}
           </div>
         </header>
         <BlockRenderer blocks={content.blocks} />
@@ -302,13 +316,13 @@ export function buildRuntimeTheme(
     );
   }
 
-  function Archive({ title, posts }: ThemeArchiveProps) {
+  function Archive({ title, posts, settings }: ThemeArchiveProps) {
     return (
       <div>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '2rem' }}>
           {title}
         </h1>
-        <PostGrid posts={posts} />
+        <PostGrid posts={posts} settings={settings} />
         <Pager page={posts.page} totalPages={posts.totalPages} />
       </div>
     );

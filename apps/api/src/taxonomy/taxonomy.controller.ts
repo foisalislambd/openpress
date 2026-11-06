@@ -28,12 +28,20 @@ class CategoryDto {
   @IsOptional()
   @IsString()
   parentId?: string;
+
+  @IsOptional()
+  @IsString()
+  slug?: string;
 }
 
 class TagDto {
   @IsString()
   @MinLength(1)
   name: string;
+
+  @IsOptional()
+  @IsString()
+  slug?: string;
 }
 
 @Controller('taxonomy')
@@ -59,7 +67,7 @@ export class TaxonomyController {
   @UseGuards(JwtAuthGuard)
   async updateCategory(@Param('id') id: string, @Body() dto: Partial<CategoryDto>, @CurrentUser() user: JwtPayload) {
     await this.assertTerms(user);
-    return this.taxonomy.updateCategory(id, dto.name, dto.description);
+    return this.taxonomy.updateCategory(id, dto);
   }
 
   @Delete('categories/:id')
@@ -79,6 +87,13 @@ export class TaxonomyController {
   async createTag(@Body() dto: TagDto, @CurrentUser() user: JwtPayload) {
     await this.assertTerms(user);
     return this.taxonomy.createTag(dto.name);
+  }
+
+  @Patch('tags/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateTag(@Param('id') id: string, @Body() dto: TagDto, @CurrentUser() user: JwtPayload) {
+    await this.assertTerms(user);
+    return this.taxonomy.updateTag(id, dto.name, dto.slug);
   }
 
   @Get('categories/:id/meta')

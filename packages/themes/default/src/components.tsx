@@ -1,16 +1,18 @@
 import React from 'react';
-import type { Comment, Content } from '@openpress/shared';
+import { formatSiteDate, type Comment, type Content, type SiteSettings } from '@openpress/shared';
 
-export function formatDate(date?: string | null) {
-  if (!date) return '';
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+export function formatDate(date?: string | null, settings?: SiteSettings) {
+  return formatSiteDate(date, {
+    dateFormat: typeof settings?.dateFormat === 'string' ? settings.dateFormat : undefined,
+    timeFormat: typeof settings?.timeFormat === 'string' ? settings.timeFormat : undefined,
+    timeZone: typeof settings?.timezone === 'string' ? settings.timezone : undefined,
+    weekStartsOn: typeof settings?.weekStartsOn === 'string' || typeof settings?.weekStartsOn === 'number'
+      ? settings.weekStartsOn
+      : undefined,
   });
 }
 
-export function PostCard({ post }: { post: Content }) {
+export function PostCard({ post, settings }: { post: Content; settings?: SiteSettings }) {
   return (
     <article className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-shadow hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
       {post.coverImage ? (
@@ -43,13 +45,15 @@ export function PostCard({ post }: { post: Content }) {
       <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
         <span>{post.author?.name}</span>
         <span aria-hidden>&middot;</span>
-        <time>{formatDate(post.publishedAt)}</time>
+        <time dateTime={post.publishedAt ?? undefined} data-week-start={String(settings?.weekStartsOn ?? '1')}>
+          {formatDate(post.publishedAt, settings)}
+        </time>
       </div>
     </article>
   );
 }
 
-export function CommentList({ comments }: { comments: Comment[] }) {
+export function CommentList({ comments, settings }: { comments: Comment[]; settings?: SiteSettings }) {
   if (!comments.length) {
     return <p className="text-sm text-zinc-500">No comments yet.</p>;
   }
@@ -60,7 +64,7 @@ export function CommentList({ comments }: { comments: Comment[] }) {
           <div className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {comment.author?.name ?? comment.guestName ?? 'Anonymous'}
             <span className="ml-2 font-normal text-zinc-400">
-              {formatDate(comment.createdAt)}
+              {formatDate(comment.createdAt, settings)}
             </span>
           </div>
           <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
@@ -68,7 +72,7 @@ export function CommentList({ comments }: { comments: Comment[] }) {
           </p>
           {comment.replies?.length ? (
             <div className="mt-4 border-l-2 border-zinc-200 pl-4 dark:border-zinc-700">
-              <CommentList comments={comment.replies} />
+              <CommentList comments={comment.replies} settings={settings} />
             </div>
           ) : null}
         </li>

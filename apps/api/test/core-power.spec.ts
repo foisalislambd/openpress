@@ -6,6 +6,8 @@ import { serializeBlocks, validateBlocks } from '../src/blocks/block-document';
 import { buildContentQuery, ContentQueryError } from '../src/content/content-query';
 import { failureDelaySeconds, isDue, nextRun } from '../src/cron/cron-schedule';
 import { menuParentError, nestMenuItems, safeMenuUrl } from '../src/menus/menu-tree';
+import { categoryIdsForPost } from '../src/content/default-category';
+import { formatSiteDate, weekStartsOnName } from '../../../packages/shared/src/site-date';
 import { validateOptionValue, type OptionDefinition } from '../src/settings/option-defs';
 import { findConflicts, matchRewrite, structureRule } from '../src/rewrite/rewrite-rules';
 import { coreWidgetView } from '../src/widgets/widget-render';
@@ -194,6 +196,24 @@ describe('kses and locks', () => {
     const now = new Date('2026-01-01T00:00:00Z');
     assert.equal(lockIsHeld({ userId: 'a', expiresAt: lockUntil(now) }, 'b', now), true);
     assert.equal(lockIsHeld({ userId: 'a', expiresAt: now }, 'b', new Date(now.getTime() + 1)), false);
+  });
+});
+
+describe('site dates and default category', () => {
+  it('formats public dates in the site timezone and assigns the default category', () => {
+    const formatted = formatSiteDate('2026-11-06T04:42:00.000Z', {
+      dateFormat: 'F j, Y',
+      timeFormat: 'g:i a',
+      timeZone: 'Asia/Dhaka',
+      weekStartsOn: '0',
+    });
+    assert.equal(formatted, 'November 6, 2026 at 10:42 am');
+    assert.equal(formatSiteDate('2026-11-06T04:42:00.000Z', { dateFormat: 'Y-m-d', timeFormat: 'H:i', timeZone: 'UTC' }), '2026-11-06 at 04:42');
+    assert.equal(weekStartsOnName('0'), 'Sunday');
+    assert.equal(weekStartsOnName('6'), 'Saturday');
+    assert.deepEqual(categoryIdsForPost('POST', [], 'cat_news'), ['cat_news']);
+    assert.deepEqual(categoryIdsForPost('POST', ['cat_other'], 'cat_news'), ['cat_other']);
+    assert.deepEqual(categoryIdsForPost('PAGE', [], 'cat_news'), []);
   });
 });
 

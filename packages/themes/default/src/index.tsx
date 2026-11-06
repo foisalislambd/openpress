@@ -122,6 +122,14 @@ function Layout({ settings, pages, children }: ThemeLayoutProps) {
             {html}
           </p>
         ))}
+        {(() => {
+          const privacy = pages.find((page) => page.id === settings.privacyPageId);
+          return privacy ? (
+            <p className="mb-2">
+              <a href={privacy.permalink || `/${privacy.slug}`}>Privacy Policy</a>
+            </p>
+          ) : null;
+        })()}
         {settings.siteTitle} &mdash; powered by{' '}
         <a href="https://github.com" className="font-medium hover:text-indigo-600">
           OpenPress
@@ -140,7 +148,7 @@ function Home({ settings, posts }: ThemeHomeProps) {
       </div>
       <div className="grid gap-6 sm:grid-cols-2">
         {posts.items.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} settings={settings} />
         ))}
       </div>
       <Pagination page={posts.page} totalPages={posts.totalPages} basePath="/" />
@@ -148,7 +156,7 @@ function Home({ settings, posts }: ThemeHomeProps) {
   );
 }
 
-function Post({ content, comments }: ThemeSingleProps) {
+function Post({ content, comments, settings }: ThemeSingleProps) {
   return (
     <article>
       <header className="mb-8">
@@ -162,7 +170,10 @@ function Post({ content, comments }: ThemeSingleProps) {
         <h1 className="mt-2 text-4xl font-extrabold tracking-tight">{content.title}</h1>
         <LanguageSwitch content={content} />
         <div className="mt-3 text-sm text-zinc-500">
-          By {content.author?.name} on <time>{formatDate(content.publishedAt)}</time>
+          By {content.author?.name} on{' '}
+          <time dateTime={content.publishedAt ?? undefined} data-week-start={String(settings.weekStartsOn ?? '1')}>
+            {formatDate(content.publishedAt, settings)}
+          </time>
         </div>
         {content.coverImage ? (
           /* eslint-disable-next-line @next/next/no-img-element */
@@ -189,7 +200,7 @@ function Post({ content, comments }: ThemeSingleProps) {
       ) : null}
       <section className="mt-12 border-t border-zinc-200 pt-8 dark:border-zinc-800">
         <h2 className="mb-6 text-xl font-bold">Comments</h2>
-        <CommentList comments={comments} />
+        <CommentList comments={comments} settings={settings} />
         <CommentForm contentId={content.id} closed={content.commentStatus === 'closed'} />
       </section>
     </article>
@@ -235,13 +246,13 @@ function ArchiveTag(props: ThemeArchiveProps) {
   );
 }
 
-function Archive({ title, posts }: ThemeArchiveProps) {
+function Archive({ title, posts, settings }: ThemeArchiveProps) {
   return (
     <div>
       <h1 className="mb-8 text-3xl font-extrabold tracking-tight">{title}</h1>
       <div className="grid gap-6 sm:grid-cols-2">
         {posts.items.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} settings={settings} />
         ))}
       </div>
       <Pagination page={posts.page} totalPages={posts.totalPages} basePath="?" />

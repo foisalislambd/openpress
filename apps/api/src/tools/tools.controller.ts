@@ -6,6 +6,7 @@ import {
   Header,
   Param,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -33,6 +34,11 @@ class EmDashDto {
 @RequireAnyCap('edit_others_posts', 'manage_options')
 export class ToolsController {
   constructor(private tools: ToolsService) {}
+
+  @Get('export/personal-data')
+  exportPersonalData(@Query('email') email?: string) {
+    return this.tools.exportPersonalData(email ?? '');
+  }
 
   @Get('export/wxr')
   @Header('Content-Type', 'application/xml; charset=utf-8')

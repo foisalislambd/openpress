@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import slugify from 'slugify';
 import { DbService } from '../db/db.service';
@@ -20,6 +20,63 @@ export class ToolsService {
     private db: DbService,
     private settings: SettingsService,
   ) {}
+
+  async exportPersonalData(email: string) {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized.includes('@')) throw new BadRequestException('Enter an email address');
+    const user = await this.db.one<{
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      bio: string | null;
+      createdAt: Date;
+    }>(
+      `SELECT id, email, name, role, bio, "createdAt"
+       FROM users WHERE lower(email) = $1`,
+      [normalized],
+    );
+    if (!user) throw new NotFoundException('No user with that email');
+    const siteId = currentSiteId();
+    const [posts, pages, comments, media] = await Promise.all([
+      this.db.query(
+        `SELECT id, type, title, slug, status, visibility, "createdAt", "publishedAt"
+         FROM contents
+         WHERE "authorId" = $1 AND "siteId" = $2 AND type = 'POST'
+         ORDER BY "createdAt" ASC`,
+        [user.id, siteId],
+      ),
+      this.db.query(
+        `SELECT id, type, title, slug, status, "createdAt"
+         FROM contents
+         WHERE "authorId" = $1 AND "siteId" = $2 AND type = 'PAGE'
+         ORDER BY "createdAt" ASC`,
+        [user.id, siteId],
+      ),
+      this.db.query(
+        `SELECT id, "contentId", body, status, "createdAt"
+         FROM comments
+         WHERE "authorId" = $1
+         ORDER BY "createdAt" ASC`,
+        [user.id],
+      ),
+      this.db.query(
+        `SELECT id, filename, url, "mimeType", "createdAt"
+         FROM media
+         WHERE "uploaderId" = $1 AND "siteId" = $2
+         ORDER BY "createdAt" ASC`,
+        [user.id, siteId],
+      ),
+    ]);
+    return {
+      user,
+      posts,
+      pages,
+      comments,
+      media,
+      counts: { posts: posts.length, pages: pages.length, comments: comments.length, media: media.length },
+    };
+  }
 
   async exportWxr() {
     const settings = await this.settings.getAll();

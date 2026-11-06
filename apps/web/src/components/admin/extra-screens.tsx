@@ -437,17 +437,26 @@ export function AddPluginScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [review, setReview] = useState<{
+    token: string;
+    hash: string;
+    signatureStatus: string;
+    permissions: string[];
+    allowedHosts: string[];
+    manifest: { name: string; version: string };
+  } | null>(null);
 
   async function upload(file: File | undefined) {
     if (!file) return;
     setBusy(true);
     setError('');
     setMessage('');
+    setReview(null);
     try {
       const body = new FormData();
       body.append('file', file);
-      await api('/plugins/upload', { method: 'POST', body });
-      setMessage('Plugin installed and enabled.');
+      const staged = await api<NonNullable<typeof review>>('/plugins/stage', { method: 'POST', body });
+      setReview(staged);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -466,11 +475,47 @@ export function AddPluginScreen() {
       <div className="op-postbox max-w-xl">
         <h2 className="px-3 py-2">Upload Plugin</h2>
         <div className="space-y-3 p-3">
-          <p>If you have a plugin in a .zip format, you may install it by uploading it here.</p>
+          <p>If you have a plugin in a .zip format, you may install it by uploading it here. Nothing is installed until you confirm the permission review.</p>
           <input type="file" accept=".zip" disabled={busy} onChange={(e) => upload(e.target.files?.[0])} />
-          <p className="op-description">{busy ? 'Installing…' : 'Choose a .zip file to install it.'}</p>
+          <p className="op-description">{busy ? 'Checking the package…' : 'Choose a .zip file to review it.'}</p>
         </div>
       </div>
+      {review ? (
+        <div className="op-postbox mt-4 max-w-xl">
+          <h2 className="px-3 py-2">Review {review.manifest.name}</h2>
+          <div className="space-y-2 p-3 text-[13px]">
+            <p>
+              Version {review.manifest.version}. Signature: {review.signatureStatus}. Package hash {review.hash.slice(0, 12)}.
+            </p>
+            <p>Permissions: {review.permissions.length ? review.permissions.join(', ') : 'hooks only'}</p>
+            <p>Allowed hosts: {review.allowedHosts.length ? review.allowedHosts.join(', ') : 'none'}</p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    await api(`/plugins/stage/${review.token}/commit`, { method: 'POST' });
+                    setReview(null);
+                    setMessage('Plugin installed and enabled.');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Install failed');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Install
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setReview(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Screen>
   );
 }
@@ -683,19 +728,37 @@ export function ToolsScreen() {
           <tr>
             <td>
               <Link href="/admin/tools/import">Import</Link>
-              <p className="op-description">Bring posts in from a JSON export.</p>
+              <p className="op-description">Bring posts in from a WordPress WXR file or a JSON export.</p>
             </td>
           </tr>
           <tr>
             <td>
               <Link href="/admin/tools/export">Export</Link>
-              <p className="op-description">Download posts and pages as JSON.</p>
+              <p className="op-description">Download posts and pages as WXR or JSON.</p>
             </td>
           </tr>
           <tr>
             <td>
               <Link href="/admin/tools/site-health">Site Health</Link>
               <p className="op-description">Check that the API and site settings respond.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <Link href="/admin/tools/cron">Scheduled Events</Link>
+              <p className="op-description">See and run the events stored for this site.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <Link href="/admin/tools/export-personal-data">Export Personal Data</Link>
+              <p className="op-description">Download every post, page, comment, and file for one email address.</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <Link href="/admin/tools/erase-personal-data">Erase Personal Data</Link>
+              <p className="op-description">Delete an account by email address.</p>
             </td>
           </tr>
         </tbody>
@@ -948,26 +1011,27 @@ export function PersonalDataScreen({ mode }: { mode: 'export' | 'erase' }) {
     setError('');
     setMessage('');
     try {
-      const users = await api<User[]>('/users');
-      const user = users.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
-      if (!user) {
-        setError('No user with that email.');
-        return;
-      }
       if (mode === 'export') {
-        const posts = await api<Paginated<Content>>('/content?type=POST&perPage=50');
-        const mine = posts.items.filter((post) => post.authorId === user.id);
-        const blob = new Blob([JSON.stringify({ user, posts: mine }, null, 2)], {
-          type: 'application/json',
-        });
+        const data = await api<{ counts: { posts: number; pages: number; comments: number; media: number } }>(
+          `/tools/export/personal-data?email=${encodeURIComponent(email.trim())}`,
+        );
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${user.email}-data.json`;
+        link.download = `${email.trim()}-data.json`;
         link.click();
         URL.revokeObjectURL(url);
-        setMessage('Export downloaded.');
+        setMessage(
+          `Export downloaded (${data.counts.posts} posts, ${data.counts.pages} pages, ${data.counts.comments} comments, ${data.counts.media} files).`,
+        );
       } else {
+        const users = await api<User[]>('/users');
+        const user = users.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
+        if (!user) {
+          setError('No user with that email.');
+          return;
+        }
         await api(`/users/${user.id}`, { method: 'DELETE' });
         setMessage('The account was erased.');
       }
@@ -988,7 +1052,7 @@ export function PersonalDataScreen({ mode }: { mode: 'export' | 'erase' }) {
               <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />,
               mode === 'erase'
                 ? 'This deletes the account. Accounts that still own content or media cannot be deleted.'
-                : 'Downloads that user’s posts.',
+                : 'Downloads every post, page, comment, and uploaded file for that account.',
             )}
           </tbody>
         </table>
@@ -1119,6 +1183,18 @@ export function DiscussionSettings() {
               />
               Users must be registered and logged in to comment
             </label>,
+          )}
+          {field(
+            'Email me whenever',
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={settings.commentNotify !== false}
+                onChange={(e) => set({ commentNotify: e.target.checked })}
+              />
+              Anyone posts a comment
+            </label>,
+            'Sends mail to the post author and the administration email address.',
           )}
         </>
       )}
