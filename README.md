@@ -16,14 +16,14 @@ A self-hosted CMS for posts, pages, media, themes, plugins, and roles, without a
 
 ## See it in action
 
-No install required. The clips below are from a local site with seeded posts, the Sunset theme, and a plugin install.
+No install required. The clips below are from a local site with seeded posts, the customizer, and a plugin that waits on another.
 
 | | |
 |---|---|
 | Write and publish | Switch a theme |
-| ![Typing a post and publishing it](docs/media/editor.gif) | ![Activating the Sunset theme](docs/media/themes.gif) |
+| ![Writing in the block editor](docs/media/editor.gif) | ![Themes and the customizer](docs/media/themes.gif) |
 | Review a plugin, then install | Import WordPress |
-| ![Permission review before a plugin is installed](docs/media/plugins.gif) | ![WXR import keeps private and scheduled posts](docs/media/import.gif) |
+| ![Installed plugins and a dependency](docs/media/plugins.gif) | ![WordPress WXR import](docs/media/import.gif) |
 
 The full pass (dashboard, editor, media, themes, plugins, menus, widgets, settings, import, public site) is [docs/media/walkthrough.mp4](docs/media/walkthrough.mp4), about one minute.
 

@@ -40,9 +40,9 @@ export function MediaModal({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {items.map((item) => (
             <button key={item.id} type="button" className="border border-[#c3c4c7] p-2 text-left text-xs" onClick={() => onPick(item)}>
-              {item.mimeType.startsWith('image/') ? (
+              {item.mimeType.startsWith('image/') || item.sizes?.thumbnail?.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.url} alt={item.alt ?? item.filename} className="mb-2 aspect-square w-full object-cover" />
+                <img src={item.mimeType.startsWith('image/') ? item.url : item.sizes?.thumbnail?.url} alt={item.alt ?? item.filename} className="mb-2 aspect-square w-full object-cover" />
               ) : null}
               <span className="line-clamp-2">{item.filename}</span>
             </button>

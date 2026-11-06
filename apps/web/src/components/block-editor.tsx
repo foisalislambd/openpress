@@ -1,6 +1,6 @@
 'use client';
 
-import { DragEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/client-api';
 import { Button, Input } from '@/components/ui';
 
@@ -26,6 +26,8 @@ const INSERTABLE = [
   { type: 'columns', label: 'Columns' },
   { type: 'button', label: 'Button' },
   { type: 'embed', label: 'Embed' },
+  { type: 'pullquote', label: 'Pullquote' },
+  { type: 'verse', label: 'Verse' },
 ] as const;
 
 function newId() {
@@ -78,6 +80,37 @@ export function BlockEditor({
   const [dragId, setDragId] = useState<string | null>(null);
   const [html, setHtml] = useState('');
   const [error, setError] = useState('');
+  const [listView, setListView] = useState(true);
+  const history = useRef<CanvasBlock[][]>([]);
+  const future = useRef<CanvasBlock[][]>([]);
+
+  function commit(recipe: (current: CanvasBlock[]) => CanvasBlock[]) {
+    setBlocks((current) => {
+      const next = recipe(current);
+      if (next === current) return current;
+      history.current = [...history.current, current].slice(-40);
+      future.current = [];
+      return next;
+    });
+  }
+
+  function undo() {
+    const previous = history.current.pop();
+    if (!previous) return;
+    setBlocks((current) => {
+      future.current.push(current);
+      return previous;
+    });
+  }
+
+  function redo() {
+    const next = future.current.pop();
+    if (!next) return;
+    setBlocks((current) => {
+      history.current.push(current);
+      return next;
+    });
+  }
 
   useEffect(() => {
     onChange(blocks);
@@ -90,9 +123,32 @@ export function BlockEditor({
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         if (!(event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) return;
       }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && selected) {
+        const block = blocks.find((item) => item.id === selected);
+        if (block) void navigator.clipboard?.writeText(JSON.stringify(block));
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        void navigator.clipboard?.readText().then((raw) => {
+          try {
+            const parsed = JSON.parse(raw) as CanvasBlock;
+            if (!parsed || parsed.type !== 'string' && typeof parsed.type !== 'string') return;
+            commit((current) => [...current, { ...parsed, id: newId() }]);
+          } catch {
+            /* not a block */
+          }
+        });
+        return;
+      }
       if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
         event.preventDefault();
-        setBlocks((current) => {
+        commit((current) => {
           const index = current.findIndex((block) => block.id === selected);
           const nextIndex = event.key === 'ArrowUp' ? index - 1 : index + 1;
           if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
@@ -124,19 +180,19 @@ export function BlockEditor({
   }, [previewKey, blocks]);
 
   function update(id: string, patch: (block: CanvasBlock) => CanvasBlock) {
-    setBlocks((current) => current.map((block) => (block.id === id ? patch(block) : block)));
+    commit((current) => current.map((block) => (block.id === id ? patch(block) : block)));
   }
 
   function insert(type: string) {
     const block = blank(type);
-    setBlocks((current) => [...current, block]);
+    commit((current) => [...current, block]);
     setSelected(block.id);
   }
 
   function dropOn(targetId: string, event: DragEvent<HTMLElement>) {
     event.preventDefault();
     if (!dragId || dragId === targetId) return;
-    setBlocks((current) => {
+    commit((current) => {
       const from = current.findIndex((block) => block.id === dragId);
       const onto = current.findIndex((block) => block.id === targetId);
       if (from < 0 || onto < 0) return current;
@@ -167,6 +223,22 @@ export function BlockEditor({
   return (
     <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)_240px]">
       <aside className="border border-[#c3c4c7] bg-white p-3">
+        <div className="mb-2 flex gap-2">
+          <button type="button" className="text-[12px]" onClick={undo}>Undo</button>
+          <button type="button" className="text-[12px]" onClick={redo}>Redo</button>
+          <button type="button" className="text-[12px]" onClick={() => setListView((value) => !value)}>{listView ? 'Inserter' : 'List view'}</button>
+        </div>
+        {listView ? (
+          <ol className="mb-3 space-y-1">
+            {blocks.map((block, index) => (
+              <li key={block.id}>
+                <button type="button" className={`w-full px-2 py-1 text-left text-[13px] ${selected === block.id ? 'bg-[#f0f6fc]' : ''}`} onClick={() => setSelected(block.id)}>
+                  {index + 1}. {block.type}
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : null}
         <p className="mb-2 text-[11px] font-semibold uppercase text-[#646970]">Blocks</p>
         <div className="flex flex-col gap-1">
           {INSERTABLE.map((item) => (
@@ -181,7 +253,7 @@ export function BlockEditor({
               const patterns = await api<{ id: string; title: string; content: unknown[] }[]>('/modeling/patterns').catch(() => []);
               const pattern = patterns.find((item) => Array.isArray(item.content) && item.content.length);
               if (!pattern) return;
-              setBlocks((current) => [...current, ...asBlocks(pattern.content)]);
+              commit((current) => [...current, ...asBlocks(pattern.content)]);
             }}
           >
             Insert pattern
@@ -193,7 +265,7 @@ export function BlockEditor({
               const saved = await api<{ id: string; title: string; blocks: CanvasBlock[] }[]>('/blocks/reusable').catch(() => []);
               const block = saved[0];
               if (!block) return;
-              setBlocks((current) => [...current, { id: newId(), type: 'reusable', props: { ref: block.id }, children: asBlocks(block.blocks) }]);
+              commit((current) => [...current, { id: newId(), type: 'reusable', props: { ref: block.id }, children: asBlocks(block.blocks) }]);
             }}
           >
             Reusable block
@@ -258,14 +330,26 @@ export function BlockEditor({
         ) : null}
         {active ? (
           <div className="mt-3 flex flex-col gap-2">
-            <Button type="button" onClick={() => setBlocks((current) => current.filter((block) => block.id !== active.id))}>
+            <label className="block">
+              Align
+              <select
+                className="mt-1 w-full border border-[#8c8f94] p-1"
+                value={String(active.props?.align ?? 'left')}
+                onChange={(event) => update(active.id, (block) => ({ ...block, props: { ...(block.props ?? {}), align: event.target.value } }))}
+              >
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <Button type="button" onClick={() => commit((current) => current.filter((block) => block.id !== active.id))}>
               Remove block
             </Button>
             {active.children?.length ? (
               <Button
                 type="button"
                 onClick={() =>
-                  setBlocks((current) =>
+                  commit((current) =>
                     current.flatMap((block) =>
                       block.id === active.id ? [{ ...block, children: [] }, ...(block.children ?? [])] : [block],
                     ),

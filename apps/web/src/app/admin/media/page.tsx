@@ -9,6 +9,16 @@ import { Notice, Screen } from '@/components/admin/screen';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+function absolute(url: string) {
+  return url.startsWith('http') ? url : `${API_URL}${url}`;
+}
+
+function previewOf(item: Media) {
+  if (item.mimeType.startsWith('image/')) return absolute(item.url);
+  const thumb = item.sizes?.thumbnail?.url;
+  return thumb ? absolute(thumb) : '';
+}
+
 export default function MediaPage() {
   const [items, setItems] = useState<Media[]>([]);
   const [selected, setSelected] = useState<Media | null>(null);
@@ -103,10 +113,10 @@ export default function MediaPage() {
               setCrop({ x: '0', y: '0', width: String(m.width ?? ''), height: String(m.height ?? '') });
             }}
           >
-            {m.mimeType.startsWith('image/') ? (
+            {previewOf(m) ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
-                src={m.url.startsWith('http') ? m.url : `${API_URL}${m.url}`}
+                src={previewOf(m)}
                 alt={m.alt ?? m.filename}
                 className="aspect-square w-full object-cover"
               />

@@ -28,6 +28,8 @@ const CORE_TYPES = new Set([
   'button',
   'embed',
   'reusable',
+  'pullquote',
+  'verse',
   'pluginBlock',
 ]);
 
@@ -165,14 +167,18 @@ function serializeBlock(block: BlockNode): string {
   switch (block.type) {
     case 'heading': {
       const level = Math.min(6, Math.max(1, Number(block.props?.level ?? 2)));
-      return `<h${level}>${inner}</h${level}>${children}`;
+      return aligned(`<h${level}>${inner}</h${level}>${children}`, block.props);
     }
     case 'bulletListItem':
       return `<ul><li>${inner}${children}</li></ul>`;
     case 'numberedListItem':
       return `<ol><li>${inner}${children}</li></ol>`;
     case 'quote':
-      return `<blockquote>${inner}</blockquote>${children}`;
+      return aligned(`<blockquote>${inner}</blockquote>${children}`, block.props);
+    case 'pullquote':
+      return aligned(`<figure class="op-pullquote"><blockquote>${inner}</blockquote></figure>`, block.props);
+    case 'verse':
+      return aligned(`<pre class="op-verse">${inner}</pre>`, block.props);
     case 'codeBlock':
       return `<pre><code>${inner}</code></pre>`;
     case 'image':
@@ -217,8 +223,14 @@ function serializeBlock(block: BlockNode): string {
     case 'table':
       return `<div data-block="table">${inner}</div>`;
     default:
-      return `<p>${inner}</p>${children}`;
+      return aligned(`<p>${inner}</p>${children}`, block.props);
   }
+}
+
+function aligned(html: string, props?: Record<string, string | number | boolean>) {
+  const align = props?.align;
+  if (align === 'center' || align === 'right') return `<div style="text-align:${align}">${html}</div>`;
+  return html;
 }
 
 function inlineHtml(content: unknown): string {

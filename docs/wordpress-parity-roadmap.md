@@ -30,14 +30,14 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core. Stat
 | Rewrite rules | Partial | Registry with anchored patterns, conflict detection against the active permalink structure, and middleware rewrites. Dated permalinks still use the existing resolver. | Not a full `WP_Rewrite` tag map. Better: a rule that matches `/admin` or `/api` is rejected. |
 | Users & profile | Partial | User meta, staff-only `_` keys, user list filters by role, search, and capability. Application passwords, sessions, TOTP, and passkeys already exist. | No front-end membership product. |
 | Hooks | Partial | Plugins can register capabilities, settings, rewrite rules, widgets, and blocks from the sandbox, and adjust `content.query`. Activation loads plugins in dependency order and refuses a cycle or a missing dependency. | No hook-reference screen. |
-| Block editor | Partial | The canvas inserts paragraph, heading, list, quote, image, code, separator, spacer, group, columns, button, and embed. Patterns insert from the pattern library. Reusable blocks are saved and inserted. Alt+Up and Alt+Down move the selected block. Preview HTML comes from the server document model. | No collaborative editing and no Gutenberg block-styles panel. Embeds render as links, not third-party iframes. |
+| Block editor | Partial | The canvas inserts the core text and layout blocks, plus pullquote and verse. It has a list view, an inspector for level and alignment, undo and redo, and copy and paste of a block. Patterns and reusable blocks stay. Preview HTML comes from the server document model. | No collaborative editing and no Gutenberg style panel. Embeds render as links, not third-party iframes. |
 | Content modeling | Done | Custom post types, taxonomies, field groups, patterns, pending review, and term meta on categories, tags, and custom terms. | |
 | Permalinks | Done | Structure templates route through Next.js middleware, including year/month/name. | |
-| Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. Attachment terms attach existing taxonomy terms to a file. Media settings name the generated widths. | PDF thumbnails still missing. |
-| SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | String catalog plus gettext messages (domain, context, plural). Comments thread to five levels and the moderation screen can reply. `/wp/v2` adds comments and users. GraphQL can list approved comments. Marketplace UI is intentionally out of this repository. | No `.po` file compiler. Plural rules cover one-form languages and the English two-form rule, not every CLDR formula. |
+| Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. Attachment terms attach existing taxonomy terms to a file. A PDF upload renders page one with Poppler into a PNG thumbnail. | Poppler must be installed (`pdftoppm`). Without it the file is kept and the thumbnail is skipped. |
+| SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | String catalog, gettext rows, and a `.po` compile that writes those rows, a JSON catalog, and a `.mo` file. Comments thread to five levels. `/wp/v2` adds comments and users. GraphQL can list approved comments. Marketplace UI is intentionally out of this repository. | Plural rules cover one-form languages and the English two-form rule, not every CLDR formula. |
 | Multisite | Partial | `sites`, `site_options`, and `site_users`. Network admin lists sites, activates, deactivates, and deletes them, edits network settings, and reviews users. The admin switcher sends `X-OpenPress-Site`. Public pages follow the request host. | No separate database per site and no domain-mapping wizard. Roles are per site; users stay network-wide. |
-| Full Gutenberg UI | Partial | The canvas covers the core blocks, patterns, and reusable blocks on the OpenPress document. | Not a block-library clone and not collaborative. |
-| PHP plugins / gettext `.po` | Missing | PHP stays out. Gettext messages are rows, not compiled `.po` files. | A `.po` import can sit on this table later. |
+| Full Gutenberg UI | Partial | List view, inspector, undo, redo, and copy and paste sit on the OpenPress document. | Not a block-library clone and not collaborative. |
+| PHP plugins / gettext `.po` | Partial | PHP stays out. A `.po` file compiles to gettext rows, JSON, and `.mo`. | Not a full gettext toolchain (no `msgfmt` plural expressions). |
 
 ## Where OpenPress should beat WordPress
 
@@ -124,10 +124,16 @@ Migration `008_core_parity.sql` adds `gettext_entries`, `reusable_blocks`, and `
 - Cron: duplicate recurring schedules are returned instead of inserted, intervals are capped, and a long outage skips missed runs instead of replaying them. The cron screen can run due events.
 - Media terms on an attachment. Comments nest to five levels, and the moderation screen can reply.
 
+### Shipped in the editor and catalog pass
+
+- Block canvas: list view, alignment in the inspector, undo and redo, copy and paste, pullquote, and verse.
+- Settings → Languages compiles a `.po` file into the gettext table, a JSON catalog, and a `.mo` file.
+- PDF uploads render the first page to a PNG thumbnail when `pdftoppm` is on the server.
+
 ### Next runs
 
 1. **Marketplace UI** — browse a remote registry, one-click update from a URL, and theme signing. The local catalog and signature check are the contract that UI should call. This stays out of the product until the client decides.
 
 ### Explicitly later
 
-The public plugin directory, automatic updates from a remote feed, a Gutenberg clone, compiled `.po` files, and a PHP compatibility layer stay out. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work.
+The public plugin directory, automatic updates from a remote feed, a full Gutenberg clone, and a PHP compatibility layer stay out. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work. A `.po` file can already be compiled into rows, JSON, and `.mo`; plural expressions beyond the English two-form rule are still open.
