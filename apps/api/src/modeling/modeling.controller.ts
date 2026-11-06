@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsArray, IsBoolean, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireAnyCap, RequireCaps } from '../auth/capabilities.guard';
 import { ModelingService } from './modeling.service';
 
 class PostTypeDto {
@@ -122,8 +122,8 @@ class PatternDto {
 }
 
 @Controller('modeling')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'EDITOR')
+@UseGuards(JwtAuthGuard, CapabilitiesGuard)
+@RequireAnyCap('edit_others_posts', 'manage_options')
 export class ModelingController {
   constructor(private modeling: ModelingService) {}
 
@@ -133,13 +133,13 @@ export class ModelingController {
   }
 
   @Post('post-types')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   createPostType(@Body() dto: PostTypeDto) {
     return this.modeling.createPostType(dto);
   }
 
   @Delete('post-types/:slug')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   deletePostType(@Param('slug') slug: string) {
     return this.modeling.deletePostType(slug);
   }
@@ -150,13 +150,13 @@ export class ModelingController {
   }
 
   @Post('taxonomies')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   createTaxonomy(@Body() dto: TaxonomyDto) {
     return this.modeling.createTaxonomy(dto);
   }
 
   @Delete('taxonomies/:slug')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   deleteTaxonomy(@Param('slug') slug: string) {
     return this.modeling.deleteTaxonomy(slug);
   }
@@ -182,25 +182,25 @@ export class ModelingController {
   }
 
   @Post('field-groups')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   createFieldGroup(@Body() dto: FieldGroupDto) {
     return this.modeling.createFieldGroup(dto);
   }
 
   @Post('field-groups/:id/fields')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   addField(@Param('id') id: string, @Body() dto: FieldDto) {
     return this.modeling.addField(id, dto);
   }
 
   @Delete('field-groups/:id')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   deleteFieldGroup(@Param('id') id: string) {
     return this.modeling.deleteFieldGroup(id);
   }
 
   @Delete('fields/:id')
-  @Roles('ADMIN')
+  @RequireCaps('manage_options')
   deleteField(@Param('id') id: string) {
     return this.modeling.deleteField(id);
   }

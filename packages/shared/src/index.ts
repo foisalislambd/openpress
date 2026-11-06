@@ -10,10 +10,11 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: Role;
+  role: Role | (string & {});
   avatarUrl?: string | null;
   bio?: string | null;
   createdAt: string;
+  capabilities?: string[];
   _count?: { contents: number };
 }
 

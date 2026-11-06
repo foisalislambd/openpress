@@ -147,6 +147,7 @@ const MENU: MenuEntry[] = [
     children: [
       { href: '/admin/users', label: 'All Users', roles: ['ADMIN'], exact: true },
       { href: '/admin/users/new', label: 'Add User', roles: ['ADMIN'], exact: true },
+      { href: '/admin/users/roles', label: 'Roles', roles: ['ADMIN'], exact: true },
       { href: '/admin/profile', label: 'Profile', roles: ['ADMIN'], exact: true },
     ],
   },
@@ -172,6 +173,7 @@ const MENU: MenuEntry[] = [
       { href: '/admin/tools/webhooks', label: 'Webhooks', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/assistant', label: 'Assistant', roles: STAFF, exact: true },
       { href: '/admin/tools/export', label: 'Export', roles: STAFF, exact: true },
+      { href: '/admin/tools/cron', label: 'Scheduled Events', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/site-health', label: 'Site Health', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/export-personal-data', label: 'Export Personal Data', roles: ['ADMIN'], exact: true },
       { href: '/admin/tools/erase-personal-data', label: 'Erase Personal Data', roles: ['ADMIN'], exact: true },
@@ -263,14 +265,29 @@ function linkActive(pathname: string, hash: string, link: MenuLink) {
   return true;
 }
 
-function visibleMenu(role: Role): MenuEntry[] {
+function allowed(user: User, roles: string[]) {
+  if (roles.includes(user.role)) return true;
+  const builtin = ['ADMIN', 'EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'];
+  if (builtin.includes(user.role)) return false;
+  const caps = new Set(user.capabilities ?? []);
+  if (roles.length >= 5) return caps.has('read');
+  if (roles.includes('CONTRIBUTOR') && caps.has('edit_posts')) return true;
+  if (roles.includes('AUTHOR') && !roles.includes('CONTRIBUTOR') && caps.has('upload_files')) return true;
+  if (roles.includes('EDITOR') && !roles.includes('AUTHOR') && (caps.has('edit_pages') || caps.has('moderate_comments'))) return true;
+  if (roles.length === 1 && roles[0] === 'ADMIN') {
+    return caps.has('manage_options') || caps.has('activate_plugins') || caps.has('list_users') || caps.has('edit_theme_options');
+  }
+  return false;
+}
+
+function visibleMenu(user: User): MenuEntry[] {
   return MENU.flatMap((entry): MenuEntry[] => {
     if (entry.kind === 'separator') return [entry];
-    if (!entry.roles.includes(role)) return [];
+    if (!allowed(user, entry.roles)) return [];
     return [
       {
         ...entry,
-        children: entry.children.filter((child) => child.roles.includes(role)),
+        children: entry.children.filter((child) => allowed(user, child.roles)),
       },
     ];
   }).filter((entry, index, list) => {
@@ -338,7 +355,7 @@ export function AdminShell({
     return () => document.removeEventListener('mousedown', onPointer);
   }, []);
 
-  const menu = visibleMenu(user.role).map((entry) => {
+  const menu = visibleMenu(user).map((entry) => {
     if (entry.kind !== 'item' || entry.id !== 'plugins' || pluginPages.length === 0) return entry;
     return {
       ...entry,

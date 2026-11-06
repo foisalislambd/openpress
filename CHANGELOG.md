@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Core power systems: custom roles and per-user capabilities, a typed settings registry, a structured content query, Postgres cron, nav menus, widget instances, rewrite rules, and server-side block validation
+
 ### Changed
 
 - Replaced Prisma with the `pg` driver and SQL migrations

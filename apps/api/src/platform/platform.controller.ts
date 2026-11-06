@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { IsString, Matches, MaxLength } from 'class-validator';
 import { randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { DbService } from '../db/db.service';
 import { AuditService } from './audit.service';
 
@@ -44,8 +44,8 @@ export class PlatformController {
   }
 
   @Post('demo/reset')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   async resetDemo() {
     if (process.env.DEMO_MODE !== 'true') {
       return { ok: false, message: 'Set DEMO_MODE=true to allow a demo reset.' };
@@ -67,8 +67,8 @@ export class PlatformController {
   }
 
   @Post('redirects')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   async addRedirect(@Body() dto: RedirectDto) {
     await this.db.query(
       `INSERT INTO redirects (id, "fromPath", "toPath") VALUES ($1, $2, $3)
@@ -79,8 +79,8 @@ export class PlatformController {
   }
 
   @Get('audit')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   auditLog() {
     return this.audit.list();
   }

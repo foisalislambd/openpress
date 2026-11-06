@@ -1,6 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
-import { can } from '../auth/capabilities';
+import { CapabilitiesService } from '../auth/capabilities.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtPayload } from '../auth/jwt.strategy';
@@ -60,6 +60,7 @@ export class McpController {
   constructor(
     private content: ContentService,
     private db: DbService,
+    private caps: CapabilitiesService,
   ) {}
 
   @Post()
@@ -87,7 +88,7 @@ export class McpController {
     const name = String(params.name ?? '');
     const args = (params.arguments ?? params.args ?? {}) as Record<string, unknown>;
     if (name === 'content.search') {
-      const library = can(user.role, 'edit_posts') || can(user.role, 'edit_pages');
+      const library = await this.caps.allowsAny(user.sub, ['edit_posts', 'edit_pages']);
       const found = await this.content.findAll(
         {
           search: String(args.query ?? ''),

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { User } from '@openpress/shared';
 import { api } from '@/lib/client-api';
-import { Select } from '@/components/ui';
+import { Input, Select } from '@/components/ui';
 import { Screen } from '@/components/admin/screen';
+import { RoleSelect } from '@/components/admin/role-select';
 
 const ROLES = [
   { value: '', label: 'All' },
@@ -18,10 +19,16 @@ const ROLES = [
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [role, setRole] = useState('');
+  const [search, setSearch] = useState('');
+  const [capability, setCapability] = useState('');
 
   const load = useCallback(() => {
-    api<User[]>('/users').then(setUsers).catch(() => {});
-  }, []);
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (capability) params.set('capability', capability);
+    const query = params.toString();
+    api<User[]>(`/users${query ? `?${query}` : ''}`).then(setUsers).catch(() => {});
+  }, [search, capability]);
 
   useEffect(load, [load]);
 
@@ -38,6 +45,16 @@ export default function UsersPage() {
 
   return (
     <Screen title="Users" action={{ href: '/admin/users/new', label: 'Add User' }}>
+      <div className="op-tablenav">
+        <Input placeholder="Search users" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Select value={capability} onChange={(e) => setCapability(e.target.value)}>
+          <option value="">All capabilities</option>
+          <option value="edit_posts">edit_posts</option>
+          <option value="publish_posts">publish_posts</option>
+          <option value="manage_options">manage_options</option>
+          <option value="list_users">list_users</option>
+        </Select>
+      </div>
       <ul className="op-subsubsub">
         {ROLES.map((item) => {
           const count = item.value ? users.filter((user) => user.role === item.value).length : users.length;
@@ -78,13 +95,7 @@ export default function UsersPage() {
               </td>
               <td>{user.email}</td>
               <td>
-                <Select value={user.role} onChange={(e) => changeRole(user.id, e.target.value)}>
-                  <option value="ADMIN">Administrator</option>
-                  <option value="EDITOR">Editor</option>
-                  <option value="AUTHOR">Author</option>
-                  <option value="CONTRIBUTOR">Contributor</option>
-                  <option value="SUBSCRIBER">Subscriber</option>
-                </Select>
+                <RoleSelect value={user.role} onChange={(next) => changeRole(user.id, next)} />
               </td>
               <td>{user._count?.contents ?? 0}</td>
             </tr>

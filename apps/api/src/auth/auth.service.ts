@@ -11,6 +11,7 @@ import { DbService } from '../db/db.service';
 import { isUniqueViolation } from '../db/errors';
 import { newId } from '../db/ids';
 import { AuditService } from '../platform/audit.service';
+import { CapabilitiesService } from './capabilities.service';
 import { LoginDto, RegisterDto } from './auth.dto';
 
 const PUBLIC_USER = `id, email, name, role, "avatarUrl", bio, "createdAt"`;
@@ -35,6 +36,7 @@ export class AuthService {
     private db: DbService,
     private jwt: JwtService,
     private audit: AuditService,
+    private caps: CapabilitiesService,
     config: ConfigService,
   ) {
     this.refreshSecret =
@@ -75,7 +77,7 @@ export class AuthService {
 
         return sql.one<AuthUser>(
           `INSERT INTO users (id, email, name, "passwordHash", role, "updatedAt")
-           VALUES ($1, $2, $3, $4, $5::"Role", now())
+           VALUES ($1, $2, $3, $4, $5, now())
            RETURNING id, email, role`,
           [
             newId(),
@@ -219,7 +221,7 @@ export class AuthService {
       [userId],
     );
     if (!user) throw new UnauthorizedException();
-    return user;
+    return { ...user, capabilities: await this.caps.list(userId) };
   }
 
   async issueTokens(sub: string, email: string, role: string, meta?: SessionMeta, existingSid?: string) {

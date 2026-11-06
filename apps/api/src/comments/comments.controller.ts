@@ -22,7 +22,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { CommentsService } from './comments.service';
 
 class CreateCommentDto {
@@ -79,22 +79,22 @@ export class CommentsController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'EDITOR')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('moderate_comments')
   findAll(@Query('status') status?: string) {
     return this.comments.findAll(status);
   }
 
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'EDITOR')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('moderate_comments')
   setStatus(@Param('id') id: string, @Body() dto: SetStatusDto) {
     return this.comments.setStatus(id, dto.status);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'EDITOR')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('moderate_comments')
   remove(@Param('id') id: string) {
     return this.comments.remove(id);
   }

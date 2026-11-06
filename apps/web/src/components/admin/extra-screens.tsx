@@ -1051,6 +1051,7 @@ export function MediaSettings() {
 
 export function PermalinkSettings() {
   return (
+    <>
     <SettingsForm title="Permalink Settings">
       {(settings, set) =>
         field(
@@ -1065,10 +1066,25 @@ export function PermalinkSettings() {
             <option value="/%category%/%postname%/">Category and name — /news/sample-post</option>
             <option value="/%author%/%postname%/">Author and name — /admin/sample-post</option>
           </Select>,
-          'Dated and category structures are routed by the public site. Plain post name stays at /sample-post.',
+          'Dated and category structures are routed by the public site. Custom rewrite rules are rejected when they conflict or claim /admin and /api.',
         )
       }
     </SettingsForm>
+    <RewriteConflicts />
+    </>
+  );
+}
+
+function RewriteConflicts() {
+  const [conflicts, setConflicts] = useState<{ path: string; rules: string[] }[]>([]);
+  useEffect(() => {
+    api<{ path: string; rules: string[] }[]>('/rewrite/conflicts').then(setConflicts).catch(() => setConflicts([]));
+  }, []);
+  if (!conflicts.length) return null;
+  return (
+    <Notice kind="warning">
+      Rewrite conflicts: {conflicts.map((item) => `${item.path} (${item.rules.join(', ')})`).join('; ')}
+    </Notice>
   );
 }
 

@@ -1,6 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CoreRegistry } from '../core/core-registry';
 import { DbService } from '../db/db.service';
+import { isUndefinedTable } from '../db/errors';
 import { HooksService } from '../hooks/hooks.service';
+import { MenusService } from '../menus/menus.service';
+import { WidgetsService } from '../widgets/widgets.service';
+import { normalizeOptionValue, OptionDefinition, validateOptionValue } from './option-defs';
 
 export const DEFAULT_SETTINGS: Record<string, unknown> = {
   siteTitle: 'OpenPress Site',
@@ -47,7 +52,24 @@ export class SettingsService {
   constructor(
     private db: DbService,
     private hooks: HooksService,
+    private registry: CoreRegistry,
+    private menus: MenusService,
+    private widgets: WidgetsService,
   ) {}
+
+  definitions(): OptionDefinition[] {
+    const core = Object.entries(DEFAULT_SETTINGS).map(([key, defaultValue]) => ({
+      key,
+      group: groupFor(key),
+      type: typeFor(defaultValue),
+      autoload: key !== 'additionalCss',
+      label: key,
+      public: true,
+      defaultValue,
+      source: 'core',
+    }));
+    return [...core, ...this.registry.optionsFor()];
+  }
 
   async getAll() {
     const rows = await this.db.query<{ key: string; value: unknown }>(
@@ -55,7 +77,20 @@ export class SettingsService {
       [PUBLIC_KEYS],
     );
     const stored = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-    return { ...DEFAULT_SETTINGS, ...stored };
+    let all: Record<string, unknown> = { ...DEFAULT_SETTINGS, ...stored };
+    all = await this.menus.overlay(all);
+    all = await this.widgets.overlay(all);
+    return all;
+  }
+
+  async setRegistered(key: string, value: unknown) {
+    const def = this.definitions().find((item) => item.key === key);
+    if (!def) throw new NotFoundException('Setting is not registered');
+    const error = validateOptionValue(def, value);
+    if (error) throw new BadRequestException(error);
+    const stored = normalizeOptionValue(def, value);
+    await this.write(key, stored, def.autoload);
+    return { key, value: stored };
   }
 
   async updateMany(values: Record<string, unknown>) {
@@ -65,29 +100,32 @@ export class SettingsService {
     if (entries.length === 0) {
       throw new BadRequestException('No valid setting keys provided');
     }
-    this.validate(Object.fromEntries(entries));
+    const payload = Object.fromEntries(entries);
+    this.validate(payload);
     await this.db.tx(async (sql) => {
       for (const [key, value] of entries) {
+        const def = this.definitions().find((item) => item.key === key);
         await sql.query(
-          `INSERT INTO settings (key, value, "updatedAt")
-           VALUES ($1, $2::jsonb, now())
+          `INSERT INTO settings (key, value, autoload, "updatedAt")
+           VALUES ($1, $2::jsonb, $3, now())
            ON CONFLICT (key) DO UPDATE
-           SET value = EXCLUDED.value, "updatedAt" = now()`,
-          [key, JSON.stringify(value)],
+           SET value = EXCLUDED.value, autoload = EXCLUDED.autoload, "updatedAt" = now()`,
+          [key, JSON.stringify(value), def?.autoload !== false],
         );
       }
     });
+    await this.projectStructured(payload);
     const all = await this.getAll();
     await this.hooks.doAction('settings.updated', all);
     return all;
   }
 
   private validate(values: Record<string, unknown>) {
-    if (
-      'siteTitle' in values &&
-      (typeof values.siteTitle !== 'string' || !values.siteTitle.trim())
-    ) {
-      throw new BadRequestException('siteTitle must be a non-empty string');
+    for (const [key, value] of Object.entries(values)) {
+      const def = this.definitions().find((item) => item.key === key);
+      if (!def) continue;
+      const error = validateOptionValue(def, value);
+      if (error) throw new BadRequestException(error);
     }
     if (
       'homepageType' in values &&
@@ -95,23 +133,47 @@ export class SettingsService {
     ) {
       throw new BadRequestException('Invalid homepageType');
     }
-    if ('postsPerPage' in values) {
-      const n = Number(values.postsPerPage);
-      if (!Number.isInteger(n) || n < 1 || n > 50) {
-        throw new BadRequestException('postsPerPage must be between 1 and 50');
-      }
-    }
-    if (
-      'activeTheme' in values &&
-      (typeof values.activeTheme !== 'string' || !values.activeTheme.trim())
-    ) {
-      throw new BadRequestException('activeTheme must be a non-empty string');
-    }
-    if (
-      'allowRegistration' in values &&
-      typeof values.allowRegistration !== 'boolean'
-    ) {
-      throw new BadRequestException('allowRegistration must be a boolean');
+    if ('defaultRole' in values && !/^[A-Z][A-Z0-9_]{1,40}$/.test(String(values.defaultRole))) {
+      throw new BadRequestException('defaultRole must be a role slug');
     }
   }
+
+  private async projectStructured(values: Record<string, unknown>) {
+    try {
+      if ('menus' in values || 'menuLocations' in values) {
+        await this.menus.importSettings(values.menus, values.menuLocations);
+      }
+      if ('widgets' in values) await this.widgets.importSettings(values.widgets);
+    } catch (error) {
+      if (!isUndefinedTable(error)) throw error;
+    }
+  }
+
+  private async write(key: string, value: unknown, autoload: boolean) {
+    await this.db.query(
+      `INSERT INTO settings (key, value, autoload, "updatedAt")
+       VALUES ($1, $2::jsonb, $3, now())
+       ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value, autoload = EXCLUDED.autoload, "updatedAt" = now()`,
+      [key, JSON.stringify(value), autoload],
+    );
+  }
+}
+
+function typeFor(value: unknown): OptionDefinition['type'] {
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'number') return 'number';
+  if (value === null || typeof value === 'object') return 'json';
+  return 'string';
+}
+
+function groupFor(key: string) {
+  if (['thumbnailSize', 'mediumSize', 'largeSize'].includes(key)) return 'media';
+  if (['allowComments', 'commentModeration', 'commentRegistration', 'commentNotify'].includes(key)) return 'discussion';
+  if (['permalinkStructure'].includes(key)) return 'permalinks';
+  if (['blogPublic', 'defaultOgImage', 'twitterSite'].includes(key)) return 'seo';
+  if (['homepageType', 'homepageId', 'postsPerPage'].includes(key)) return 'reading';
+  if (['languages', 'siteLanguage'].includes(key)) return 'languages';
+  if (['menus', 'menuLocations', 'widgets', 'activeTheme', 'themeMods', 'additionalCss'].includes(key)) return 'appearance';
+  return 'general';
 }

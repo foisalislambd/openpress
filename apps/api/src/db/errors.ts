@@ -11,3 +11,7 @@ export function isUniqueViolation(error: unknown) {
 export function isForeignKeyViolation(error: unknown) {
   return pgCode(error) === '23503';
 }
+
+export function isUndefinedTable(error: unknown) {
+  return pgCode(error) === '42P01';
+}

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Put, Query, UseGuards } from '@nestjs/common';
 import { IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { I18nService } from './i18n.service';
 
 class StringDto {
@@ -26,22 +26,22 @@ export class I18nController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   catalog(@Query('locale') locale?: string) {
     return this.i18n.catalog(locale);
   }
 
   @Put()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   upsert(@Body() dto: StringDto) {
     return this.i18n.upsert(dto.locale, dto.key, dto.value);
   }
 
   @Delete()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   remove(@Query('locale') locale: string, @Query('key') key: string) {
     return this.i18n.remove(locale, key);
   }

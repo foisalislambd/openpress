@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { IsArray, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { WebhooksService } from './webhooks.service';
 
 class WebhookDto {
@@ -18,8 +18,8 @@ class WebhookDto {
 }
 
 @Controller('webhooks')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@UseGuards(JwtAuthGuard, CapabilitiesGuard)
+@RequireCaps('manage_options')
 export class WebhooksController {
   constructor(private webhooks: WebhooksService) {}
 

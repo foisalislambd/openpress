@@ -1,7 +1,16 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Allow, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { SettingsService } from './settings.service';
+
+class OptionDto {
+  @IsString()
+  key!: string;
+
+  @Allow()
+  value!: unknown;
+}
 
 @Controller('settings')
 export class SettingsController {
@@ -13,9 +22,23 @@ export class SettingsController {
     return this.settings.getAll();
   }
 
+  @Get('registry')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
+  registry() {
+    return this.settings.definitions();
+  }
+
+  @Put('option')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
+  setOption(@Body() dto: OptionDto) {
+    return this.settings.setRegistered(dto.key, dto.value);
+  }
+
   @Put()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
   update(@Body() values: Record<string, unknown>) {
     return this.settings.updateMany(values);
   }

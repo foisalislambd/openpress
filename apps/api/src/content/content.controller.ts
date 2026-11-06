@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  BadRequestException,
   ForbiddenException,
   Put,
   Query,
@@ -15,10 +16,12 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { can } from '../auth/capabilities';
+import { CapabilitiesService } from '../auth/capabilities.service';
+import { serializeBlocks, validateBlocks } from '../blocks/block-document';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { ContentService } from './content.service';
 import { IsString, Matches } from 'class-validator';
+import { IsArray } from 'class-validator';
 import {
   AutosaveDto,
   CreateContentDto,
@@ -34,9 +37,17 @@ class TranslationDto {
   locale!: string;
 }
 
+class BlocksDto {
+  @IsArray()
+  blocks!: unknown[];
+}
+
 @Controller('content')
 export class ContentController {
-  constructor(private content: ContentService) {}
+  constructor(
+    private content: ContentService,
+    private caps: CapabilitiesService,
+  ) {}
 
   @Get('public')
   publicList(@Query() query: QueryContentDto) {
@@ -59,17 +70,26 @@ export class ContentController {
     return this.content.findOne(id, true, unlock);
   }
 
+  @Post('blocks/render')
+  @UseGuards(JwtAuthGuard)
+  async renderBlocks(@Body() dto: BlocksDto, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
+    const validated = validateBlocks(dto.blocks);
+    if (!validated.ok) throw new BadRequestException(validated.errors[0] ?? 'Invalid blocks');
+    return { blocks: validated.blocks, html: serializeBlocks(validated.blocks) };
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@Query() query: QueryContentDto, @CurrentUser() user: JwtPayload) {
-    this.assertLibrary(user);
+  async findAll(@Query() query: QueryContentDto, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
     return this.content.findAll(query);
   }
 
   @Get(':id/autosave')
   @UseGuards(JwtAuthGuard)
-  getAutosave(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    this.assertLibrary(user);
+  async getAutosave(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
     return this.content.getAutosave(id, user);
   }
 
@@ -81,8 +101,8 @@ export class ContentController {
 
   @Get(':id/meta')
   @UseGuards(JwtAuthGuard)
-  meta(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    this.assertLibrary(user);
+  async meta(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
     return this.content.listMeta(id);
   }
 
@@ -100,15 +120,15 @@ export class ContentController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    this.assertLibrary(user);
+  async findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
     return this.content.findOne(id);
   }
 
   @Get(':id/revisions')
   @UseGuards(JwtAuthGuard)
-  revisions(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    this.assertLibrary(user);
+  async revisions(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    await this.assertLibrary(user);
     return this.content.revisions(id);
   }
 
@@ -150,9 +170,8 @@ export class ContentController {
     return this.content.remove(id, user);
   }
 
-  private assertLibrary(user: JwtPayload) {
-    if (!can(user.role, 'edit_posts') && !can(user.role, 'edit_pages')) {
-      throw new ForbiddenException('You cannot view the content library');
-    }
+  private async assertLibrary(user: JwtPayload) {
+    const allowed = await this.caps.allowsAny(user.sub, ['edit_posts', 'edit_pages']);
+    if (!allowed) throw new ForbiddenException('You cannot view the content library');
   }
 }

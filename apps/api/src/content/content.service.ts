@@ -9,7 +9,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import slugify from 'slugify';
-import { can, publishCapability } from '../auth/capabilities';
+import { publishCapability } from '../auth/capabilities';
+import { CapabilitiesService } from '../auth/capabilities.service';
+import { validateBlocks } from '../blocks/block-document';
+import { buildContentQuery, ContentQueryError, ContentQueryInput } from './content-query';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { Db, DbService } from '../db/db.service';
 import { isUniqueViolation } from '../db/errors';
@@ -87,6 +90,7 @@ export class ContentService {
     private registry: ExtensionRegistry,
     private settings: SettingsService,
     private modeling: ModelingService,
+    private caps: CapabilitiesService,
     config: ConfigService,
   ) {
     this.unlockSecret = config.get<string>('JWT_SECRET') ?? 'openpress-dev-secret';
@@ -94,14 +98,19 @@ export class ContentService {
 
   async findAll(query: QueryContentDto, publicOnly = false) {
     const shaped = publicOnly ? await this.shapePublicQuery(query) : query;
-    const page = positiveInt(shaped.page, 1);
-    const perPage = Math.min(50, positiveInt(shaped.perPage, 10));
-    const { where, params } = this.filters(shaped, publicOnly);
+    const filtered = await this.hooks.applyFilters('content.query', this.toQueryInput(shaped, publicOnly));
+    const request = filtered && typeof filtered === 'object' ? (filtered as ContentQueryInput) : this.toQueryInput(shaped, publicOnly);
+    if (publicOnly) request.publicOnly = true;
+    let built;
+    try {
+      built = buildContentQuery(request);
+    } catch (error) {
+      if (error instanceof ContentQueryError) throw new BadRequestException(error.message);
+      throw error;
+    }
+    const { where, params, order, page, perPage } = built;
     const limit = params.length + 1;
     const offset = params.length + 2;
-    const order = publicOnly
-      ? `ORDER BY c.sticky DESC, c."publishedAt" DESC NULLS LAST, c."createdAt" DESC`
-      : `ORDER BY c."publishedAt" DESC NULLS FIRST, c."createdAt" DESC`;
     const [rows, totalRow] = await Promise.all([
       this.db.query<ContentRow>(
         `SELECT ${CONTENT_COLUMNS},
@@ -157,9 +166,9 @@ export class ContentService {
   async create(dto: CreateContentDto, user: JwtPayload) {
     const resolved = await this.resolvedPostType(dto.type ?? 'POST', dto.postType);
     const type = resolved.type;
-    this.assertCanCreate(user, type);
+    await this.assertCanCreate(user, type);
     const status = dto.status ?? 'DRAFT';
-    this.assertCanSetStatus(user, status, type);
+    await this.assertCanSetStatus(user, status, type);
     if (status === 'SCHEDULED' && !dto.scheduledAt) {
       throw new BadRequestException('scheduledAt is required to schedule');
     }
@@ -217,14 +226,14 @@ export class ContentService {
 
   async update(id: string, dto: UpdateContentDto, user: JwtPayload) {
     const existing = await this.findOne(id);
-    this.assertCanEdit(user, existing);
+    await this.assertCanEdit(user, existing);
     if (dto.type === 'PAGE' || existing.type === 'PAGE') {
-      if (!can(user.role, 'edit_pages')) {
+      if (!await this.caps.allows(user.sub, 'edit_pages')) {
         throw new ForbiddenException('Only editors and admins can edit pages');
       }
     }
     const nextStatus = dto.status ?? existing.status;
-    if (dto.status) this.assertCanSetStatus(user, dto.status, dto.type ?? existing.type);
+    if (dto.status) await this.assertCanSetStatus(user, dto.status, dto.type ?? existing.type);
     if (nextStatus === 'SCHEDULED' && !dto.scheduledAt && !existing.scheduledAt) {
       throw new BadRequestException('scheduledAt is required to schedule');
     }
@@ -303,7 +312,7 @@ export class ContentService {
 
   async remove(id: string, user: JwtPayload) {
     const existing = await this.findOne(id);
-    this.assertCanDelete(user, existing);
+    await this.assertCanDelete(user, existing);
     const removed = await this.db.one(
       `DELETE FROM contents WHERE id = $1
        RETURNING id, type, status, title, slug`,
@@ -330,7 +339,7 @@ export class ContentService {
 
   async restoreRevision(contentId: string, revisionId: string, user: JwtPayload) {
     const existing = await this.findOne(contentId);
-    this.assertCanEdit(user, existing);
+    await this.assertCanEdit(user, existing);
     const revision = await this.db.one<{ title: string; blocks: unknown }>(
       `SELECT title, blocks FROM revisions WHERE id = $1 AND "contentId" = $2`,
       [revisionId, contentId],
@@ -355,7 +364,7 @@ export class ContentService {
 
   async autosave(contentId: string, dto: AutosaveDto, user: JwtPayload) {
     const existing = await this.findOne(contentId);
-    this.assertCanEdit(user, existing);
+    await this.assertCanEdit(user, existing);
     const blocks = await this.filterBlocks(dto.blocks, user, contentId);
     await this.db.query(
       `INSERT INTO autosaves (id, "contentId", "authorId", title, blocks, excerpt, "updatedAt")
@@ -379,7 +388,7 @@ export class ContentService {
 
   async upsertMeta(contentId: string, key: string, value: unknown, user: JwtPayload) {
     const existing = await this.findOne(contentId);
-    this.assertCanEdit(user, existing);
+    await this.assertCanEdit(user, existing);
     if (!META_KEY.test(key)) {
       throw new BadRequestException('Meta keys must start with a letter and use letters, numbers, or underscores');
     }
@@ -396,7 +405,7 @@ export class ContentService {
 
   async deleteMeta(contentId: string, key: string, user: JwtPayload) {
     const existing = await this.findOne(contentId);
-    this.assertCanEdit(user, existing);
+    await this.assertCanEdit(user, existing);
     await this.db.query(
       'DELETE FROM content_meta WHERE "contentId" = $1 AND "metaKey" = $2',
       [contentId, key],
@@ -420,6 +429,16 @@ export class ContentService {
       await this.hooks.doAction('content.published', content);
     }
     return rows.length;
+  }
+
+  async purgeStale() {
+    const trashed = await this.db.query(
+      `DELETE FROM contents WHERE status = 'TRASHED' AND "updatedAt" < now() - interval '30 days' RETURNING id`,
+    );
+    const autosaves = await this.db.query(
+      `DELETE FROM autosaves WHERE "updatedAt" < now() - interval '7 days' RETURNING id`,
+    );
+    return { trashed: trashed.length, autosaves: autosaves.length };
   }
 
   private async presentPublic(
@@ -493,7 +512,10 @@ export class ContentService {
     if (!Array.isArray(filtered)) {
       throw new BadRequestException('content.blocks filter must return an array');
     }
-    return filtered;
+    const extra = this.registry.blocksForEditor().map((block) => block.name);
+    const validated = validateBlocks(filtered, extra);
+    if (!validated.ok) throw new BadRequestException(validated.errors[0] ?? 'Invalid blocks');
+    return validated.blocks;
   }
 
   private async passwordForWrite(
@@ -515,7 +537,7 @@ export class ContentService {
 
   async createTranslation(id: string, locale: string, user: JwtPayload) {
     const existing = await this.findOne(id);
-    this.assertCanEdit(user, existing);
+    await this.assertCanEdit(user, existing);
     const normalized = locale.trim().toLowerCase();
     if (!/^[a-z]{2}(-[a-z0-9]{2,8})?$/.test(normalized)) {
       throw new BadRequestException('Locale looks like en or en-gb');
@@ -598,122 +620,84 @@ export class ContentService {
     });
   }
 
-  private assertCanCreate(user: JwtPayload, type: string) {
+  private async assertCanCreate(user: JwtPayload, type: string) {
     if (type === 'PAGE') {
-      if (!can(user.role, 'edit_pages')) {
+      if (!await this.caps.allows(user.sub, 'edit_pages')) {
         throw new ForbiddenException('Only editors and admins can create pages');
       }
       return;
     }
-    if (!can(user.role, 'edit_posts')) {
+    if (!await this.caps.allows(user.sub, 'edit_posts')) {
       throw new ForbiddenException('You cannot create posts');
     }
   }
 
-  private assertCanEdit(user: JwtPayload, existing: { type: string; authorId: string }) {
+  private async assertCanEdit(user: JwtPayload, existing: { type: string; authorId: string }) {
     if (existing.type === 'PAGE') {
-      if (!can(user.role, 'edit_pages')) {
+      if (!await this.caps.allows(user.sub, 'edit_pages')) {
         throw new ForbiddenException('Only editors and admins can edit pages');
       }
       return;
     }
-    if (!can(user.role, 'edit_posts')) {
+    if (!await this.caps.allows(user.sub, 'edit_posts')) {
       throw new ForbiddenException('You cannot edit posts');
     }
-    if (existing.authorId !== user.sub && !can(user.role, 'edit_others_posts')) {
+    if (existing.authorId !== user.sub && !await this.caps.allows(user.sub, 'edit_others_posts')) {
       throw new ForbiddenException('You can only edit your own content');
     }
   }
 
-  private assertCanDelete(user: JwtPayload, existing: { type: string; authorId: string }) {
+  private async assertCanDelete(user: JwtPayload, existing: { type: string; authorId: string }) {
     if (existing.type === 'PAGE') {
-      if (!can(user.role, 'delete_pages')) {
+      if (!await this.caps.allows(user.sub, 'delete_pages')) {
         throw new ForbiddenException('Only editors and admins can delete pages');
       }
       return;
     }
-    if (existing.authorId !== user.sub && !can(user.role, 'delete_others_posts')) {
+    if (existing.authorId !== user.sub && !await this.caps.allows(user.sub, 'delete_others_posts')) {
       throw new ForbiddenException('You can only delete your own content');
     }
-    if (!can(user.role, 'delete_posts') && !can(user.role, 'delete_others_posts')) {
+    if (!await this.caps.allows(user.sub, 'delete_posts') && !await this.caps.allows(user.sub, 'delete_others_posts')) {
       throw new ForbiddenException('You cannot delete posts');
     }
   }
 
-  private assertCanSetStatus(user: JwtPayload, status: string, type: string) {
+  private async assertCanSetStatus(user: JwtPayload, status: string, type: string) {
     if (status === 'PUBLISHED' || status === 'SCHEDULED') {
-      if (!can(user.role, publishCapability(type))) {
+      if (!await this.caps.allows(user.sub, publishCapability(type))) {
         throw new ForbiddenException('You do not have permission to publish');
       }
     }
   }
 
-  private filters(query: QueryContentDto, publicOnly: boolean) {
-    const clauses: string[] = [];
-    const params: unknown[] = [];
-    const add = (clause: string, ...values: unknown[]) => {
-      let sql = clause;
-      for (const value of values) {
-        params.push(value);
-        sql = sql.replace('$?', () => `$${params.length}`);
-      }
-      clauses.push(sql);
-    };
-
-    if (query.type) add('c.type = $?::"ContentType"', query.type);
-    if (query.postType) add('c."postType" = $?', query.postType);
-    else if (query.type === 'POST') add(`c."postType" = 'post'`);
-    if (query.locale) add('c.locale = $?', query.locale);
-    if (publicOnly) {
-      add(`c.status = 'PUBLISHED'`);
-      add(`c.visibility IN ('PUBLIC', 'PASSWORD')`);
-    } else if (query.status) add('c.status = $?::"ContentStatus"', query.status);
-    else add(`c.status <> 'TRASHED'`);
-
-    if (query.search) {
-      const like = `%${query.search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-      const text = query.search.replace(/[^\p{L}\p{N}\s]+/gu, ' ').trim();
-      if (text) {
-        add(
-          `(c.title ILIKE $? ESCAPE '\\' OR c.excerpt ILIKE $? ESCAPE '\\'
-            OR to_tsvector('english', coalesce(c.title, '') || ' ' || coalesce(c.excerpt, ''))
-               @@ plainto_tsquery('english', $?))`,
-          like,
-          like,
-          text,
-        );
-      } else {
-        add(
-          `(c.title ILIKE $? ESCAPE '\\' OR c.excerpt ILIKE $? ESCAPE '\\')`,
-          like,
-          like,
-        );
-      }
-    }
-    if (query.category) {
-      add(
-        `EXISTS (
-           SELECT 1 FROM "_ContentCategories" cc
-           JOIN categories cat ON cat.id = cc."A"
-           WHERE cc."B" = c.id AND cat.slug = $?
-         )`,
-        query.category,
-      );
-    }
-    if (query.tag) {
-      add(
-        `EXISTS (
-           SELECT 1 FROM "_ContentTags" ct
-           JOIN tags tag ON tag.id = ct."B"
-           WHERE ct."A" = c.id AND tag.slug = $?
-         )`,
-        query.tag,
-      );
-    }
-
+  private toQueryInput(query: QueryContentDto, publicOnly: boolean): ContentQueryInput {
+    const meta = query.metaKey
+      ? [{
+          key: query.metaKey,
+          value: parseMetaValue(query.metaValue),
+          compare: query.metaCompare ?? (query.metaValue === undefined ? 'exists' : 'eq'),
+        }]
+      : [];
     return {
-      where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
-      params,
+      type: query.type,
+      postType: query.postType,
+      constrainBuiltinPosts: !query.postType && query.type === 'POST',
+      locale: query.locale,
+      status: query.status,
+      visibility: query.visibility,
+      authorId: query.authorId,
+      search: query.search,
+      category: query.category,
+      tag: query.tag,
+      meta,
+      after: query.after,
+      before: query.before,
+      orderBy: query.orderBy as ContentQueryInput['orderBy'],
+      order: query.order === 'ASC' ? 'ASC' : query.order === 'DESC' ? 'DESC' : undefined,
+      sticky: query.sticky === 'only' || query.sticky === 'exclude' ? query.sticky : undefined,
+      publicOnly,
+      page: query.page,
+      perPage: query.perPage,
     };
   }
 
@@ -881,11 +865,6 @@ export class ContentService {
   }
 }
 
-function positiveInt(value: string | undefined, fallback: number) {
-  const parsed = Number(value ?? fallback);
-  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
-  return Math.floor(parsed);
-}
 
 function group<T extends { contentId: string }>(rows: T[]) {
   const map = new Map<string, Omit<T, 'contentId'>[]>();
@@ -896,4 +875,16 @@ function group<T extends { contentId: string }>(rows: T[]) {
     map.set(contentId, list);
   }
   return map;
+}
+
+function parseMetaValue(value: string | undefined) {
+  if (value === undefined) return undefined;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  if (value === 'null') return null;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value);
+  if ((value.startsWith('{') && value.endsWith('}')) || (value.startsWith('[') && value.endsWith(']'))) {
+    try { return JSON.parse(value); } catch { return value; }
+  }
+  return value;
 }
