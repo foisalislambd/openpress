@@ -6,6 +6,8 @@ import { commentDepth, threadComments } from '../src/comments/comment-thread';
 import { themeFileError } from '../src/themes/theme-files';
 import { skippedIntervals } from '../src/cron/cron-schedule';
 import { serializeBlocks, validateBlocks } from '../src/blocks/block-document';
+import { compileJsonCatalog, compileMo, parsePo, readMoHeader } from '../src/i18n/po';
+import { pdfPreviewArgs } from '../src/media/pdf-preview';
 
 describe('plugin activation order', () => {
   it('loads dependencies first and refuses a cycle', () => {
@@ -69,6 +71,24 @@ describe('cron catch-up', () => {
     const now = new Date(start.getTime() + 5 * 60_000);
     assert.equal(skippedIntervals(start, 60, now), 5);
     assert.equal(skippedIntervals(start, 60, new Date(start.getTime() + 30_000)), 0);
+  });
+});
+
+describe('gettext compile', () => {
+  it('parses a po file into json and a mo header', () => {
+    const messages = parsePo('msgid "Hello"\nmsgstr "Bonjour"\n');
+    assert.equal(messages[0]?.msgstr[0], 'Bonjour');
+    const json = compileJsonCatalog('fr', 'openpress', messages);
+    assert.equal(json.translations['']?.Hello?.msgstr[0], 'Bonjour');
+    const mo = compileMo(messages);
+    assert.equal(readMoHeader(mo)?.magic, 0x950412de);
+    assert.equal((readMoHeader(mo)?.count ?? 0) >= 1, true);
+  });
+});
+
+describe('pdf thumbnails', () => {
+  it('asks poppler for the first page only', () => {
+    assert.deepEqual(pdfPreviewArgs('/tmp/a.pdf', '/tmp/a-pdf'), ['-png', '-f', '1', '-l', '1', '-singlefile', '-scale-to', '1024', '/tmp/a.pdf', '/tmp/a-pdf']);
   });
 });
 

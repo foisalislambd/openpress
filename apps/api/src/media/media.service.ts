@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { execFile } from 'child_process';
 import { unlink } from 'fs/promises';
+import { promisify } from 'util';
 import { basename, extname, join } from 'path';
 import sharp from 'sharp';
 import { DbService } from '../db/db.service';
@@ -9,6 +11,9 @@ import { enqueue } from '../jobs/queue';
 import { clampCrop, plannedSizes, SizeSpec } from './image-sizes';
 import { publishObject, publicUrlFor, removeObject, storageDriver } from './storage';
 import { currentSiteId } from '../sites/site-context';
+import { pdfPreviewArgs } from './pdf-preview';
+
+const execFileAsync = promisify(execFile);
 
 const MEDIA_COLUMNS = `m.id, m.filename, m.url, m."mimeType", m.size, m.width, m.height,
   m.alt, m.caption, m.sizes, m."focalX", m."focalY", m."storageKey", m."uploaderId", m."createdAt"`;
@@ -208,6 +213,7 @@ export class MediaService {
 
   private async derivatives(path: string, filename: string, mimeType: string) {
     const originalUrl = await publishObject(filename, path, mimeType).catch(() => publicUrlFor(filename));
+    if (mimeType === 'application/pdf') return this.pdfThumbnail(path, filename, originalUrl);
     if (!RASTER.has(mimeType)) return { width: null as number | null, height: null as number | null, sizes: {}, url: originalUrl };
     try {
       const image = sharp(path, { animated: false });
@@ -238,6 +244,35 @@ export class MediaService {
       return { width, height, sizes, url: originalUrl };
     } catch (error) {
       this.logger.warn(`Could not build image sizes for ${filename}: ${error}`);
+      return { width: null, height: null, sizes: {}, url: originalUrl };
+    }
+  }
+
+  private async pdfThumbnail(path: string, filename: string, originalUrl: string) {
+    const stem = basename(filename, extname(filename));
+    const prefix = this.filePath(`${stem}-pdf`);
+    try {
+      await execFileAsync('pdftoppm', pdfPreviewArgs(path, prefix));
+      const rendered = `${prefix}.png`;
+      const thumbName = `${stem}-thumbnail.png`;
+      const thumbPath = this.filePath(thumbName);
+      const info = await sharp(rendered).resize({ width: 150, withoutEnlargement: true }).png().toFile(thumbPath);
+      await unlink(rendered).catch(() => {});
+      return {
+        width: info.width,
+        height: info.height,
+        sizes: {
+          thumbnail: {
+            url: await publishObject(thumbName, thumbPath, 'image/png'),
+            width: info.width,
+            height: info.height,
+            filename: thumbName,
+          },
+        },
+        url: originalUrl,
+      };
+    } catch (error) {
+      this.logger.warn(`Could not render a PDF thumbnail for ${filename}: ${error}`);
       return { width: null, height: null, sizes: {}, url: originalUrl };
     }
   }

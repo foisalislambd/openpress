@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DbService } from '../db/db.service';
 import { GettextEntry, translate } from './gettext';
+import { compileJsonCatalog, compileMo, parsePo } from './po';
 
 @Injectable()
 export class I18nService {
@@ -60,6 +61,29 @@ export class I18nService {
       [locale, domain, context, msgid, input.msgidPlural ?? '', input.msgstr ?? '', input.msgstrPlural ?? ''],
     );
     return { locale, domain, context, msgid };
+  }
+
+  async compilePo(locale: string, domain: string, source: string) {
+    if (source.length > 500_000) throw new BadRequestException('That catalog is too large');
+    const messages = parsePo(source);
+    for (const message of messages) {
+      if (!message.msgid) continue;
+      await this.saveMessage({
+        locale,
+        domain,
+        context: message.context,
+        msgid: message.msgid,
+        msgidPlural: message.msgidPlural,
+        msgstr: message.msgstr[0] ?? '',
+        msgstrPlural: message.msgstr[1] ?? '',
+      });
+    }
+    const json = compileJsonCatalog(locale, domain, messages);
+    return {
+      imported: messages.filter((message) => message.msgid).length,
+      json,
+      moBase64: compileMo(messages).toString('base64'),
+    };
   }
 
   async translate(query: { locale: string; msgid: string; domain?: string; context?: string; count?: number }) {

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Core depth: meta and tax query groups, term and comment meta, transients, comment and widget HTML allow-list, post edit locks, and a multisite foundation (sites table, site options, per-site content)
 - Network admin and per-site roles, a block canvas in the editor, and drag-and-drop menus
 - Parity depth: richer blocks, plugin dependency order, safe theme files, gettext messages, comment threads, attachment terms, and cron catch-up
+- Block list view, undo, and copy/paste; `.po` compile to JSON and `.mo`; PDF page thumbnails
 
 ### Changed
 

@@ -243,6 +243,7 @@ export function LanguagesScreen() {
   const { settings, setSettings, save, saved } = useSettingsForm();
   const [rows, setRows] = useState<{ locale: string; key: string; value: string }[]>([]);
   const [messages, setMessages] = useState<{ locale: string; domain: string; context: string; msgid: string; msgstr: string; msgstrPlural: string }[]>([]);
+  const [poNote, setPoNote] = useState('');
   const [locale, setLocale] = useState('en');
   const [keyName, setKeyName] = useState('nav.search');
   const [value, setValue] = useState('');
@@ -296,6 +297,24 @@ export function LanguagesScreen() {
         <Input name="msgstrPlural" placeholder="plural translation" aria-label="Plural translation" />
         <Button type="submit">Save message</Button>
       </form>
+      <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={async (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        const file = data.get('po');
+        const source = file instanceof File ? await file.text() : '';
+        const result = await api<{ imported: number; json: unknown }>(`/i18n/compile`, {
+          method: 'POST',
+          body: JSON.stringify({ locale: String(data.get('polocale') ?? 'en'), domain: String(data.get('podomain') ?? 'openpress'), source }),
+        });
+        setMessages(await api('/i18n/messages'));
+        setPoNote(`Imported ${result.imported} messages and compiled JSON plus a .mo file.`);
+      }}>
+        <Input name="polocale" defaultValue="en" aria-label="PO locale" />
+        <Input name="podomain" defaultValue="openpress" aria-label="PO domain" />
+        <input name="po" type="file" accept=".po,text/plain" aria-label="PO file" />
+        <Button type="submit">Compile .po</Button>
+      </form>
+      {poNote ? <p className="mb-2 text-[13px]">{poNote}</p> : null}
       <ul>
         {messages.map((row) => (
           <li key={`${row.locale}:${row.domain}:${row.context}:${row.msgid}`}>
@@ -453,9 +472,14 @@ export function MediaEditScreen({ id }: { id: string }) {
     <Screen title="Edit media">
       {message ? <Notice kind="success">{message}</Notice> : null}
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-        {media.mimeType.startsWith('image/') ? (
+        {media.mimeType.startsWith('image/') || media.sizes?.thumbnail?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={media.url} alt={media.alt ?? ''} style={{ objectPosition: `${(media.focalX ?? 0.5) * 100}% ${(media.focalY ?? 0.5) * 100}%` }} className="w-full object-cover" />
+          <img
+            src={media.mimeType.startsWith('image/') ? media.url : media.sizes?.thumbnail?.url}
+            alt={media.alt ?? ''}
+            style={{ objectPosition: `${(media.focalX ?? 0.5) * 100}% ${(media.focalY ?? 0.5) * 100}%` }}
+            className="w-full object-cover"
+          />
         ) : null}
         <form onSubmit={save} className="space-y-2">
           <Label>Alt text</Label>

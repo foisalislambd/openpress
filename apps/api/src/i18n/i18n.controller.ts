@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
@@ -66,6 +66,13 @@ export class I18nController {
   @RequireCaps('manage_options')
   messages(@Query('locale') locale?: string) {
     return this.i18n.messages(locale);
+  }
+
+  @Post('compile')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_options')
+  compile(@Body() body: { locale?: string; domain?: string; source?: string }) {
+    return this.i18n.compilePo(body.locale || 'en', body.domain || 'openpress', String(body.source ?? ''));
   }
 
   @Put('messages')
