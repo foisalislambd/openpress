@@ -91,6 +91,30 @@ export function CustomizeScreen() {
               })
             }
           />
+          <Label>Background</Label>
+          <Input
+            className="mb-3"
+            value={String((settings?.themeMods as { background?: string } | undefined)?.background ?? '')}
+            onChange={(e) =>
+              settings &&
+              setSettings({
+                ...settings,
+                themeMods: { ...((settings.themeMods as object) ?? {}), background: e.target.value },
+              })
+            }
+          />
+          <Label>Font</Label>
+          <Input
+            className="mb-3"
+            value={String((settings?.themeMods as { font?: string } | undefined)?.font ?? '')}
+            onChange={(e) =>
+              settings &&
+              setSettings({
+                ...settings,
+                themeMods: { ...((settings.themeMods as object) ?? {}), font: e.target.value },
+              })
+            }
+          />
           <Label>Additional CSS</Label>
           <Textarea
             className="mb-3 font-mono"
@@ -277,12 +301,69 @@ export function MenusScreen() {
   );
 }
 
+export function ThemeFileEditor() {
+  const [files, setFiles] = useState<{ 'style.css': string; 'theme.json': string } | null>(null);
+  const [name, setName] = useState<'style.css' | 'theme.json'>('style.css');
+  const [source, setSource] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<{ 'style.css': string; 'theme.json': string }>('/settings/theme-files')
+      .then((loaded) => {
+        setFiles(loaded);
+        setSource(loaded['style.css']);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load theme files'));
+  }, []);
+
+  return (
+    <Screen title="Theme File Editor" help="These files are stored as site settings. Installed theme packages are signed and are not rewritten on disk.">
+      {message ? <Notice kind="success">{message}</Notice> : null}
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      <div className="mb-3 flex gap-2">
+        {(['style.css', 'theme.json'] as const).map((file) => (
+          <button
+            key={file}
+            type="button"
+            className={name === file ? 'font-semibold' : ''}
+            onClick={() => {
+              setName(file);
+              setSource(files?.[file] ?? '');
+            }}
+          >
+            {file}
+          </button>
+        ))}
+      </div>
+      <Textarea className="mb-3 font-mono" rows={16} value={source} onChange={(event) => setSource(event.target.value)} />
+      <Button
+        type="button"
+        onClick={async () => {
+          setError('');
+          try {
+            const next = await api<typeof files>('/settings/theme-files', {
+              method: 'PUT',
+              body: JSON.stringify({ name, source }),
+            });
+            setFiles(next);
+            setMessage(`${name} saved.`);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Could not save the file');
+          }
+        }}
+      >
+        Update file
+      </Button>
+    </Screen>
+  );
+}
+
 export function FileEditorDisabled({ kind }: { kind: 'theme' | 'plugin' }) {
   return (
     <Screen title={kind === 'theme' ? 'Theme File Editor' : 'Plugin File Editor'}>
       <Notice kind="error">
-        File editing is disabled. Themes and plugins are installed from zip files, the same way
-        WordPress behaves when DISALLOW_FILE_EDIT is set.
+        Plugin files are not edited in the browser. A plugin is a signed TypeScript package; changing its files here would skip the signature check. Deactivate it and install a new package instead. Theme CSS and theme.json are edited under Appearance → Theme File Editor, and those copies live in settings rather than inside the package.
       </Notice>
     </Screen>
   );

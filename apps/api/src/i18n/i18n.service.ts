@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DbService } from '../db/db.service';
+import { GettextEntry, translate } from './gettext';
 
 @Injectable()
 export class I18nService {
@@ -31,6 +32,39 @@ export class I18nService {
       [safeLocale, safeKey, value],
     );
     return { locale: safeLocale, key: safeKey, value };
+  }
+
+  async messages(locale?: string) {
+    return this.db.query<GettextEntry>(
+      `SELECT locale, domain, context, msgid, "msgidPlural" AS "msgidPlural", msgstr, "msgstrPlural" AS "msgstrPlural"
+       FROM gettext_entries
+       WHERE ($1::text IS NULL OR locale = $1)
+       ORDER BY locale, domain, msgid`,
+      [locale ?? null],
+    );
+  }
+
+  async saveMessage(input: GettextEntry) {
+    const locale = input.locale.trim().toLowerCase();
+    const domain = (input.domain || 'openpress').trim();
+    const context = (input.context || '').trim();
+    const msgid = input.msgid.trim();
+    if (!/^[a-z]{2}(-[a-z0-9]{2,8})?$/.test(locale)) throw new BadRequestException('Locale looks like en or en-gb');
+    if (!/^[a-z0-9_-]{1,40}$/.test(domain)) throw new BadRequestException('Invalid text domain');
+    if (!msgid || msgid.length > 500) throw new BadRequestException('msgid is required');
+    await this.db.query(
+      `INSERT INTO gettext_entries (locale, domain, context, msgid, "msgidPlural", msgstr, "msgstrPlural")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (locale, domain, context, msgid)
+       DO UPDATE SET "msgidPlural" = EXCLUDED."msgidPlural", msgstr = EXCLUDED.msgstr, "msgstrPlural" = EXCLUDED."msgstrPlural"`,
+      [locale, domain, context, msgid, input.msgidPlural ?? '', input.msgstr ?? '', input.msgstrPlural ?? ''],
+    );
+    return { locale, domain, context, msgid };
+  }
+
+  async translate(query: { locale: string; msgid: string; domain?: string; context?: string; count?: number }) {
+    const rows = await this.messages(query.locale);
+    return { text: translate(rows, query) };
   }
 
   async remove(locale: string, key: string) {

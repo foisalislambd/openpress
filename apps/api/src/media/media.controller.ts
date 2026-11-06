@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  Put,
   ForbiddenException,
   Get,
   Param,
@@ -153,6 +154,17 @@ export class MediaController {
     }
     if (!file) throw new BadRequestException('No file uploaded');
     return this.media.create(file, user.sub, alt);
+  }
+
+  @Get(':id/terms')
+  terms(@Param('id') id: string) {
+    return this.media.terms(id);
+  }
+
+  @Put(':id/terms')
+  async setTerms(@Param('id') id: string, @Body() body: { termIds?: string[] }, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) throw new ForbiddenException('You cannot edit files');
+    return this.media.setTerms(id, Array.isArray(body.termIds) ? body.termIds : []);
   }
 
   @Get(':id')

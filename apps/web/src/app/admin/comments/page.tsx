@@ -19,6 +19,8 @@ export default function CommentsPage() {
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [bulk, setBulk] = useState('APPROVED');
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [reply, setReply] = useState('');
 
   const load = useCallback(() => {
     api<Comment[]>('/comments')
@@ -120,6 +122,15 @@ export default function CommentsPage() {
         <tbody>
           {visible.map((comment) => {
             const name = comment.author?.name ?? comment.guestName ?? 'Anonymous';
+            let depth = 0;
+            let parent = comment.parentId ?? null;
+            const seen = new Set<string>();
+            while (parent) {
+              if (seen.has(parent)) break;
+              seen.add(parent);
+              depth += 1;
+              parent = comments.find((item) => item.id === parent)?.parentId ?? null;
+            }
             return (
               <tr key={comment.id}>
                 <td className="op-cb">
@@ -140,9 +151,12 @@ export default function CommentsPage() {
                   <strong>{name}</strong>
                   <div className="op-description">{comment.status.toLowerCase()}</div>
                 </td>
-                <td>
+                <td style={{ paddingLeft: 8 + depth * 16 }}>
+                  {depth > 0 ? <span className="op-description">Reply · </span> : null}
                   {comment.body}
                   <div className="op-row-actions">
+                    <button type="button" onClick={() => setReplyTo(comment.id)}>Reply</button>
+                    {' | '}
                     {comment.status === 'APPROVED' ? (
                       <button type="button" onClick={() => setStatus(comment.id, 'PENDING')}>
                         Unapprove
@@ -198,6 +212,26 @@ export default function CommentsPage() {
           ) : null}
         </tbody>
       </table>
+      {replyTo ? (
+        <form
+          className="op-postbox mt-4 p-3"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const target = comments.find((item) => item.id === replyTo);
+            if (!target || !reply.trim()) return;
+            await api('/comments', {
+              method: 'POST',
+              body: JSON.stringify({ contentId: target.contentId, parentId: target.id, body: reply.trim() }),
+            });
+            setReply('');
+            setReplyTo(null);
+            load();
+          }}
+        >
+          <label className="block text-[13px]">Reply<textarea className="mt-1 w-full border border-[#8c8f94] p-2" rows={3} value={reply} onChange={(event) => setReply(event.target.value)} /></label>
+          <Button type="submit" className="mt-2">Send reply</Button>
+        </form>
+      ) : null}
     </Screen>
   );
 }

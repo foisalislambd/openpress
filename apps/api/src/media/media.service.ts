@@ -277,6 +277,33 @@ export class MediaService {
     };
   }
 
+  async terms(mediaId: string) {
+    const media = await this.db.one('SELECT id FROM media WHERE id = $1 AND "siteId" = $2', [mediaId, currentSiteId()]);
+    if (!media) throw new NotFoundException('Media not found');
+    return this.db.query(
+      `SELECT t.id, t.name, t.slug, t.taxonomy
+       FROM media_terms mt JOIN terms t ON t.id = mt."termId"
+       WHERE mt."mediaId" = $1
+       ORDER BY t.name`,
+      [mediaId],
+    );
+  }
+
+  async setTerms(mediaId: string, termIds: string[]) {
+    const media = await this.db.one('SELECT id FROM media WHERE id = $1 AND "siteId" = $2', [mediaId, currentSiteId()]);
+    if (!media) throw new NotFoundException('Media not found');
+    const unique = [...new Set(termIds.filter((id) => typeof id === 'string' && id.length > 0))].slice(0, 40);
+    await this.db.tx(async (sql) => {
+      await sql.query('DELETE FROM media_terms WHERE "mediaId" = $1', [mediaId]);
+      for (const termId of unique) {
+        const term = await sql.one('SELECT id FROM terms WHERE id = $1 AND "siteId" = $2', [termId, currentSiteId()]);
+        if (!term) throw new BadRequestException('Unknown term');
+        await sql.query('INSERT INTO media_terms ("mediaId", "termId") VALUES ($1, $2) ON CONFLICT DO NOTHING', [mediaId, termId]);
+      }
+    });
+    return this.terms(mediaId);
+  }
+
   private async removeSizeFiles(sizes: Record<string, SizeFile> | null) {
     if (!sizes) return;
     for (const size of Object.values(sizes)) {

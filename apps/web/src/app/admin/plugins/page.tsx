@@ -14,6 +14,7 @@ interface PluginItem {
   loaded: boolean;
   permissions?: string[];
   requires?: { openpress?: string };
+  dependencies?: string[];
   allowedHosts?: string[];
   sandbox?: boolean;
   canRollback?: boolean;
@@ -216,6 +217,7 @@ export default function PluginsPage() {
                   Version {p.version}
                   {p.author ? ` | By ${p.author}` : ''} | {p.enabled ? 'Active' : 'Inactive'}
                   {p.requires?.openpress ? ` | Requires OpenPress ${p.requires.openpress}` : ''}
+                  {p.dependencies?.length ? ` | Depends on ${p.dependencies.join(', ')}` : ''}
                   <br />
                   Sandbox: {p.sandbox ? 'isolated process' : 'off'}
                   {' | '}

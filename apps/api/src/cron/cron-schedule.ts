@@ -1,5 +1,13 @@
 /** Pure scheduling rules for Postgres-backed cron. Redis is not required. */
 
+/** How many intervals were missed while the process was down. The next run is still one interval ahead, not a replay. */
+export function skippedIntervals(nextRunAt: Date, intervalSeconds: number, now: Date) {
+  const interval = Math.max(15, Math.floor(intervalSeconds));
+  const late = now.getTime() - nextRunAt.getTime();
+  if (late <= interval * 1000) return 0;
+  return Math.floor(late / (interval * 1000));
+}
+
 export function nextRun(from: Date, intervalSeconds: number) {
   const interval = Math.max(15, Math.floor(intervalSeconds));
   return new Date(from.getTime() + interval * 1000);

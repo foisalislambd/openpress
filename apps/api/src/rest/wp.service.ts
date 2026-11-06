@@ -121,6 +121,42 @@ export class WpService {
       },
     };
   }
+
+  async comments(contentId?: string) {
+    const rows = await this.db.query<{
+      id: string;
+      contentId: string;
+      body: string;
+      parentId: string | null;
+      createdAt: Date;
+      author: string | null;
+    }>(
+      `SELECT c.id, c."contentId", c.body, c."parentId", c."createdAt",
+              COALESCE(u.name, c."guestName") AS author
+       FROM comments c
+       LEFT JOIN users u ON u.id = c."authorId"
+       JOIN contents content ON content.id = c."contentId"
+       WHERE c.status = 'APPROVED' AND content."siteId" = $1
+         AND ($2::text IS NULL OR c."contentId" = $2)
+       ORDER BY c."createdAt" ASC
+       LIMIT 100`,
+      [currentSiteId(), contentId ?? null],
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      post: row.contentId,
+      parent: row.parentId ?? 0,
+      content: { rendered: row.body },
+      author_name: row.author ?? '',
+      date: row.createdAt,
+    }));
+  }
+
+  async users() {
+    return this.db.query(
+      `SELECT id, name, "avatarUrl" AS avatar_urls FROM users ORDER BY name ASC LIMIT 100`,
+    );
+  }
 }
 
 function toWpStatus(status: string): WpStatus {

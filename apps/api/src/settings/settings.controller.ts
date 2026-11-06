@@ -36,6 +36,20 @@ export class SettingsController {
     return this.settings.setRegistered(dto.key, dto.value);
   }
 
+  @Get('theme-files')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('edit_theme_options')
+  themeFiles() {
+    return this.settings.themeFiles();
+  }
+
+  @Put('theme-files')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('edit_theme_options')
+  saveThemeFile(@Body() body: { name?: string; source?: string }) {
+    return this.settings.saveThemeFile(String(body.name ?? ''), String(body.source ?? ''));
+  }
+
   @Put()
   @UseGuards(JwtAuthGuard, CapabilitiesGuard)
   @RequireCaps('manage_options')
