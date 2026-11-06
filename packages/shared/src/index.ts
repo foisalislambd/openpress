@@ -131,6 +131,7 @@ export interface Comment {
   guestName?: string | null;
   author?: Pick<User, 'id' | 'name' | 'avatarUrl'> | null;
   content?: Pick<Content, 'id' | 'title' | 'slug'>;
+  parentId?: string | null;
   replies?: Comment[];
   createdAt: string;
 }

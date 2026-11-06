@@ -24,20 +24,20 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core. Stat
 | Roles & capabilities | Done | Builtin roles live in `roles`. Custom roles, per-user grants and denies, and a role editor. A user's role is stored per site in `site_users`. Writes check the capability for the current site. Deny wins. A site administrator cannot be stripped. Network capabilities (`manage_network`, `manage_sites`, `manage_network_users`, `manage_network_options`) belong only to `networkAdmin`. | Better: a role on one site does not grant that role on another, and a site administrator is not a network administrator. |
 | Options / settings API | Done | Typed registry (string, number, boolean, JSON), autoload flag, validation, plugin `settings.register`. | No visual settings-field builder. Better: values are validated before they are stored. |
 | Content query | Done | `buildContentQuery` is the only SQL builder for lists used by REST, GraphQL, and themes. Type, post type, taxonomy, meta, status, date, search, and order are structured. Meta and tax groups support AND/OR, nested clauses, and category children. Public queries cannot ask for drafts, and the current site is forced after filters. | No `REGEXP` compares. Better: filters change the object, never the SQL string. |
-| Cron | Done | `cron_events` in Postgres: one-shot and recurring, row locks, backoff. Seeded publish, trash/autosave purge, and health beat. BullMQ remains for imports and image work when Redis is set. | No cron UI for every hook argument shape. Better: jobs survive without Redis. |
+| Cron | Done | `cron_events` in Postgres: one-shot and recurring, row locks, backoff, duplicate recurring hooks, and a one-year interval cap. An overdue job runs once and skips the missed intervals. Tools → Scheduled Events can run due events. BullMQ remains for imports and image work when Redis is set. | No visual calendar of every hook argument. Better: jobs survive without Redis and a long outage does not replay the backlog. |
 | Menus | Done | `nav_menus` / items / locations, scoped per site. Nested items, cycle checks, safe URLs. The Menus screen drags items to reorder them and nests an item when it is dropped to the right. | No live customizer preview of the drag. Better: a parent cycle cannot be stored. |
 | Widgets | Partial | Sidebar and footer instances. Core search, recent posts, categories, and text widgets render as data, not unsanitized HTML. | No customizer drag-and-drop. Better: core widgets are typed instead of PHP class instances. |
 | Rewrite rules | Partial | Registry with anchored patterns, conflict detection against the active permalink structure, and middleware rewrites. Dated permalinks still use the existing resolver. | Not a full `WP_Rewrite` tag map. Better: a rule that matches `/admin` or `/api` is rejected. |
 | Users & profile | Partial | User meta, staff-only `_` keys, user list filters by role, search, and capability. Application passwords, sessions, TOTP, and passkeys already exist. | No front-end membership product. |
-| Hooks | Partial | Plugins can register capabilities, settings, rewrite rules, and widgets from the sandbox, and adjust `content.query`. | No hook-reference screen. |
-| Block editor | Partial | The admin canvas inserts, edits, reorders, and nests the server block document (paragraph, heading, list, quote, image, code). `POST /api/content/blocks/render` validates and previews HTML. Unknown types are rejected. This is a usable editor on the OpenPress document model, not a Gutenberg clone. | No collaborative editing, pattern directory, or block styles sidebar matching Gutenberg. |
+| Hooks | Partial | Plugins can register capabilities, settings, rewrite rules, widgets, and blocks from the sandbox, and adjust `content.query`. Activation loads plugins in dependency order and refuses a cycle or a missing dependency. | No hook-reference screen. |
+| Block editor | Partial | The canvas inserts paragraph, heading, list, quote, image, code, separator, spacer, group, columns, button, and embed. Patterns insert from the pattern library. Reusable blocks are saved and inserted. Alt+Up and Alt+Down move the selected block. Preview HTML comes from the server document model. | No collaborative editing and no Gutenberg block-styles panel. Embeds render as links, not third-party iframes. |
 | Content modeling | Done | Custom post types, taxonomies, field groups, patterns, pending review, and term meta on categories, tags, and custom terms. | |
 | Permalinks | Done | Structure templates route through Next.js middleware, including year/month/name. | |
-| Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. | PDF thumbnails still missing. |
-| SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | Shipped in the CMS power pack. | Marketplace UI is intentionally out of this repository. |
+| Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. Attachment terms attach existing taxonomy terms to a file. Media settings name the generated widths. | PDF thumbnails still missing. |
+| SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | String catalog plus gettext messages (domain, context, plural). Comments thread to five levels and the moderation screen can reply. `/wp/v2` adds comments and users. GraphQL can list approved comments. Marketplace UI is intentionally out of this repository. | No `.po` file compiler. Plural rules cover one-form languages and the English two-form rule, not every CLDR formula. |
 | Multisite | Partial | `sites`, `site_options`, and `site_users`. Network admin lists sites, activates, deactivates, and deletes them, edits network settings, and reviews users. The admin switcher sends `X-OpenPress-Site`. Public pages follow the request host. | No separate database per site and no domain-mapping wizard. Roles are per site; users stay network-wide. |
-| Full Gutenberg UI | Missing | Not in this tranche. | The block document model is the base. |
-| PHP plugins / gettext `.po` | Missing | Out of scope. | The string catalog is the translation store. |
+| Full Gutenberg UI | Partial | The canvas covers the core blocks, patterns, and reusable blocks on the OpenPress document. | Not a block-library clone and not collaborative. |
+| PHP plugins / gettext `.po` | Missing | PHP stays out. Gettext messages are rows, not compiled `.po` files. | A `.po` import can sit on this table later. |
 
 ## Where OpenPress should beat WordPress
 
@@ -112,10 +112,22 @@ Migration `007_network_roles.sql` adds `users.networkAdmin` and `site_users`, an
 - Block canvas in the post and page editor: inserter, drag reorder, nesting, and a server-rendered preview.
 - Drag-and-drop menus. Dropping an item to the right nests it. The API rejects a cycle.
 
+### Shipped in the parity depth pass
+
+Migration `008_core_parity.sql` adds `gettext_entries`, `reusable_blocks`, and `media_terms`. Apply it with `pnpm db:migrate`.
+
+- Block canvas: more blocks, pattern insert, reusable blocks, and Alt+arrow moving.
+- Plugin packages activate in dependency order. A cycle or a missing dependency is refused. Plugins still register hooks, capabilities, settings, widgets, and blocks from the sandbox.
+- Theme File Editor writes `style.css` and `theme.json` into settings after a safety check. It does not rewrite a signed theme package. The customizer stores accent, background, and font with the additional CSS.
+- Gettext catalog: domain, context, and plural forms. `GET /api/i18n/gettext` resolves a message.
+- REST `/wp/v2/comments` and `/wp/v2/users`. GraphQL `comments(contentId)`.
+- Cron: duplicate recurring schedules are returned instead of inserted, intervals are capped, and a long outage skips missed runs instead of replaying them. The cron screen can run due events.
+- Media terms on an attachment. Comments nest to five levels, and the moderation screen can reply.
+
 ### Next runs
 
 1. **Marketplace UI** — browse a remote registry, one-click update from a URL, and theme signing. The local catalog and signature check are the contract that UI should call. This stays out of the product until the client decides.
 
 ### Explicitly later
 
-Per-site roles, a full network admin, the public plugin directory, automatic updates from a remote feed, a Gutenberg clone, and a PHP compatibility layer. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work. Full gettext catalogs and a visual theme-file editor are still open; the string catalog and template hierarchy are the foundation.
+The public plugin directory, automatic updates from a remote feed, a Gutenberg clone, compiled `.po` files, and a PHP compatibility layer stay out. The directory depends on the permission manifest above. Those are ecosystem problems, not a reason to skip the hook and manifest work.

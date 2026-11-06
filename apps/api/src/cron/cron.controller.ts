@@ -39,6 +39,11 @@ export class CronController {
     return this.cron.schedule(dto);
   }
 
+  @Post('run')
+  run() {
+    return this.cron.tick();
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.cron.unschedule(id);

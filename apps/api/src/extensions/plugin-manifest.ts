@@ -50,6 +50,8 @@ export interface PluginManifest {
   /** Semver range against OpenPress core, e.g. ">=0.1.0" or "^0.1.0". */
   requires?: { openpress?: string };
   permissions?: PluginPermission[];
+  /** Other plugin ids that must be active first. */
+  dependencies?: string[];
   /** Hosts ctx.http.fetch may call when network:request is declared. */
   allowedHosts?: string[];
 }
@@ -111,6 +113,13 @@ export function validatePluginManifest(manifest: PluginManifest) {
   for (const host of hosts) {
     if (typeof host !== 'string' || !/^[a-z0-9.*-]+$/i.test(host) || host.includes('..')) {
       throw new Error(`Invalid allowed host "${host}"`);
+    }
+  }
+  const dependencies = manifest.dependencies ?? [];
+  if (!Array.isArray(dependencies)) throw new Error('dependencies must be an array');
+  for (const dependency of dependencies) {
+    if (typeof dependency !== 'string' || !ID_RE.test(dependency)) {
+      throw new Error(`Invalid plugin dependency "${dependency}"`);
     }
   }
   const required = manifest.requires?.openpress;

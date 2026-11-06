@@ -9,6 +9,7 @@ import { newId } from '../db/ids';
 import { kses } from '../html/kses';
 import { currentSiteId } from '../sites/site-context';
 import { initialCommentStatus } from './comment-policy';
+import { MAX_COMMENT_DEPTH, commentDepth, threadComments } from './comment-thread';
 
 type CommentRow = {
   id: string;
@@ -67,12 +68,7 @@ export class CommentsService {
        ORDER BY c."createdAt" ASC`,
       [contentId, currentSiteId()],
     );
-    return rows
-      .filter((row) => row.parentId === null)
-      .map((row) => ({
-        ...row,
-        replies: rows.filter((reply) => reply.parentId === row.id),
-      }));
+    return threadComments(rows);
   }
 
   async create(data: {
@@ -127,6 +123,13 @@ export class CommentsService {
       );
       if (!parent || parent.contentId !== data.contentId) {
         throw new BadRequestException('Invalid parent comment');
+      }
+      const family = await this.db.query<{ id: string; parentId: string | null }>(
+        'SELECT id, "parentId" FROM comments WHERE "contentId" = $1',
+        [data.contentId],
+      );
+      if (commentDepth(family, data.parentId) > MAX_COMMENT_DEPTH) {
+        throw new BadRequestException(`Comments can be nested ${MAX_COMMENT_DEPTH} levels deep`);
       }
     }
     const comment = await this.db.one(

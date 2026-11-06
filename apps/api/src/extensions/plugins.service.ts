@@ -16,6 +16,7 @@ import { ExtensionRegistry } from './extension-registry';
 import { hashPackageFiles, SIGNATURE_FILE, verifyPackageHash, compareVersions, PackageSignature } from './package-signature';
 import { hostAllowed, PluginRegistration, SandboxHandle, startPluginSandbox } from './sandbox/plugin-sandbox';
 import { PluginManifest, PluginPermission, validatePluginManifest } from './plugin-manifest';
+import { pluginActivationOrder } from './plugin-order';
 import { CoreRegistry, optionType } from '../core/core-registry';
 import { TransientsService } from '../sites/transients.service';
 
@@ -56,17 +57,25 @@ export class PluginsService implements OnModuleInit {
 
   async onModuleInit() {
     if (!existsSync(PLUGINS_DIR)) mkdirSync(PLUGINS_DIR, { recursive: true });
-    const enabled = await this.enabledIds();
-    for (const id of this.installedIds()) {
-      if (enabled.includes(id)) {
-        try {
-          await this.load(id);
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          this.errors.set(id, message);
-          this.logger.error(`Failed to load plugin "${id}": ${message}`);
-        }
+    const enabled = new Set(await this.enabledIds());
+    const nodes = this.installedIds().map((id) => {
+      const manifest = this.readManifest(join(PLUGINS_DIR, id));
+      return { id, dependencies: manifest.dependencies ?? [], enabled: enabled.has(id) };
+    });
+    const plan = pluginActivationOrder(nodes);
+    for (const error of plan.errors) this.logger.error(error);
+    for (const id of plan.order) {
+      try {
+        await this.load(id);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        this.errors.set(id, message);
+        this.logger.error(`Failed to load plugin "${id}": ${message}`);
       }
+    }
+    for (const error of plan.errors) {
+      const id = error.split(' ')[0];
+      if (id && !this.errors.has(id)) this.errors.set(id, error);
     }
   }
 
@@ -176,6 +185,14 @@ export class PluginsService implements OnModuleInit {
     this.assertInstalled(id);
     const enabled = await this.enabledIds();
     const nowEnabled = !enabled.includes(id);
+    const manifests = this.installedIds().map((pluginId) => ({
+      id: pluginId,
+      dependencies: this.readManifest(join(PLUGINS_DIR, pluginId)).dependencies ?? [],
+      enabled: pluginId === id ? nowEnabled : enabled.includes(pluginId),
+    }));
+    const plan = pluginActivationOrder(manifests);
+    const problem = plan.errors.find((error) => error.startsWith(`${id} `) || error.includes(id));
+    if (problem) throw new BadRequestException(problem);
     await this.setEnabled(id, nowEnabled);
     if (nowEnabled) await this.load(id);
     else this.unload(id);

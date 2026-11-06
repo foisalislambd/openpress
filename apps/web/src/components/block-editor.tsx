@@ -20,6 +20,12 @@ const INSERTABLE = [
   { type: 'quote', label: 'Quote' },
   { type: 'image', label: 'Image' },
   { type: 'codeBlock', label: 'Code' },
+  { type: 'separator', label: 'Separator' },
+  { type: 'spacer', label: 'Spacer' },
+  { type: 'group', label: 'Group' },
+  { type: 'columns', label: 'Columns' },
+  { type: 'button', label: 'Button' },
+  { type: 'embed', label: 'Embed' },
 ] as const;
 
 function newId() {
@@ -41,7 +47,22 @@ function asBlocks(value: unknown[]): CanvasBlock[] {
 
 function blank(type: string): CanvasBlock {
   if (type === 'heading') return { id: newId(), type, props: { level: 2 }, content: [{ type: 'text', text: '', styles: {} }] };
-  if (type === 'image') return { id: newId(), type, props: { url: '', caption: '' }, content: [] };
+  if (type === 'image' || type === 'embed' || type === 'button') {
+    return { id: newId(), type, props: { url: '', caption: '', label: 'Button' }, content: [] };
+  }
+  if (type === 'spacer') return { id: newId(), type, props: { height: 32 }, content: [] };
+  if (type === 'separator') return { id: newId(), type, content: [] };
+  if (type === 'columns') {
+    return {
+      id: newId(),
+      type,
+      content: [],
+      children: [
+        { id: newId(), type: 'column', content: [{ type: 'text', text: '', styles: {} }] },
+        { id: newId(), type: 'column', content: [{ type: 'text', text: '', styles: {} }] },
+      ],
+    };
+  }
   return { id: newId(), type, content: [{ type: 'text', text: '', styles: {} }] };
 }
 
@@ -61,6 +82,30 @@ export function BlockEditor({
   useEffect(() => {
     onChange(blocks);
   }, [blocks, onChange]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (!selected) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        if (!(event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) return;
+      }
+      if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        event.preventDefault();
+        setBlocks((current) => {
+          const index = current.findIndex((block) => block.id === selected);
+          const nextIndex = event.key === 'ArrowUp' ? index - 1 : index + 1;
+          if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+          const next = [...current];
+          const [moved] = next.splice(index, 1);
+          next.splice(nextIndex, 0, moved);
+          return next;
+        });
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
 
   const previewKey = useMemo(() => JSON.stringify(blocks), [blocks]);
   useEffect(() => {
@@ -125,10 +170,34 @@ export function BlockEditor({
         <p className="mb-2 text-[11px] font-semibold uppercase text-[#646970]">Blocks</p>
         <div className="flex flex-col gap-1">
           {INSERTABLE.map((item) => (
-            <button key={item.type} type="button" className="px-2 py-1 text-left text-[13px] hover:bg-[#f0f0f1]" onClick={() => insert(item.type)}>
+            <button key={item.type} type="button" className="px-2 py-1 text-left text-[13px] hover:bg-[#f0f0f1]" aria-label={`Insert ${item.label}`} onClick={() => insert(item.type)}>
               {item.label}
             </button>
           ))}
+          <button
+            type="button"
+            className="px-2 py-1 text-left text-[13px] hover:bg-[#f0f0f1]"
+            onClick={async () => {
+              const patterns = await api<{ id: string; title: string; content: unknown[] }[]>('/modeling/patterns').catch(() => []);
+              const pattern = patterns.find((item) => Array.isArray(item.content) && item.content.length);
+              if (!pattern) return;
+              setBlocks((current) => [...current, ...asBlocks(pattern.content)]);
+            }}
+          >
+            Insert pattern
+          </button>
+          <button
+            type="button"
+            className="px-2 py-1 text-left text-[13px] hover:bg-[#f0f0f1]"
+            onClick={async () => {
+              const saved = await api<{ id: string; title: string; blocks: CanvasBlock[] }[]>('/blocks/reusable').catch(() => []);
+              const block = saved[0];
+              if (!block) return;
+              setBlocks((current) => [...current, { id: newId(), type: 'reusable', props: { ref: block.id }, children: asBlocks(block.blocks) }]);
+            }}
+          >
+            Reusable block
+          </button>
         </div>
       </aside>
       <div className="min-h-[420px] border border-[#c3c4c7] bg-white p-4">
@@ -206,6 +275,16 @@ export function BlockEditor({
                 Move nested blocks out
               </Button>
             ) : null}
+            <Button
+              type="button"
+              onClick={() => {
+                const title = window.prompt('Reusable block name');
+                if (!title || !active) return;
+                api('/blocks/reusable', { method: 'POST', body: JSON.stringify({ title, blocks: [active] }) }).catch(() => {});
+              }}
+            >
+              Save as reusable
+            </Button>
           </div>
         ) : (
           <p className="text-[#646970]">Select a block. Drag a block to reorder it. Drop it on the right side of another block to place it inside that block.</p>

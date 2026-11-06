@@ -60,6 +60,16 @@ export class WpController {
     return this.wp.tags();
   }
 
+  @Get('comments')
+  comments(@Query('post') post?: string) {
+    return this.wp.comments(post);
+  }
+
+  @Get('users')
+  users() {
+    return this.wp.users();
+  }
+
   @Get()
   index(@Req() req: Request) {
     const host = `${req.protocol}://${req.get('host')}`;
@@ -72,6 +82,8 @@ export class WpController {
         '/wp/v2/media': `${host}/api/wp/v2/media`,
         '/wp/v2/categories': `${host}/api/wp/v2/categories`,
         '/wp/v2/tags': `${host}/api/wp/v2/tags`,
+        '/wp/v2/comments': `${host}/api/wp/v2/comments`,
+        '/wp/v2/users': `${host}/api/wp/v2/users`,
       },
     };
   }

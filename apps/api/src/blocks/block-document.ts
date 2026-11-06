@@ -19,6 +19,15 @@ const CORE_TYPES = new Set([
   'audio',
   'file',
   'table',
+  'separator',
+  'spacer',
+  'group',
+  'columns',
+  'column',
+  'buttons',
+  'button',
+  'embed',
+  'reusable',
   'pluginBlock',
 ]);
 
@@ -178,6 +187,31 @@ function serializeBlock(block: BlockNode): string {
       }
       return `<p><a href="${escapeHtml(url)}">${caption || escapeHtml(url)}</a></p>`;
     }
+    case 'separator':
+      return '<hr />';
+    case 'spacer': {
+      const height = Math.min(240, Math.max(0, Number(block.props?.height ?? 24)));
+      return `<div style="height:${height}px" aria-hidden="true"></div>`;
+    }
+    case 'group':
+      return `<div class="op-group">${inner}${children}</div>`;
+    case 'columns':
+      return `<div class="op-columns">${children}</div>`;
+    case 'column':
+      return `<div class="op-column">${inner}${children}</div>`;
+    case 'buttons':
+      return `<div class="op-buttons">${children}</div>`;
+    case 'button': {
+      const href = safeUrl(String(block.props?.url ?? ''));
+      const label = inner || escapeHtml(String(block.props?.label ?? 'Button'));
+      return href ? `<a class="op-button" href="${escapeHtml(href)}">${label}</a>` : `<span class="op-button">${label}</span>`;
+    }
+    case 'embed': {
+      const href = safeUrl(String(block.props?.url ?? ''));
+      return href ? `<p><a href="${escapeHtml(href)}">${escapeHtml(href)}</a></p>` : '';
+    }
+    case 'reusable':
+      return children || inner;
     case 'pluginBlock':
       return `<aside data-block="${escapeHtml(String(block.props?.name ?? 'plugin'))}">${escapeHtml(String(block.props?.title ?? ''))}</aside>`;
     case 'table':

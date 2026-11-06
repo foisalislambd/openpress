@@ -266,6 +266,32 @@ export function LanguagesScreen() {
         <Button type="submit">Save string</Button>
       </form>
       <ul>{rows.map((row) => <li key={`${row.locale}:${row.key}`}>{row.locale} · {row.key}: {row.value}</li>)}</ul>
+      <h2 className="mb-2 mt-6">Gettext</h2>
+      <form className="mb-4 flex flex-wrap gap-2" onSubmit={async (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        await api('/i18n/messages', {
+          method: 'PUT',
+          body: JSON.stringify({
+            locale: String(data.get('glocale') ?? 'en'),
+            domain: String(data.get('domain') ?? 'openpress'),
+            context: String(data.get('context') ?? ''),
+            msgid: String(data.get('msgid') ?? ''),
+            msgidPlural: String(data.get('plural') ?? ''),
+            msgstr: String(data.get('msgstr') ?? ''),
+            msgstrPlural: String(data.get('msgstrPlural') ?? ''),
+          }),
+        });
+      }}>
+        <Input name="glocale" defaultValue="en" aria-label="Gettext locale" />
+        <Input name="domain" defaultValue="openpress" aria-label="Domain" />
+        <Input name="context" placeholder="context" aria-label="Context" />
+        <Input name="msgid" placeholder="msgid" aria-label="Message" required />
+        <Input name="plural" placeholder="msgid plural" aria-label="Plural" />
+        <Input name="msgstr" placeholder="translation" aria-label="Translation" />
+        <Input name="msgstrPlural" placeholder="plural translation" aria-label="Plural translation" />
+        <Button type="submit">Save message</Button>
+      </form>
     </Screen>
   );
 }

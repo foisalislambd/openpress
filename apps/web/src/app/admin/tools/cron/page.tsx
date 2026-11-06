@@ -49,6 +49,9 @@ export default function CronPage() {
   return (
     <Screen title="Scheduled Events" help="Events are stored in PostgreSQL and run even when Redis is not configured. The publish, purge, and health hooks are seeded automatically.">
       {error ? <Notice kind="error">{error}</Notice> : null}
+      <Button type="button" className="mb-3" onClick={() => api('/cron/run', { method: 'POST' }).then(load).catch((err) => setError(err instanceof Error ? err.message : 'Could not run events'))}>
+        Run due events
+      </Button>
       <table className="op-list">
         <thead>
           <tr>

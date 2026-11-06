@@ -3,7 +3,7 @@ import { DbService } from '../db/db.service';
 import { isUndefinedTable } from '../db/errors';
 import { newId } from '../db/ids';
 import { HooksService } from '../hooks/hooks.service';
-import { CRON_HOOK, failureDelaySeconds, nextRun } from './cron-schedule';
+import { CRON_HOOK, failureDelaySeconds, nextRun, skippedIntervals } from './cron-schedule';
 
 const DEFAULTS: { hook: string; intervalSeconds: number }[] = [
   { hook: 'openpress.publish_due', intervalSeconds: 30 },
@@ -45,10 +45,23 @@ export class CronService implements OnModuleInit, OnModuleDestroy {
     const hook = input.hook.trim();
     if (!CRON_HOOK.test(hook)) throw new BadRequestException('Invalid cron hook');
     const interval = input.intervalSeconds == null ? null : Math.floor(input.intervalSeconds);
-    if (interval !== null && interval < 15) throw new BadRequestException('Recurring events need at least 15 seconds');
+    if (interval !== null && (interval < 15 || interval > 366 * 24 * 3600)) {
+      throw new BadRequestException('Recurring events need between 15 seconds and one year');
+    }
     const args = Array.isArray(input.args) ? input.args.slice(0, 8) : [];
     const when = input.runAt ? new Date(input.runAt) : new Date();
     if (Number.isNaN(when.getTime())) throw new BadRequestException('Invalid runAt');
+    if (when.getTime() > Date.now() + 10 * 366 * 24 * 3600 * 1000) {
+      throw new BadRequestException('That run date is too far in the future');
+    }
+    if (interval) {
+      const existing = await this.db.query<{ id: string; args: unknown; nextRunAt: Date }>(
+        'SELECT id, args, "nextRunAt" FROM cron_events WHERE hook = $1 AND "intervalSeconds" = $2',
+        [hook, interval],
+      );
+      const match = existing.find((row) => JSON.stringify(row.args ?? []) === JSON.stringify(args));
+      if (match) return { id: match.id, hook, nextRunAt: new Date(match.nextRunAt).toISOString(), intervalSeconds: interval, duplicate: true };
+    }
     const id = newId();
     await this.db.query(
       `INSERT INTO cron_events (id, hook, args, "nextRunAt", "intervalSeconds")
@@ -99,6 +112,9 @@ export class CronService implements OnModuleInit, OnModuleDestroy {
         const args = Array.isArray(event.args) ? event.args : [];
         await this.hooks.doAction(event.hook, ...args);
         if (event.intervalSeconds) {
+          const row = await this.db.one<{ nextRunAt: Date }>('SELECT "nextRunAt" FROM cron_events WHERE id = $1', [event.id]);
+          const skipped = row ? skippedIntervals(new Date(row.nextRunAt), event.intervalSeconds, now) : 0;
+          if (skipped > 0) this.logger.warn(`${event.hook} skipped ${skipped} interval(s); scheduling the next one only`);
           await this.db.query(
             `UPDATE cron_events
              SET "nextRunAt" = $2, "lockedUntil" = NULL, attempts = 0, "lastError" = NULL

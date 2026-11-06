@@ -39,12 +39,19 @@ const schema = buildSchema(`
     name: String!
     slug: String!
   }
+  type Comment {
+    id: ID!
+    body: String!
+    parentId: String
+    authorName: String
+  }
   type Query {
     posts(page: Int, perPage: Int, search: String): PostList!
     post(slug: String!): Post
     media(limit: Int): [MediaItem!]!
     categories: [Term!]!
     tags: [Term!]!
+    comments(contentId: String!): [Comment!]!
   }
 `);
 
@@ -87,6 +94,16 @@ export class GraphqlController {
       },
       categories: () => this.db.query('SELECT id, name, slug FROM categories WHERE "siteId" = $1 ORDER BY name', [currentSiteId()]),
       tags: () => this.db.query('SELECT id, name, slug FROM tags WHERE "siteId" = $1 ORDER BY name', [currentSiteId()]),
+      comments: (args: { contentId: string }) =>
+        this.db.query(
+          `SELECT c.id, c.body, c."parentId" AS "parentId", COALESCE(u.name, c."guestName") AS "authorName"
+           FROM comments c
+           LEFT JOIN users u ON u.id = c."authorId"
+           JOIN contents content ON content.id = c."contentId"
+           WHERE c."contentId" = $1 AND c.status = 'APPROVED' AND content."siteId" = $2
+           ORDER BY c."createdAt" ASC`,
+          [args.contentId, currentSiteId()],
+        ),
     };
     return graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
   }

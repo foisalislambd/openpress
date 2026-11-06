@@ -6,6 +6,7 @@ import { HooksService } from '../hooks/hooks.service';
 import { MenusService } from '../menus/menus.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { normalizeOptionValue, OptionDefinition, validateOptionValue } from './option-defs';
+import { themeFileError } from '../themes/theme-files';
 
 export const DEFAULT_SETTINGS: Record<string, unknown> = {
   siteTitle: 'OpenPress Site',
@@ -157,6 +158,24 @@ export class SettingsService {
        SET value = EXCLUDED.value, autoload = EXCLUDED.autoload, "updatedAt" = now()`,
       [key, JSON.stringify(value), autoload],
     );
+  }
+
+  async themeFiles() {
+    const row = await this.db.one<{ value: unknown }>('SELECT value FROM settings WHERE key = $1', ['themeFiles']);
+    const value = row?.value && typeof row.value === 'object' ? (row.value as Record<string, string>) : {};
+    return {
+      'style.css': typeof value['style.css'] === 'string' ? value['style.css'] : '',
+      'theme.json': typeof value['theme.json'] === 'string' ? value['theme.json'] : '{\n  "colors": {},\n  "fonts": {},\n  "layout": {}\n}\n',
+    };
+  }
+
+  async saveThemeFile(name: string, source: string) {
+    const error = themeFileError(name, source);
+    if (error) throw new BadRequestException(error);
+    const current = await this.themeFiles();
+    const next = { ...current, [name]: source };
+    await this.write('themeFiles', next, true);
+    return next;
   }
 }
 
