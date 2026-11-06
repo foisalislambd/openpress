@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { Allow, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtPayload } from '../auth/jwt.strategy';
+import { CapabilitiesService } from '../auth/capabilities.service';
 import { SitesService } from './sites.service';
 
 class CreateSiteDto {
@@ -42,18 +45,21 @@ class SiteOptionDto {
 
 @Controller('sites')
 export class SitesController {
-  constructor(private sites: SitesService) {}
+  constructor(
+    private sites: SitesService,
+    private caps: CapabilitiesService,
+  ) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
-  @RequireCaps('manage_options')
-  list() {
-    return this.sites.list();
+  @UseGuards(JwtAuthGuard)
+  async list(@CurrentUser() user: JwtPayload) {
+    const network = await this.caps.allows(user.sub, 'manage_sites');
+    return this.sites.listForUser(user.sub, network);
   }
 
   @Post()
   @UseGuards(JwtAuthGuard, CapabilitiesGuard)
-  @RequireCaps('manage_options')
+  @RequireCaps('manage_sites')
   create(@Body() dto: CreateSiteDto) {
     return this.sites.create(dto);
   }
@@ -74,8 +80,15 @@ export class SitesController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, CapabilitiesGuard)
-  @RequireCaps('manage_options')
+  @RequireCaps('manage_sites')
   update(@Param('id') id: string, @Body() dto: UpdateSiteDto) {
     return this.sites.update(id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('manage_sites')
+  remove(@Param('id') id: string) {
+    return this.sites.remove(id);
   }
 }

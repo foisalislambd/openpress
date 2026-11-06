@@ -30,6 +30,19 @@ export function resolveCapabilities(input: CapabilityResolutionInput): string[] 
   return [...caps].sort();
 }
 
+/** Granted only to network super admins. Site administrators do not receive these. */
+export const NETWORK_CAPABILITIES = [
+  'manage_network',
+  'manage_sites',
+  'manage_network_users',
+  'manage_network_options',
+] as const;
+
+export function withNetworkAdmin(capabilities: readonly string[], networkAdmin: boolean) {
+  if (!networkAdmin) return [...capabilities];
+  return [...new Set([...capabilities, ...NETWORK_CAPABILITIES])].sort();
+}
+
 export function hasAll(caps: readonly string[], required: readonly string[]) {
   return required.every((cap) => caps.includes(cap));
 }

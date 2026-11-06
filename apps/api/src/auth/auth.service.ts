@@ -221,7 +221,13 @@ export class AuthService {
       [userId],
     );
     if (!user) throw new UnauthorizedException();
-    return { ...user, capabilities: await this.caps.list(userId) };
+    const membership = await this.caps.membership(userId);
+    return {
+      ...user,
+      role: membership?.siteRole ?? user.role,
+      networkAdmin: membership?.networkAdmin ?? false,
+      capabilities: await this.caps.list(userId),
+    };
   }
 
   async issueTokens(sub: string, email: string, role: string, meta?: SessionMeta, existingSid?: string) {

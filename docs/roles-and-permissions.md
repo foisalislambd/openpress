@@ -65,6 +65,12 @@ The web client retries once on `403` with a refresh token to pick up role change
 
 Editors and Admins moderate via **Comments** in admin.
 
+## Site roles and network administrators
+
+Users belong to the network. Each site stores that user's role in `site_users`. Capability checks use the role on the site selected by `X-OpenPress-Site` or the request host. A grant or deny is stored for that site only.
+
+`networkAdmin` is separate. It adds `manage_network`, `manage_sites`, `manage_network_users`, and `manage_network_options`. A site administrator does not receive those. Existing administrators were marked network administrators by migration `007_network_roles.sql`.
+
 ## Custom roles
 
 Administrators can add roles under **Users → Roles**. A role is a slug plus a list of capabilities. A user can also receive extra grants or denies (`PUT /api/users/:id/access`). A deny removes a capability the role would otherwise have. Denies do not apply to the built-in Administrator role, and only an Administrator can assign that role.

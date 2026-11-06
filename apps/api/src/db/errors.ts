@@ -15,3 +15,7 @@ export function isForeignKeyViolation(error: unknown) {
 export function isUndefinedTable(error: unknown) {
   return pgCode(error) === '42P01';
 }
+
+export function isUndefinedColumn(error: unknown) {
+  return pgCode(error) === '42703';
+}

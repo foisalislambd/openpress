@@ -6,11 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { DbService } from '../db/db.service';
+import { Db, DbService } from '../db/db.service';
 import { isForeignKeyViolation, isUniqueViolation } from '../db/errors';
 import { newId } from '../db/ids';
 import { ROLE_CAPABILITIES } from '../auth/capabilities';
 import { CapabilitiesService } from '../auth/capabilities.service';
+import { PRIMARY_SITE_ID, currentSiteId } from '../sites/site-context';
+import { isUndefinedTable } from '../db/errors';
 
 const ROLE_CAP_SQL = ROLE_CAPABILITIES.ADMIN.map((cap) => `'${cap}'`).join(', ');
 import { CreateUserDto, UpdateUserDto } from './users.dto';
@@ -48,7 +50,11 @@ export class UsersService {
       params.push(value);
       clauses.push(sql.replace('$?', `$${params.length}`));
     };
-    if (filter.role) add('u.role = $?', filter.role);
+    const siteId = currentSiteId();
+    params.push(siteId);
+    const siteParam = `$${params.length}`;
+    const siteRole = `COALESCE((SELECT su.role FROM site_users su WHERE su."userId" = u.id AND su."siteId" = ${siteParam}), CASE WHEN ${siteParam} = '${PRIMARY_SITE_ID}' THEN u.role ELSE NULL END)`;
+    if (filter.role) add(`${siteRole} = $?`, filter.role);
     if (filter.search?.trim()) {
       const like = `%${filter.search.trim().replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
       params.push(like);
@@ -60,17 +66,17 @@ export class UsersService {
       params.push(filter.capability);
       const cap = `$${params.length}`;
       clauses.push(`(
-        (u.role = 'ADMIN' AND ${cap} = ANY(ARRAY[${ROLE_CAP_SQL}]))
-        OR EXISTS (SELECT 1 FROM roles r WHERE r.slug = u.role AND ${cap} = ANY(r.capabilities))
-        OR EXISTS (SELECT 1 FROM user_capabilities g WHERE g."userId" = u.id AND g.capability = ${cap} AND g.granted = true)
+        (${siteRole} = 'ADMIN' AND ${cap} = ANY(ARRAY[${ROLE_CAP_SQL}]))
+        OR EXISTS (SELECT 1 FROM roles r WHERE r.slug = ${siteRole} AND ${cap} = ANY(r.capabilities))
+        OR EXISTS (SELECT 1 FROM user_capabilities g WHERE g."userId" = u.id AND g."siteId" = ${siteParam} AND g.capability = ${cap} AND g.granted = true)
       ) AND NOT EXISTS (
         SELECT 1 FROM user_capabilities d
-        WHERE d."userId" = u.id AND d.capability = ${cap} AND d.granted = false AND u.role <> 'ADMIN'
+        WHERE d."userId" = u.id AND d."siteId" = ${siteParam} AND d.capability = ${cap} AND d.granted = false AND ${siteRole} <> 'ADMIN'
       )`);
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const rows = await this.db.query<UserRow>(
-      `SELECT ${PUBLIC_COLUMNS} FROM users u ${where} ORDER BY u."createdAt" ASC`,
+      `SELECT ${PUBLIC_COLUMNS.replace('u.role', `${siteRole}`)} FROM users u ${where} ORDER BY u."createdAt" ASC`,
       params,
     );
     return rows.map(presentUser);
@@ -88,6 +94,7 @@ export class UsersService {
   async create(dto: CreateUserDto, actorId: string) {
     const role = dto.role ?? 'AUTHOR';
     await this.caps.assertAssignable(actorId, role);
+    const storedRole = currentSiteId() === PRIMARY_SITE_ID ? role : 'SUBSCRIBER';
     try {
       const user = await this.db.one<UserRow>(
         `INSERT INTO users (id, email, name, role, "passwordHash", "updatedAt")
@@ -97,11 +104,12 @@ export class UsersService {
           newId(),
           dto.email,
           dto.name,
-          role,
+          storedRole,
           await bcrypt.hash(dto.password, 10),
         ],
       );
       if (!user) throw new ConflictException('Email already registered');
+      await this.rememberSiteRole(user.id, role);
       return presentUser(user);
     } catch (error) {
       if (isUniqueViolation(error)) throw new ConflictException('Email already registered');
@@ -117,7 +125,7 @@ export class UsersService {
     if (dto.role) await this.caps.assertAssignable(actorId, dto.role);
     await this.db.tx(async (sql) => {
       // Lock every admin so two requests cannot demote the last two admins together.
-      if (dto.role && dto.role !== 'ADMIN') {
+      if (dto.role && dto.role !== 'ADMIN' && currentSiteId() === PRIMARY_SITE_ID) {
         await sql.query(`SELECT id FROM users WHERE role = 'ADMIN' FOR UPDATE`);
         const target = await sql.one<{ role: string }>(
           'SELECT role FROM users WHERE id = $1',
@@ -142,7 +150,7 @@ export class UsersService {
         sets.push(`${column} = $${params.length}${cast}`);
       };
       if (dto.name !== undefined) add('name', dto.name);
-      if (dto.role !== undefined) add('role', dto.role);
+      if (dto.role !== undefined && currentSiteId() === PRIMARY_SITE_ID) add('role', dto.role);
       if (dto.bio !== undefined) add('bio', dto.bio);
       if (dto.avatarUrl !== undefined) add('"avatarUrl"', dto.avatarUrl);
       if (passwordHash) add('"passwordHash"', passwordHash);
@@ -154,6 +162,7 @@ export class UsersService {
         params,
       );
       if (!updated) throw new NotFoundException('User not found');
+      if (dto.role) await this.rememberSiteRole(id, dto.role, sql);
     });
     return this.findOne(id);
   }
@@ -239,6 +248,19 @@ export class UsersService {
     await this.assertMetaWrite(userId, actorId, key);
     await this.db.query('DELETE FROM user_meta WHERE "userId" = $1 AND "metaKey" = $2', [userId, key]);
     return { key };
+  }
+
+  private async rememberSiteRole(userId: string, role: string, sql: Db = this.db) {
+    try {
+      await sql.query(
+        `INSERT INTO site_users ("siteId", "userId", role)
+         VALUES ($1, $2, $3)
+         ON CONFLICT ("siteId", "userId") DO UPDATE SET role = EXCLUDED.role`,
+        [currentSiteId(), userId, role],
+      );
+    } catch (error) {
+      if (!isUndefinedTable(error)) throw error;
+    }
   }
 
   private async assertMetaRead(userId: string, actorId: string) {

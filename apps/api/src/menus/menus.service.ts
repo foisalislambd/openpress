@@ -85,6 +85,31 @@ export class MenusService {
     return { id };
   }
 
+  async reorder(menuId: string, order: { id: string; parentId?: string | null }[]) {
+    const menu = await this.db.one('SELECT id FROM nav_menus WHERE id = $1 AND "siteId" = $2', [menuId, currentSiteId()]);
+    if (!menu) throw new NotFoundException('Menu not found');
+    const rows = await this.db.query<{ id: string }>('SELECT id FROM nav_menu_items WHERE "menuId" = $1', [menuId]);
+    const known = new Set(rows.map((row) => row.id));
+    if (order.length !== known.size || order.some((item) => !known.has(item.id))) {
+      throw new BadRequestException('Menu order must list every item once');
+    }
+    const next = order.map((item) => ({ id: item.id, parentId: item.parentId || null }));
+    for (const item of next) {
+      const error = menuParentError(next, item.id, item.parentId);
+      if (error) throw new BadRequestException(error);
+    }
+    await this.db.tx(async (sql) => {
+      for (const [index, item] of next.entries()) {
+        await sql.query(
+          'UPDATE nav_menu_items SET "parentId" = $2, position = $3 WHERE id = $1 AND "menuId" = $4',
+          [item.id, item.parentId, index, menuId],
+        );
+      }
+    });
+    await this.syncSettings();
+    return this.one(menuId);
+  }
+
   async updateItem(id: string, input: { title?: string; url?: string; parentId?: string | null; position?: number }) {
     const current = await this.db.one<FlatMenuItem & { menuId: string }>(
       'SELECT id, "menuId", "parentId", position, title, url, type, "objectId", target FROM nav_menu_items WHERE id = $1',

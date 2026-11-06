@@ -15,6 +15,7 @@ export interface User {
   bio?: string | null;
   createdAt: string;
   capabilities?: string[];
+  networkAdmin?: boolean;
   _count?: { contents: number };
 }
 

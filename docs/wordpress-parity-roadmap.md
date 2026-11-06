@@ -21,21 +21,21 @@ Audit of the NestJS + Next.js + PostgreSQL monorepo against WordPress core. Stat
 
 | WordPress capability | Status | OpenPress now | Still behind / better than WordPress |
 |----------------------|--------|---------------|--------------------------------------|
-| Roles & capabilities | Done | Builtin roles live in `roles`. Custom roles, per-user grants and denies, and a role editor. Writes check the capability, not only the role name. Deny wins. Administrator cannot be stripped or minted by another role. | No multisite super-admin. Better: checks are consistent on write routes and resolved from the database, so a grant applies without waiting for a stale token. |
+| Roles & capabilities | Done | Builtin roles live in `roles`. Custom roles, per-user grants and denies, and a role editor. A user's role is stored per site in `site_users`. Writes check the capability for the current site. Deny wins. A site administrator cannot be stripped. Network capabilities (`manage_network`, `manage_sites`, `manage_network_users`, `manage_network_options`) belong only to `networkAdmin`. | Better: a role on one site does not grant that role on another, and a site administrator is not a network administrator. |
 | Options / settings API | Done | Typed registry (string, number, boolean, JSON), autoload flag, validation, plugin `settings.register`. | No visual settings-field builder. Better: values are validated before they are stored. |
 | Content query | Done | `buildContentQuery` is the only SQL builder for lists used by REST, GraphQL, and themes. Type, post type, taxonomy, meta, status, date, search, and order are structured. Meta and tax groups support AND/OR, nested clauses, and category children. Public queries cannot ask for drafts, and the current site is forced after filters. | No `REGEXP` compares. Better: filters change the object, never the SQL string. |
 | Cron | Done | `cron_events` in Postgres: one-shot and recurring, row locks, backoff. Seeded publish, trash/autosave purge, and health beat. BullMQ remains for imports and image work when Redis is set. | No cron UI for every hook argument shape. Better: jobs survive without Redis. |
-| Menus | Partial | `nav_menus` / items / locations, scoped per site. Nested items, cycle checks, safe URLs. The theme reads locations. Saving the existing Menus screen copies JSON into the tables for the current site only. | No drag-and-drop. Better: a parent cycle cannot be stored, and one site cannot wipe another's menus. |
+| Menus | Done | `nav_menus` / items / locations, scoped per site. Nested items, cycle checks, safe URLs. The Menus screen drags items to reorder them and nests an item when it is dropped to the right. | No live customizer preview of the drag. Better: a parent cycle cannot be stored. |
 | Widgets | Partial | Sidebar and footer instances. Core search, recent posts, categories, and text widgets render as data, not unsanitized HTML. | No customizer drag-and-drop. Better: core widgets are typed instead of PHP class instances. |
 | Rewrite rules | Partial | Registry with anchored patterns, conflict detection against the active permalink structure, and middleware rewrites. Dated permalinks still use the existing resolver. | Not a full `WP_Rewrite` tag map. Better: a rule that matches `/admin` or `/api` is rejected. |
 | Users & profile | Partial | User meta, staff-only `_` keys, user list filters by role, search, and capability. Application passwords, sessions, TOTP, and passkeys already exist. | No front-end membership product. |
 | Hooks | Partial | Plugins can register capabilities, settings, rewrite rules, and widgets from the sandbox, and adjust `content.query`. | No hook-reference screen. |
-| Block editor | Partial | BlockNote in admin. Server validates and HTML-serializes the document (`POST /api/content/blocks/render`). Unknown types are rejected on save. This is a foundation, not Gutenberg. | No block canvas rewrite, patterns directory, or collaboration. |
+| Block editor | Partial | The admin canvas inserts, edits, reorders, and nests the server block document (paragraph, heading, list, quote, image, code). `POST /api/content/blocks/render` validates and previews HTML. Unknown types are rejected. This is a usable editor on the OpenPress document model, not a Gutenberg clone. | No collaborative editing, pattern directory, or block styles sidebar matching Gutenberg. |
 | Content modeling | Done | Custom post types, taxonomies, field groups, patterns, pending review, and term meta on categories, tags, and custom terms. | |
 | Permalinks | Done | Structure templates route through Next.js middleware, including year/month/name. | |
 | Media | Done | Derivatives, crop, rotate, srcset, WebP/AVIF, focal point, optional S3. | PDF thumbnails still missing. |
 | SEO, i18n, comments, import, REST `/wp/v2`, jobs, auth factors | Done | Shipped in the CMS power pack. | Marketplace UI is intentionally out of this repository. |
-| Multisite | Partial | `sites` and `site_options`, a seeded primary site, and `siteId` on content, terms, media, menus, widgets, and rewrites. The admin switcher sends `X-OpenPress-Site`. Public pages follow the request host. Users and roles stay network-wide. | No per-site roles, no domain mapping UI beyond a domain column, no separate database per site. |
+| Multisite | Partial | `sites`, `site_options`, and `site_users`. Network admin lists sites, activates, deactivates, and deletes them, edits network settings, and reviews users. The admin switcher sends `X-OpenPress-Site`. Public pages follow the request host. | No separate database per site and no domain-mapping wizard. Roles are per site; users stay network-wide. |
 | Full Gutenberg UI | Missing | Not in this tranche. | The block document model is the base. |
 | PHP plugins / gettext `.po` | Missing | Out of scope. | The string catalog is the translation store. |
 
@@ -101,7 +101,16 @@ Migration `005_core_power.sql` turns `users.role` into text and adds roles, user
 - Term meta and comment meta. Comment bodies and text widgets pass an HTML allow-list.
 - Transients in Postgres, including from a TypeScript plugin (`settings` permission).
 - Post edit locks (150 seconds). Someone with `edit_others_posts` can take over.
-- Multisite foundation: one primary site by default, extra sites from **Tools → Sites**, content scoped to the selected site. Roles are still shared.
+- Multisite foundation: one primary site by default, extra sites from **Tools → Sites**, content scoped to the selected site.
+
+### Shipped in the network and editor pass
+
+Migration `007_network_roles.sql` adds `users.networkAdmin` and `site_users`, and scopes capability grants to a site. Existing administrators become network administrators and keep their role on the primary site. Apply it with `pnpm db:migrate`.
+
+- Per-site roles. Capability checks use the role on the current site. Network capabilities are not included in a site administrator role.
+- Network admin at `/admin/network`: site list, activate, deactivate, delete, network title, and a user overview with the network-admin flag.
+- Block canvas in the post and page editor: inserter, drag reorder, nesting, and a server-rendered preview.
+- Drag-and-drop menus. Dropping an item to the right nests it. The API rejects a cycle.
 
 ### Next runs
 
