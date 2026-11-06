@@ -6,6 +6,8 @@ import {
 import { DbService } from '../db/db.service';
 import { HooksService } from '../hooks/hooks.service';
 import { newId } from '../db/ids';
+import { kses } from '../html/kses';
+import { currentSiteId } from '../sites/site-context';
 import { initialCommentStatus } from './comment-policy';
 
 type CommentRow = {
@@ -46,8 +48,9 @@ export class CommentsService {
        LEFT JOIN users u ON u.id = c."authorId"
        JOIN contents content ON content.id = c."contentId"
        WHERE ($1::text IS NULL OR c.status = $1::"CommentStatus")
+         AND content."siteId" = $2
        ORDER BY c."createdAt" DESC`,
-      [status ?? null],
+      [status ?? null, currentSiteId()],
     );
   }
 
@@ -59,9 +62,10 @@ export class CommentsService {
               END AS author
        FROM comments c
        LEFT JOIN users u ON u.id = c."authorId"
-       WHERE c."contentId" = $1 AND c.status = 'APPROVED'
+       JOIN contents content ON content.id = c."contentId"
+       WHERE c."contentId" = $1 AND c.status = 'APPROVED' AND content."siteId" = $2
        ORDER BY c."createdAt" ASC`,
-      [contentId],
+      [contentId, currentSiteId()],
     );
     return rows
       .filter((row) => row.parentId === null)
@@ -137,7 +141,7 @@ export class CommentsService {
         data.authorId ?? null,
         data.guestName ?? null,
         data.guestEmail ?? null,
-        data.body,
+        kses(data.body),
         status,
         data.parentId ?? null,
         data.authorIp?.slice(0, 64) ?? null,
@@ -166,5 +170,34 @@ export class CommentsService {
     );
     if (!comment) throw new NotFoundException('Comment not found');
     return comment;
+  }
+
+  listMeta(commentId: string) {
+    return this.db.query(
+      `SELECT "metaKey", "metaValue" FROM comment_meta WHERE "commentId" = $1 ORDER BY "metaKey"`,
+      [commentId],
+    );
+  }
+
+  async upsertMeta(commentId: string, key: string, value: unknown) {
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(key)) throw new BadRequestException('Invalid meta key');
+    const comment = await this.db.one('SELECT id FROM comments WHERE id = $1', [commentId]);
+    if (!comment) throw new NotFoundException('Comment not found');
+    await this.db.query(
+      `INSERT INTO comment_meta (id, "commentId", "metaKey", "metaValue")
+       VALUES ($1, $2, $3, $4::jsonb)
+       ON CONFLICT ("commentId", "metaKey") DO UPDATE SET "metaValue" = EXCLUDED."metaValue"`,
+      [newId(), commentId, key, JSON.stringify(value ?? null)],
+    );
+    return { key, value };
+  }
+
+  async deleteMeta(commentId: string, key: string) {
+    const row = await this.db.one(
+      'DELETE FROM comment_meta WHERE "commentId" = $1 AND "metaKey" = $2 RETURNING id',
+      [commentId, key],
+    );
+    if (!row) throw new NotFoundException('Meta not found');
+    return { deleted: true };
   }
 }

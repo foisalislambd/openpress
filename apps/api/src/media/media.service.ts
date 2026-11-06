@@ -8,6 +8,7 @@ import { buildSrcSet } from '../cms/publishing';
 import { enqueue } from '../jobs/queue';
 import { clampCrop, plannedSizes, SizeSpec } from './image-sizes';
 import { publishObject, publicUrlFor, removeObject, storageDriver } from './storage';
+import { currentSiteId } from '../sites/site-context';
 
 const MEDIA_COLUMNS = `m.id, m.filename, m.url, m."mimeType", m.size, m.width, m.height,
   m.alt, m.caption, m.sizes, m."focalX", m."focalY", m."storageKey", m."uploaderId", m."createdAt"`;
@@ -38,19 +39,20 @@ export class MediaService {
                 json_build_object('id', u.id, 'name', u.name) AS uploader
          FROM media m
          JOIN users u ON u.id = m."uploaderId"
+         WHERE m."siteId" = $3
          ORDER BY m."createdAt" DESC
          LIMIT $1 OFFSET $2`,
-        [safePerPage, (safePage - 1) * safePerPage],
+        [safePerPage, (safePage - 1) * safePerPage, currentSiteId()],
       ),
-      this.db.one<{ count: number }>('SELECT count(*)::int AS count FROM media'),
+      this.db.one<{ count: number }>('SELECT count(*)::int AS count FROM media WHERE "siteId" = $1', [currentSiteId()]),
     ]);
     return [items.map((item) => this.present(item)), total?.count ?? 0] as const;
   }
 
   async findOne(id: string) {
     const media = await this.db.one<Record<string, unknown>>(
-      `SELECT ${MEDIA_COLUMNS} FROM media m WHERE m.id = $1`,
-      [id],
+      `SELECT ${MEDIA_COLUMNS} FROM media m WHERE m.id = $1 AND m."siteId" = $2`,
+      [id, currentSiteId()],
     );
     if (!media) throw new NotFoundException('Media not found');
     return this.present(media);
@@ -60,9 +62,9 @@ export class MediaService {
     const id = newId();
     await this.db.query(
       `INSERT INTO media (
-         id, filename, url, "mimeType", size, alt, sizes, "storageKey", "uploaderId"
-       ) VALUES ($1, $2, $3, $4, $5, $6, '{}'::jsonb, $2, $7)`,
-      [id, file.filename, publicUrlFor(file.filename), file.mimetype, file.size, alt ?? null, uploaderId],
+         id, filename, url, "mimeType", size, alt, sizes, "storageKey", "uploaderId", "siteId"
+       ) VALUES ($1, $2, $3, $4, $5, $6, '{}'::jsonb, $2, $7, $8)`,
+      [id, file.filename, publicUrlFor(file.filename), file.mimetype, file.size, alt ?? null, uploaderId, currentSiteId()],
     );
     const queued = await enqueue('media', { mediaId: id });
     if (!queued) await this.regenerate(id);

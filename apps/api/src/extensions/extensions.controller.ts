@@ -23,9 +23,10 @@ import { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { ExtensionRegistry } from './extension-registry';
 import { PluginsService } from './plugins.service';
+import { WidgetsService } from '../widgets/widgets.service';
 import { InstalledThemesService } from './themes.service';
 
 const zipUpload = FileInterceptor('file', {
@@ -38,18 +39,19 @@ export class PluginsController {
   constructor(
     private plugins: PluginsService,
     private registry: ExtensionRegistry,
+    private widgets: WidgetsService,
   ) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   list() {
     return this.plugins.list();
   }
 
   @Get('registry')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   registryView() {
     return {
       menus: this.registry.adminPages(),
@@ -60,14 +62,12 @@ export class PluginsController {
 
   @Get('chrome')
   async chrome() {
-    const settings = await this.plugins.widgetAreas();
+    const rendered = await this.widgets.renderPublic();
     return {
       assets: this.registry.assetsForSite(),
       blocks: this.registry.blocksForEditor(),
-      widgets: {
-        sidebar: await this.registry.renderWidgets(settings.sidebar),
-        footer: await this.registry.renderWidgets(settings.footer),
-      },
+      widgets: rendered.widgets,
+      areas: rendered.areas,
     };
   }
 
@@ -100,8 +100,8 @@ export class PluginsController {
   }
 
   @Get(':id/settings/:slug')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   async settings(@Param('id') id: string, @Param('slug') slug: string) {
     const page = this.registry.page(id, slug);
     if (!page) throw new NotFoundException('Plugin page not found');
@@ -109,8 +109,8 @@ export class PluginsController {
   }
 
   @Patch(':id/settings/:slug')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   saveSettings(
     @Param('id') id: string,
     @Param('slug') slug: string,
@@ -120,52 +120,52 @@ export class PluginsController {
   }
 
   @Get('updates')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   updates() {
     return this.plugins.updates();
   }
 
   @Post('stage')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   @UseInterceptors(zipUpload)
   stage(@UploadedFile() file: Express.Multer.File) {
     return this.plugins.stage(file);
   }
 
   @Post('stage/:token/commit')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   commit(@Param('token') token: string) {
     return this.plugins.commit(token);
   }
 
   @Post('upload')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   @UseInterceptors(zipUpload)
   upload(@UploadedFile() file: Express.Multer.File) {
     return this.plugins.stage(file);
   }
 
   @Post(':id/rollback')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   rollback(@Param('id') id: string) {
     return this.plugins.rollback(id);
   }
 
   @Patch(':id/toggle')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   toggle(@Param('id') id: string) {
     return this.plugins.toggle(id);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   remove(@Param('id') id: string) {
     return this.plugins.remove(id);
   }
@@ -199,16 +199,16 @@ export class InstalledThemesController {
   }
 
   @Post('upload')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   @UseInterceptors(zipUpload)
   upload(@UploadedFile() file: Express.Multer.File) {
     return this.themes.install(file);
   }
 
   @Delete('installed/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
   remove(@Param('id') id: string) {
     return this.themes.remove(id);
   }

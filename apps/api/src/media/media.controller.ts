@@ -14,7 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { can } from '../auth/capabilities';
+import { CapabilitiesService } from '../auth/capabilities.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -106,7 +106,10 @@ const storage = diskStorage({
 @Controller('media')
 @UseGuards(JwtAuthGuard)
 export class MediaController {
-  constructor(private media: MediaService) {}
+  constructor(
+    private media: MediaService,
+    private caps: CapabilitiesService,
+  ) {}
 
   @Get()
   async findAll(@Query('page') page?: string, @Query('perPage') perPage?: string) {
@@ -140,12 +143,12 @@ export class MediaController {
       },
     }),
   )
-  upload(
+  async upload(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: JwtPayload,
     @Body('alt') alt?: string,
   ) {
-    if (!can(user.role, 'upload_files')) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) {
       throw new ForbiddenException('You cannot upload files');
     }
     if (!file) throw new BadRequestException('No file uploaded');
@@ -158,32 +161,34 @@ export class MediaController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateMediaDto) {
+  async update(@Param('id') id: string, @Body() dto: UpdateMediaDto, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) throw new ForbiddenException('You cannot edit files');
     return this.media.update(id, dto);
   }
 
   @Post(':id/transform')
-  transform(@Param('id') id: string, @Body() dto: TransformDto, @CurrentUser() user: JwtPayload) {
-    if (!can(user.role, 'upload_files')) throw new ForbiddenException('You cannot edit files');
+  async transform(@Param('id') id: string, @Body() dto: TransformDto, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) throw new ForbiddenException('You cannot edit files');
     return this.media.transform(id, dto);
   }
 
   @Post(':id/regenerate')
-  regenerate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    if (!can(user.role, 'upload_files')) throw new ForbiddenException('You cannot edit files');
+  async regenerate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) throw new ForbiddenException('You cannot edit files');
     return this.media.regenerate(id);
   }
 
   @Post(':id/crop')
-  crop(@Param('id') id: string, @Body() dto: CropDto, @CurrentUser() user: JwtPayload) {
-    if (!can(user.role, 'upload_files')) {
+  async crop(@Param('id') id: string, @Body() dto: CropDto, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) {
       throw new ForbiddenException('You cannot edit files');
     }
     return this.media.crop(id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    if (!(await this.caps.allows(user.sub, 'upload_files'))) throw new ForbiddenException('You cannot delete files');
     return this.media.remove(id);
   }
 }

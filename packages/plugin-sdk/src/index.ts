@@ -78,9 +78,21 @@ export interface PluginContext {
     set: (key: string, value: unknown) => Promise<unknown>;
     delete: (key: string) => Promise<unknown>;
   };
+  transients?: {
+    get: (key: string) => Promise<unknown>;
+    set: (key: string, value: unknown, ttlSeconds?: number) => Promise<unknown>;
+    delete: (key: string) => Promise<unknown>;
+  };
   settings: {
     get: () => Promise<Record<string, unknown>>;
     set: (values: Record<string, unknown>) => Promise<unknown>;
+    register?: (def: { key: string; type?: 'string' | 'number' | 'boolean' | 'json'; label?: string; group?: string; autoload?: boolean }) => void;
+  };
+  capabilities?: {
+    register: (cap: { name: string; label?: string }) => void;
+  };
+  rewrite?: {
+    add: (rule: { pattern: string; query?: Record<string, string>; priority?: number }) => void;
   };
   http: {
     fetch: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; body: string }>;

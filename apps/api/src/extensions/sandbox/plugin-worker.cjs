@@ -165,6 +165,46 @@ const ctx = {
       allow('settings');
       return rpc('settings.set', [values || {}]);
     },
+    register: (def) => {
+      allow('settings');
+      track('setting', {
+        optionKey: String(def.key || ''),
+        optionType: String(def.type || 'string'),
+        title: String(def.label || def.key || ''),
+        optionGroup: String(def.group || 'plugin'),
+        optionAutoload: def.autoload !== false,
+      });
+    },
+  },
+  transients: {
+    get: (key) => {
+      allow('settings');
+      return rpc('transient.get', [String(key || '')]);
+    },
+    set: (key, value, ttlSeconds) => {
+      allow('settings');
+      return rpc('transient.set', [String(key || ''), value, ttlSeconds]);
+    },
+    delete: (key) => {
+      allow('settings');
+      return rpc('transient.delete', [String(key || '')]);
+    },
+  },
+  capabilities: {
+    register: (cap) => {
+      allow('settings');
+      track('capability', { name: String(cap.name || ''), title: String(cap.label || cap.name || '') });
+    },
+  },
+  rewrite: {
+    add: (rule) => {
+      allow('rest');
+      track('rewrite', {
+        pattern: String(rule.pattern || ''),
+        query: rule.query && typeof rule.query === 'object' ? rule.query : {},
+        priority: Number(rule.priority ?? 20),
+      });
+    },
   },
   http: {
     fetch: (url, init) => {

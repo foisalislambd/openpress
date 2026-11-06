@@ -24,6 +24,12 @@ import { McpModule } from './mcp/mcp.module';
 import { ModelingModule } from './modeling/modeling.module';
 import { PlatformModule } from './platform/platform.module';
 import { WpModule } from './rest/wp.module';
+import { CapabilitiesModule } from './auth/capabilities.module';
+import { CronModule } from './cron/cron.module';
+import { MenusModule } from './menus/menus.module';
+import { RewriteModule } from './rewrite/rewrite.module';
+import { WidgetsModule } from './widgets/widgets.module';
+import { SitesModule } from './sites/sites.module';
 
 @Module({
   imports: [
@@ -32,7 +38,9 @@ import { WpModule } from './rest/wp.module';
     // Global rate limit: 120 requests/minute per IP
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     DbModule,
+    SitesModule,
     HooksModule,
+    CapabilitiesModule,
     PlatformModule,
     AuthModule,
     UsersModule,
@@ -50,6 +58,10 @@ import { WpModule } from './rest/wp.module';
     WpModule,
     McpModule,
     GraphqlModule,
+    MenusModule,
+    WidgetsModule,
+    RewriteModule,
+    CronModule,
   ],
   providers: [
     AppPasswordMiddleware,

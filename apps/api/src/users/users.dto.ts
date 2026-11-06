@@ -1,12 +1,10 @@
 import {
   IsEmail,
-  IsIn,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
 } from 'class-validator';
-
-const ROLES = ['ADMIN', 'EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'] as const;
 
 export class CreateUserDto {
   @IsEmail()
@@ -21,8 +19,8 @@ export class CreateUserDto {
   password: string;
 
   @IsOptional()
-  @IsIn(ROLES as unknown as string[])
-  role?: (typeof ROLES)[number];
+  @Matches(/^[A-Z][A-Z0-9_]{1,40}$/)
+  role?: string;
 }
 
 export class UpdateUserDto {
@@ -37,8 +35,8 @@ export class UpdateUserDto {
   password?: string;
 
   @IsOptional()
-  @IsIn(ROLES as unknown as string[])
-  role?: (typeof ROLES)[number];
+  @Matches(/^[A-Z][A-Z0-9_]{1,40}$/)
+  role?: string;
 
   @IsOptional()
   @IsString()

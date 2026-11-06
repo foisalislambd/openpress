@@ -65,6 +65,12 @@ The web client retries once on `403` with a refresh token to pick up role change
 
 Editors and Admins moderate via **Comments** in admin.
 
+## Custom roles
+
+Administrators can add roles under **Users → Roles**. A role is a slug plus a list of capabilities. A user can also receive extra grants or denies (`PUT /api/users/:id/access`). A deny removes a capability the role would otherwise have. Denies do not apply to the built-in Administrator role, and only an Administrator can assign that role.
+
+Write routes check the capability (`manage_options`, `edit_users`, `moderate_comments`, and the rest) against the database row, so a change applies on the next request.
+
 ## API enforcement
 
-Roles are enforced server-side via `@Roles('ADMIN')` and similar guards. Never rely on hiding UI alone — the API always validates.
+Mutating routes require the matching capability. Hiding a menu is not the check. The API rejects the call when the capability is missing.

@@ -13,7 +13,7 @@ import {
 import { IsObject, IsOptional } from 'class-validator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles, RolesGuard } from '../auth/roles.guard';
+import { CapabilitiesGuard, RequireAnyCap } from '../auth/capabilities.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { FieldMapping } from '../feeds/emdash';
@@ -29,8 +29,8 @@ class EmDashDto {
 }
 
 @Controller('tools')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'EDITOR')
+@UseGuards(JwtAuthGuard, CapabilitiesGuard)
+@RequireAnyCap('edit_others_posts', 'manage_options')
 export class ToolsController {
   constructor(private tools: ToolsService) {}
 

@@ -3,6 +3,7 @@ import { DbService } from '../db/db.service';
 import { SettingsService } from '../settings/settings.service';
 import { buildPermalink } from '../cms/publishing';
 import { xmlEscape } from './wxr';
+import { currentSiteId } from '../sites/site-context';
 
 @Controller()
 export class FeedsController {
@@ -25,8 +26,10 @@ export class FeedsController {
       `SELECT title, slug, excerpt, "publishedAt"
        FROM contents
        WHERE type = 'POST' AND "postType" = 'post' AND status = 'PUBLISHED' AND visibility = 'PUBLIC'
+         AND "siteId" = $1
        ORDER BY sticky DESC, "publishedAt" DESC NULLS LAST
        LIMIT 20`,
+      [currentSiteId()],
     );
     const structure = String(settings.permalinkStructure ?? '/%postname%/');
     const items = rows
@@ -62,8 +65,9 @@ ${items}
     const rows = await this.db.query<{ slug: string; updatedAt: Date; publishedAt: Date | null }>(
       `SELECT slug, "updatedAt", "publishedAt"
        FROM contents
-       WHERE status = 'PUBLISHED' AND visibility = 'PUBLIC'
+       WHERE status = 'PUBLISHED' AND visibility = 'PUBLIC' AND "siteId" = $1
        ORDER BY "updatedAt" DESC`,
+      [currentSiteId()],
     );
     const urls = [
       `<url><loc>${xmlEscape(siteUrl)}/</loc></url>`,

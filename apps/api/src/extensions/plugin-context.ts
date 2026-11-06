@@ -3,6 +3,8 @@ import { Db } from '../db/db.service';
 import { HooksService } from '../hooks/hooks.service';
 import { ExtensionRegistry } from './extension-registry';
 import { PluginManifest, PluginPermission } from './plugin-manifest';
+import { CoreRegistry, optionType } from '../core/core-registry';
+import { TransientsService } from '../sites/transients.service';
 
 export function createPluginContext(options: {
   manifest: PluginManifest;
@@ -10,6 +12,8 @@ export function createPluginContext(options: {
   registry: ExtensionRegistry;
   db: Db;
   pluginDir: string;
+  core?: CoreRegistry;
+  transients?: TransientsService;
 }) {
   const permissions = new Set<PluginPermission>(options.manifest.permissions ?? []);
   const allow = (permission: PluginPermission) => {
@@ -78,10 +82,59 @@ export function createPluginContext(options: {
         one: options.db.one.bind(options.db),
       };
     },
+    transients: {
+      get: (key: string) => {
+        allow('settings');
+        if (!options.transients) throw new Error('Transients are not available');
+        return options.transients.get(String(key));
+      },
+      set: (key: string, value: unknown, ttlSeconds?: number) => {
+        allow('settings');
+        if (!options.transients) throw new Error('Transients are not available');
+        return options.transients.set(String(key), value, ttlSeconds);
+      },
+      delete: (key: string) => {
+        allow('settings');
+        if (!options.transients) throw new Error('Transients are not available');
+        return options.transients.delete(String(key));
+      },
+    },
     settings: {
       /** This plugin's own options. Does not read or write site settings. */
       get: () => readPluginSettings(),
       set: (values: Record<string, unknown>) => writePluginSettings(values),
+      register: (def: { key: string; type?: string; label?: string; group?: string; autoload?: boolean }) => {
+        allow('settings');
+        const key = def.key.startsWith(`${pluginId}.`) ? def.key : `${pluginId}.${def.key}`;
+        options.core?.addOption({
+          key,
+          group: def.group || 'plugin',
+          type: optionType(def.type || 'string'),
+          autoload: def.autoload !== false,
+          label: def.label || key,
+          public: false,
+          defaultValue: '',
+          source: pluginId,
+        });
+      },
+    },
+    capabilities: {
+      register: (cap: { name: string; label?: string }) => {
+        allow('settings');
+        options.core?.addCapability({ name: cap.name, label: cap.label || cap.name, source: pluginId });
+      },
+    },
+    rewrite: {
+      add: (rule: { pattern: string; query?: Record<string, string>; priority?: number }) => {
+        allow('rest');
+        options.core?.addRewrite({
+          id: `${pluginId}:${rule.pattern}`,
+          pattern: rule.pattern,
+          query: rule.query ?? {},
+          source: pluginId,
+          priority: rule.priority ?? 20,
+        });
+      },
     },
     admin: {
       addMenuPage: (page: {
@@ -166,6 +219,7 @@ export function createPluginContext(options: {
     dispose: () => {
       for (const dispose of disposers) dispose();
       options.registry.clear(pluginId);
+      options.core?.clear(pluginId);
     },
   };
 }

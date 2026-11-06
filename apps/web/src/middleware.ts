@@ -33,6 +33,17 @@ export async function middleware(request: NextRequest) {
         url.pathname = `/${resolved.slug}`;
         return NextResponse.rewrite(url);
       }
+      const rules = await fetch(`${api}/api/rewrite/match?path=${encodeURIComponent(pathname)}`, {
+        cache: 'no-store',
+      });
+      if (rules.ok) {
+        const matched = (await rules.json()) as { rewriteTo?: string | null };
+        if (matched.rewriteTo && matched.rewriteTo !== pathname) {
+          const url = request.nextUrl.clone();
+          url.pathname = matched.rewriteTo;
+          return NextResponse.rewrite(url);
+        }
+      }
     }
   } catch {
     // The public site still renders when the lookup is unavailable.

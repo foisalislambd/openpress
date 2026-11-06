@@ -1,6 +1,7 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { AssistantService } from './assistant.service';
 
 class CompleteDto {
@@ -15,7 +16,8 @@ class CompleteDto {
 }
 
 @Controller('assistant')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, CapabilitiesGuard)
+@RequireCaps('edit_posts')
 export class AssistantController {
   constructor(private assistant: AssistantService) {}
 

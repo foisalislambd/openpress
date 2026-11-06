@@ -16,6 +16,8 @@ import { ExtensionRegistry } from './extension-registry';
 import { hashPackageFiles, SIGNATURE_FILE, verifyPackageHash, compareVersions, PackageSignature } from './package-signature';
 import { hostAllowed, PluginRegistration, SandboxHandle, startPluginSandbox } from './sandbox/plugin-sandbox';
 import { PluginManifest, PluginPermission, validatePluginManifest } from './plugin-manifest';
+import { CoreRegistry, optionType } from '../core/core-registry';
+import { TransientsService } from '../sites/transients.service';
 
 export type { PluginManifest };
 
@@ -48,6 +50,8 @@ export class PluginsService implements OnModuleInit {
     private db: DbService,
     private hooks: HooksService,
     private registry: ExtensionRegistry,
+    private core: CoreRegistry,
+    private transients: TransientsService,
   ) {}
 
   async onModuleInit() {
@@ -218,6 +222,7 @@ export class PluginsService implements OnModuleInit {
         for (const dispose of disposers) dispose();
         handle.dispose();
         this.registry.clear(id);
+        this.core.clear(id);
       },
     });
     this.errors.delete(id);
@@ -228,6 +233,7 @@ export class PluginsService implements OnModuleInit {
     const plugin = this.loaded.get(id);
     if (!plugin) {
       this.registry.clear(id);
+      this.core.clear(id);
       return;
     }
     plugin.dispose();
@@ -284,6 +290,33 @@ export class PluginsService implements OnModuleInit {
         method: registration.method,
         path: registration.path,
         handler: (req) => handle.invoke(registration.id, [req]),
+      });
+    }
+    if (registration.kind === 'capability' && registration.name) {
+      this.core.addCapability({ name: registration.name, label: registration.title || registration.name, source: pluginId });
+    }
+    if (registration.kind === 'setting' && registration.optionKey) {
+      const key = registration.optionKey.startsWith(`${pluginId}.`)
+        ? registration.optionKey
+        : `${pluginId}.${registration.optionKey}`;
+      this.core.addOption({
+        key,
+        group: registration.optionGroup || 'plugin',
+        type: optionType(registration.optionType || 'string'),
+        autoload: registration.optionAutoload !== false,
+        label: registration.title || key,
+        public: false,
+        defaultValue: registration.optionType === 'boolean' ? false : registration.optionType === 'number' ? 0 : '',
+        source: pluginId,
+      });
+    }
+    if (registration.kind === 'rewrite' && registration.pattern && registration.query) {
+      this.core.addRewrite({
+        id: `${pluginId}:${registration.pattern}`,
+        pattern: registration.pattern,
+        query: registration.query,
+        source: pluginId,
+        priority: registration.priority ?? 20,
       });
     }
     if (registration.kind === 'asset' && registration.handle && registration.file && registration.assetKind) {
@@ -393,6 +426,12 @@ export class PluginsService implements OnModuleInit {
       ]);
       return true;
     }
+    if (method === 'transient.get') return this.transients.get(String(args[0] ?? ''));
+    if (method === 'transient.set') {
+      const ttl = args[2] === undefined ? undefined : Number(args[2]);
+      return this.transients.set(String(args[0] ?? ''), args[1], ttl);
+    }
+    if (method === 'transient.delete') return this.transients.delete(String(args[0] ?? ''));
     if (method === 'settings.get') return this.getSettings(manifest.id);
     if (method === 'settings.set') {
       const values = (args[0] ?? {}) as Record<string, unknown>;

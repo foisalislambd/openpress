@@ -2,6 +2,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 import { buildSchema, graphql } from 'graphql';
 import { ContentService } from '../content/content.service';
+import { currentSiteId } from '../sites/site-context';
 import { DbService } from '../db/db.service';
 
 class GraphqlDto {
@@ -80,12 +81,12 @@ export class GraphqlController {
       media: async (args: { limit?: number }) => {
         const limit = Math.min(50, Math.max(1, args.limit ?? 12));
         return this.db.query(
-          'SELECT id, filename, url, alt FROM media ORDER BY "createdAt" DESC LIMIT $1',
-          [limit],
+          'SELECT id, filename, url, alt FROM media WHERE "siteId" = $2 ORDER BY "createdAt" DESC LIMIT $1',
+          [limit, currentSiteId()],
         );
       },
-      categories: () => this.db.query('SELECT id, name, slug FROM categories ORDER BY name'),
-      tags: () => this.db.query('SELECT id, name, slug FROM tags ORDER BY name'),
+      categories: () => this.db.query('SELECT id, name, slug FROM categories WHERE "siteId" = $1 ORDER BY name', [currentSiteId()]),
+      tags: () => this.db.query('SELECT id, name, slug FROM tags WHERE "siteId" = $1 ORDER BY name', [currentSiteId()]),
     };
     return graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
   }

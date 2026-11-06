@@ -22,6 +22,12 @@ export interface PluginRegistration {
   handle?: string;
   file?: string;
   assetKind?: 'style' | 'script';
+  optionKey?: string;
+  optionType?: string;
+  optionGroup?: string;
+  optionAutoload?: boolean;
+  pattern?: string;
+  query?: Record<string, string>;
 }
 
 interface ReadyMessage {

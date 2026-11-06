@@ -10,7 +10,7 @@ import { BlockRenderer } from './blocks';
 import { CommentForm } from './comment-form';
 import { CommentList, Pagination, PostCard, formatDate } from './components';
 
-type MenuItem = { label: string; url: string };
+type MenuItem = { label: string; url: string; children?: MenuItem[] };
 type NavMenu = { name?: string; items?: MenuItem[] };
 
 function menusOf(settings: ThemeLayoutProps['settings']) {
@@ -36,6 +36,10 @@ function Layout({ settings, pages, children }: ThemeLayoutProps) {
   const chrome = (settings.pluginChrome ?? {}) as {
     assets?: { href: string; kind: 'style' | 'script'; handle: string }[];
     widgets?: { footer?: string[]; sidebar?: string[] };
+    areas?: {
+      sidebar?: { id: string; title: string; text?: string; items?: { label: string; href: string }[]; form?: { action: string; name: string; placeholder: string } }[];
+      footer?: { id: string; title: string; text?: string; items?: { label: string; href: string }[]; form?: { action: string; name: string; placeholder: string } }[];
+    };
   };
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
@@ -46,9 +50,16 @@ function Layout({ settings, pages, children }: ThemeLayoutProps) {
           </a>
           <nav className="flex flex-wrap items-center gap-4 text-sm font-medium text-zinc-600 dark:text-zinc-300">
             {items.map((item) => (
-              <a key={`${item.url}-${item.label}`} href={item.url} className="hover:text-indigo-600">
-                {item.label}
-              </a>
+              <span key={`${item.url}-${item.label}`} className="inline-flex items-center gap-2">
+                <a href={item.url} className="hover:text-indigo-600">
+                  {item.label}
+                </a>
+                {item.children?.map((child) => (
+                  <a key={`${child.url}-${child.label}`} href={child.url} className="text-zinc-500 hover:text-indigo-600">
+                    {child.label}
+                  </a>
+                ))}
+              </span>
             ))}
             <a href="/search" className="hover:text-indigo-600">Search</a>
             <a href="/feed" className="hover:text-indigo-600">RSS</a>
@@ -57,7 +68,30 @@ function Layout({ settings, pages, children }: ThemeLayoutProps) {
       </header>
       <main className="mx-auto grid w-full max-w-4xl flex-1 gap-8 px-4 py-10 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div>{children}</div>
-        {chrome.widgets?.sidebar?.length ? (
+        {chrome.areas?.sidebar?.length ? (
+          <aside className="space-y-4 text-sm text-zinc-600">
+            {chrome.areas.sidebar.map((widget) => (
+              <section key={widget.id}>
+                <h2 className="mb-1 font-semibold text-zinc-800 dark:text-zinc-200">{widget.title}</h2>
+                {widget.form ? (
+                  <form action={widget.form.action}>
+                    <input name={widget.form.name} placeholder={widget.form.placeholder} className="w-full rounded border px-2 py-1" />
+                  </form>
+                ) : null}
+                {widget.text ? <p>{widget.text}</p> : null}
+                {widget.items?.length ? (
+                  <ul className="space-y-1">
+                    {widget.items.map((item) => (
+                      <li key={item.href}>
+                        <a href={item.href} className="hover:text-indigo-600">{item.label}</a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+            ))}
+          </aside>
+        ) : chrome.widgets?.sidebar?.length ? (
           <aside className="space-y-3 text-sm text-zinc-600">
             {chrome.widgets.sidebar.map((html) => (
               <p key={html}>{html}</p>

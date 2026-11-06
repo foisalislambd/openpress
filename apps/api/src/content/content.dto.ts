@@ -133,6 +133,56 @@ export class QueryContentDto {
   @IsOptional()
   @IsString()
   perPage?: string;
+
+  @IsOptional()
+  @IsIn(VISIBILITY as unknown as string[])
+  visibility?: string;
+
+  @IsOptional()
+  @IsString()
+  authorId?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  after?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  before?: string;
+
+  @IsOptional()
+  @IsIn(['date', 'title', 'modified', 'relevance'])
+  orderBy?: string;
+
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
+  order?: string;
+
+  @IsOptional()
+  @IsIn(['only', 'exclude'])
+  sticky?: string;
+
+  @IsOptional()
+  @IsString()
+  metaKey?: string;
+
+  @IsOptional()
+  @IsString()
+  metaValue?: string;
+
+  @IsOptional()
+  @IsIn(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'not_like', 'in', 'not_in', 'between', 'exists', 'not_exists'])
+  metaCompare?: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'not_like' | 'in' | 'not_in' | 'between' | 'exists' | 'not_exists';
+
+  /** JSON meta_query object or list. */
+  @IsOptional()
+  @IsString()
+  metaQuery?: string;
+
+  /** JSON tax_query object. */
+  @IsOptional()
+  @IsString()
+  taxQuery?: string;
 }
 
 export class UnlockDto {
