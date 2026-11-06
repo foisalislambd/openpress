@@ -19,6 +19,15 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: settings.siteTitle, template: `%s | ${settings.siteTitle}` },
     description: settings.siteDescription,
+    icons: {
+      icon: [
+        { url: '/favicon.ico', sizes: 'any' },
+        { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+        { url: '/icon.png', type: 'image/png', sizes: '192x192' },
+        { url: '/openpress-icon.svg', type: 'image/svg+xml' },
+      ],
+      apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+    },
     alternates: { types: { 'application/rss+xml': '/feed' } },
   };
 }

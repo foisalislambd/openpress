@@ -7,6 +7,7 @@ import { BlockInspector } from './block-inspector';
 import { BlockCanvas } from './canvas';
 import { Inserter, rememberBlock } from './inserter';
 import { ListView } from './list-view';
+import { OpenPressMark } from '@/components/brand/openpress-mark';
 import { WpIcon } from './wp-icons';
 import './editor.css';
 import {
@@ -157,7 +158,7 @@ export function EditorShell({
       <header className="op-gb-header">
         <div className="op-gb-tools" role="toolbar" aria-label="Document tools">
           <Link className="op-gb-back" href={backHref} aria-label={backLabel}>
-            <WpIcon name="wordpress" />
+            <OpenPressMark size={22} />
           </Link>
           {!focus ? (
             <button

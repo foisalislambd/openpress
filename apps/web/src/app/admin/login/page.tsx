@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
+import { OpenPressMark } from '@/components/brand/openpress-mark';
 import { api, setTokens } from '@/lib/client-api';
 
 export default function LoginPage() {
@@ -73,8 +74,9 @@ export default function LoginPage() {
   return (
     <div className="op-login">
       <div className="op-login-box">
-        <Link className="op-login-logo" href="/" style={{ fontSize: 20, lineHeight: '84px' }}>
-          OpenPress
+        <Link className="op-login-logo" href="/">
+          <OpenPressMark size={84} />
+          <span>OpenPress</span>
         </Link>
         <form onSubmit={submit}>
           {mode === 'register' ? (
