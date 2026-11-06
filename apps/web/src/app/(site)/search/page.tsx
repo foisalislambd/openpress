@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getPublicPosts, getSettings } from '@/lib/api';
 import { resolveTheme } from '@/lib/themes';
+import { renderTemplate } from '@/lib/templates';
 
 export const metadata: Metadata = { title: 'Search' };
 
@@ -22,7 +23,6 @@ export default async function SearchPage({
         totalPages: 0,
       }))
     : { items: [], total: 0, page: 1, perPage: 10, totalPages: 0 };
-  const { Archive } = theme;
   return (
     <div>
       <form action="/search" className="mb-8 flex gap-2">
@@ -40,11 +40,11 @@ export default async function SearchPage({
           Search
         </button>
       </form>
-      <Archive
-        settings={settings}
-        title={query ? `Search results for “${query}”` : 'Search'}
-        posts={posts}
-      />
+      {renderTemplate(theme, ['search', 'archive'], theme.Archive, {
+        settings,
+        title: query ? `Search results for “${query}”` : 'Search',
+        posts,
+      })}
     </div>
   );
 }

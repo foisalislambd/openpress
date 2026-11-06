@@ -96,7 +96,7 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, user.role);
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, meta?: SessionMeta) {
     const user = await this.db.one<AuthUser>(
       'SELECT id, email, role, "passwordHash" FROM users WHERE email = $1',
       [dto.email],
@@ -105,13 +105,37 @@ export class AuthService {
       await this.audit.record('auth.login_failed', { email: dto.email });
       throw new UnauthorizedException('Invalid credentials');
     }
+    const totp = await this.db.one<{ enabled: boolean }>(
+      'SELECT enabled FROM user_totp WHERE "userId" = $1',
+      [user.id],
+    );
+    if (totp?.enabled) {
+      const ticket = this.jwt.sign(
+        { sub: user.id, email: user.email, role: user.role, purpose: 'mfa' },
+        { expiresIn: '5m' },
+      );
+      return { mfaRequired: true as const, ticket };
+    }
     await this.audit.record('auth.login', { email: user.email }, user.id);
-    return this.issueTokens(user.id, user.email, user.role);
+    return this.issueTokens(user.id, user.email, user.role, meta);
   }
 
-  async refresh(refreshToken: string) {
+  async confirmMfa(ticket: string, code: string, verify: (userId: string, code: string) => Promise<boolean>, meta?: SessionMeta) {
+    let payload: { sub: string; email: string; role: string; purpose?: string };
     try {
-      const payload = this.jwt.verify(refreshToken, {
+      payload = this.jwt.verify(ticket);
+    } catch {
+      throw new UnauthorizedException('Sign-in expired. Enter your password again.');
+    }
+    if (payload.purpose !== 'mfa') throw new UnauthorizedException('Sign-in expired. Enter your password again.');
+    if (!(await verify(payload.sub, code))) throw new UnauthorizedException('That code did not match');
+    await this.audit.record('auth.login', { email: payload.email, mfa: true }, payload.sub);
+    return this.issueTokens(payload.sub, payload.email, payload.role, meta);
+  }
+
+  async refresh(refreshToken: string, meta?: SessionMeta) {
+    try {
+      const payload = this.jwt.verify<{ sub: string; sid?: string }>(refreshToken, {
         secret: this.refreshSecret,
       });
       const user = await this.db.one<AuthUser>(
@@ -119,10 +143,49 @@ export class AuthService {
         [payload.sub],
       );
       if (!user) throw new UnauthorizedException();
-      return this.issueTokens(user.id, user.email, user.role);
-    } catch {
+      if (payload.sid) {
+        const session = await this.db.one<{ id: string }>(
+          'SELECT id FROM user_sessions WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL',
+          [payload.sid, user.id],
+        );
+        if (!session) throw new UnauthorizedException();
+      }
+      return this.issueTokens(user.id, user.email, user.role, meta, payload.sid);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async linkExternalUser(provider: string, profile: { id: string; email: string; name: string }) {
+    const linked = await this.db.one<{ userId: string }>(
+      'SELECT "userId" FROM oauth_identities WHERE provider = $1 AND "providerUserId" = $2',
+      [provider, profile.id],
+    );
+    if (linked) {
+      const user = await this.db.one<AuthUser>('SELECT id, email, role FROM users WHERE id = $1', [linked.userId]);
+      if (!user) throw new UnauthorizedException();
+      return user;
+    }
+    let user = await this.db.one<AuthUser>('SELECT id, email, role FROM users WHERE email = $1', [profile.email]);
+    if (!user) {
+      const passwordHash = await bcrypt.hash(newId(), 10);
+      user = await this.db.one<AuthUser>(
+        `INSERT INTO users (id, email, name, "passwordHash", role, "updatedAt")
+         VALUES ($1, $2, $3, $4, 'AUTHOR', now())
+         RETURNING id, email, role`,
+        [newId(), profile.email, profile.name.slice(0, 80), passwordHash],
+      );
+    }
+    if (!user) throw new UnauthorizedException();
+    await this.db.query(
+      `INSERT INTO oauth_identities (id, "userId", provider, "providerUserId", email)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (provider, "providerUserId") DO NOTHING`,
+      [newId(), user.id, provider, profile.id, profile.email],
+    );
+    await this.audit.record('auth.oauth', { provider, email: user.email }, user.id);
+    return user;
   }
 
   async updateProfile(
@@ -159,8 +222,26 @@ export class AuthService {
     return user;
   }
 
-  private issueTokens(sub: string, email: string, role: string) {
-    const payload = { sub, email, role };
+  async issueTokens(sub: string, email: string, role: string, meta?: SessionMeta, existingSid?: string) {
+    let sid = existingSid;
+    if (sid) {
+      const session = await this.db.one<{ id: string }>(
+        'SELECT id FROM user_sessions WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL',
+        [sid, sub],
+      );
+      if (!session) sid = undefined;
+      else {
+        await this.db.query('UPDATE user_sessions SET "lastSeenAt" = now() WHERE id = $1', [sid]);
+      }
+    }
+    if (!sid) {
+      sid = newId();
+      await this.db.query(
+        `INSERT INTO user_sessions (id, "userId", "userAgent", ip) VALUES ($1, $2, $3, $4)`,
+        [sid, sub, meta?.userAgent?.slice(0, 300) ?? null, meta?.ip?.slice(0, 64) ?? null],
+      );
+    }
+    const payload = { sub, email, role, sid, purpose: 'access' };
     return {
       accessToken: this.jwt.sign(payload),
       refreshToken: this.jwt.sign(payload, {
@@ -170,4 +251,9 @@ export class AuthService {
       user: { id: sub, email, role },
     };
   }
+}
+
+export interface SessionMeta {
+  userAgent?: string;
+  ip?: string;
 }

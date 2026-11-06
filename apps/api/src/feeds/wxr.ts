@@ -7,7 +7,7 @@ export interface WxrItem {
   title: string;
   slug: string;
   type: 'POST' | 'PAGE';
-  status: 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'TRASHED';
+  status: 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'SCHEDULED' | 'TRASHED';
   visibility: 'PUBLIC' | 'PRIVATE' | 'PASSWORD';
   excerpt: string;
   blocks: unknown[];
@@ -21,7 +21,15 @@ export interface WxrItem {
   link?: string;
   featuredId?: string;
   meta?: { key: string; value: string }[];
-  comments?: { author: string; email: string; content: string; date: string; approved: boolean }[];
+  comments?: {
+    wpId?: string;
+    parent?: string;
+    author: string;
+    email: string;
+    content: string;
+    date: string;
+    approved: boolean;
+  }[];
 }
 
 export interface WxrAttachment {
@@ -92,6 +100,8 @@ function mapStatus(status: string, password: string): Pick<WxrItem, 'status' | '
       return { status: 'PUBLISHED', visibility: 'PRIVATE' };
     case 'future':
       return { status: 'SCHEDULED', visibility: 'PUBLIC' };
+    case 'pending':
+      return { status: 'PENDING', visibility: 'PUBLIC' };
     case 'trash':
       return { status: 'TRASHED', visibility: 'PUBLIC' };
     default:
@@ -145,6 +155,8 @@ function commentsOf(raw: string): NonNullable<WxrItem['comments']> {
   for (const match of raw.matchAll(/<wp:comment>([\s\S]*?)<\/wp:comment>/gi)) {
     const approved = tag(match[1], 'wp:comment_approved');
     comments.push({
+      wpId: tag(match[1], 'wp:comment_id') || undefined,
+      parent: tag(match[1], 'wp:comment_parent') || undefined,
       author: tag(match[1], 'wp:comment_author'),
       email: tag(match[1], 'wp:comment_author_email'),
       content: tag(match[1], 'wp:comment_content'),

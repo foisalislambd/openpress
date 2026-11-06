@@ -11,6 +11,7 @@ const FILTERS = [
   { value: '', label: 'All' },
   { value: 'PUBLISHED', label: 'Published' },
   { value: 'DRAFT', label: 'Drafts' },
+  { value: 'PENDING', label: 'Pending' },
   { value: 'SCHEDULED', label: 'Scheduled' },
   { value: 'TRASHED', label: 'Trash' },
 ];
@@ -36,7 +37,7 @@ function when(value?: string | null) {
   });
 }
 
-export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
+export function ContentList({ type, postType }: { type: 'POST' | 'PAGE'; postType?: string }) {
   const [data, setData] = useState<Paginated<Content> | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
@@ -57,6 +58,7 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
 
   const load = useCallback(() => {
     const qs = new URLSearchParams({ type, page: String(page), perPage: '20' });
+    if (postType) qs.set('postType', postType);
     if (status) qs.set('status', status);
     if (query) qs.set('search', query);
     api<Paginated<Content>>(`/content?${qs}`)
@@ -69,6 +71,7 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
     Promise.all(
       FILTERS.map(async (filter) => {
         const countQs = new URLSearchParams({ type, page: '1', perPage: '1' });
+        if (postType) countQs.set('postType', postType);
         if (filter.value) countQs.set('status', filter.value);
         const result = await api<Paginated<Content>>(`/content?${countQs}`);
         return [filter.value, result.total] as const;
@@ -76,7 +79,7 @@ export function ContentList({ type }: { type: 'POST' | 'PAGE' }) {
     )
       .then((rows) => setCounts(Object.fromEntries(rows)))
       .catch(() => {});
-  }, [type, page, status, query]);
+  }, [type, postType, page, status, query]);
 
   useEffect(load, [load]);
 

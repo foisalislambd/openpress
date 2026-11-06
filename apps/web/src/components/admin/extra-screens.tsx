@@ -79,6 +79,25 @@ export function CustomizeScreen() {
               settings && setSettings({ ...settings, siteDescription: e.target.value })
             }
           />
+          <Label>Accent color</Label>
+          <Input
+            className="mb-3"
+            value={String((settings?.themeMods as { accent?: string } | undefined)?.accent ?? '')}
+            onChange={(e) =>
+              settings &&
+              setSettings({
+                ...settings,
+                themeMods: { ...((settings.themeMods as object) ?? {}), accent: e.target.value },
+              })
+            }
+          />
+          <Label>Additional CSS</Label>
+          <Textarea
+            className="mb-3 font-mono"
+            rows={6}
+            value={String(settings?.additionalCss ?? '')}
+            onChange={(e) => settings && setSettings({ ...settings, additionalCss: e.target.value })}
+          />
           {saved ? <Notice kind="success">Saved. The preview reloads published content.</Notice> : null}
           <Button type="submit">Publish</Button>
         </form>
@@ -575,6 +594,9 @@ export function ToolsScreen() {
 export function ImportScreen() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [mapTitle, setMapTitle] = useState('');
+  const [mapBody, setMapBody] = useState('');
+  const [mapSlug, setMapSlug] = useState('');
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -604,23 +626,24 @@ export function ImportScreen() {
         return;
       }
       const text = await file.text();
-      const data = JSON.parse(text) as { posts?: { title: string; excerpt?: string; status?: string; type?: string }[] };
-      const posts = Array.isArray(data.posts) ? data.posts : [];
-      let imported = 0;
-      for (const post of posts) {
-        if (!post?.title?.trim()) continue;
-        await api('/content', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: post.title.trim(),
-            excerpt: post.excerpt,
-            status: post.status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT',
-            type: post.type === 'PAGE' ? 'PAGE' : 'POST',
-          }),
-        });
-        imported += 1;
-      }
-      setMessage(`Imported ${imported} item${imported === 1 ? '' : 's'}.`);
+      const document = JSON.parse(text) as Record<string, unknown>;
+      const preview = await api<{ keys: string[]; total: number; preview: { title: string; status: string }[] }>(
+        '/tools/import/emdash/preview',
+        { method: 'POST', body: JSON.stringify({ document }) },
+      );
+      const result = await api<{ imported: number; total: number }>('/tools/import/emdash', {
+        method: 'POST',
+        body: JSON.stringify({
+        document,
+        mapping: {
+          ...(mapTitle ? { title: mapTitle } : {}),
+          ...(mapBody ? { body: mapBody } : {}),
+          ...(mapSlug ? { slug: mapSlug } : {}),
+        },
+      }),
+      });
+      const names = preview.preview.map((item) => item.title).slice(0, 3).join(', ');
+      setMessage(`Imported ${result.imported} of ${result.total} EmDash or JSON records${names ? ` (${names})` : ''}. Fields: ${preview.keys.join(', ') || 'title'}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed');
     }
@@ -632,6 +655,15 @@ export function ImportScreen() {
       {message ? <Notice kind="success">{message}</Notice> : null}
       <p>Upload an OpenPress export (.json) or a WordPress WXR file (.xml). WXR imports keep private, password, and scheduled posts, and show progress while attachments and comments come in.</p>
       <input type="file" accept="application/json,.json,application/xml,.xml,text/xml" onChange={(e) => onFile(e.target.files?.[0])} />
+      <div className="mt-4 max-w-lg space-y-2">
+        <p className="op-description">JSON field mapper. Leave blank when the file already uses title, slug, and html or body. EmDash dumps and {'{ records, mapping }'} files are both accepted.</p>
+        <Label>Title field</Label>
+        <Input value={mapTitle} onChange={(e) => setMapTitle(e.target.value)} placeholder="headline" />
+        <Label>Body field</Label>
+        <Input value={mapBody} onChange={(e) => setMapBody(e.target.value)} placeholder="html" />
+        <Label>Slug field</Label>
+        <Input value={mapSlug} onChange={(e) => setMapSlug(e.target.value)} placeholder="slug" />
+      </div>
     </Screen>
   );
 }
@@ -718,7 +750,7 @@ export function SiteHealthScreen() {
   const [rows, setRows] = useState<{ label: string; ok: boolean; detail: string }[]>([]);
 
   useEffect(() => {
-    Promise.allSettled([api('/auth/me'), api('/settings'), api<{ ok?: boolean; demo?: boolean }>('/health')]).then((results) => {
+    Promise.allSettled([api('/auth/me'), api('/settings'), api<{ ok?: boolean; demo?: boolean; redis?: boolean; storage?: string }>('/health')]).then((results) => {
       const health = results[2].status === 'fulfilled' ? results[2].value : null;
       setRows([
         {
@@ -739,6 +771,16 @@ export function SiteHealthScreen() {
               ? 'Database responded. Demo mode is on.'
               : 'Database responded.'
             : 'Health check failed.',
+        },
+        {
+          label: 'Redis queue',
+          ok: true,
+          detail: health && 'redis' in health && health.redis ? 'REDIS_URL is set. Run the worker process.' : 'Inline jobs. Set REDIS_URL for BullMQ.',
+        },
+        {
+          label: 'Storage',
+          ok: true,
+          detail: health && 'storage' in health ? `Driver: ${String(health.storage)}` : 'Local uploads.',
         },
       ]);
     });
@@ -1018,8 +1060,12 @@ export function PermalinkSettings() {
             onChange={(e) => set({ permalinkStructure: e.target.value })}
           >
             <option value="/%postname%/">Post name — /sample-post</option>
+            <option value="/%year%/%monthnum%/%postname%/">Day and name — /2026/11/sample-post</option>
+            <option value="/%year%/%monthnum%/%day%/%postname%/">Numeric date — /2026/11/06/sample-post</option>
+            <option value="/%category%/%postname%/">Category and name — /news/sample-post</option>
+            <option value="/%author%/%postname%/">Author and name — /admin/sample-post</option>
           </Select>,
-          'OpenPress publishes each post and page at its slug.',
+          'Dated and category structures are routed by the public site. Plain post name stays at /sample-post.',
         )
       }
     </SettingsForm>

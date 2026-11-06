@@ -15,8 +15,15 @@ import { ExtensionsModule } from './extensions/extensions.module';
 import { HooksModule } from './hooks/hooks.module';
 import { FeedsModule } from './feeds/feeds.module';
 import { ToolsModule } from './tools/tools.module';
+import { ApiKeyMiddleware } from './auth/api-key.middleware';
 import { AppPasswordMiddleware } from './auth/app-password.middleware';
+import { GraphqlModule } from './graphql/graphql.module';
+import { I18nModule } from './i18n/i18n.module';
+import { JobsModule } from './jobs/jobs.module';
+import { McpModule } from './mcp/mcp.module';
+import { ModelingModule } from './modeling/modeling.module';
 import { PlatformModule } from './platform/platform.module';
+import { WpModule } from './rest/wp.module';
 
 @Module({
   imports: [
@@ -37,14 +44,21 @@ import { PlatformModule } from './platform/platform.module';
     ExtensionsModule,
     FeedsModule,
     ToolsModule,
+    ModelingModule,
+    JobsModule,
+    I18nModule,
+    WpModule,
+    McpModule,
+    GraphqlModule,
   ],
   providers: [
     AppPasswordMiddleware,
+    ApiKeyMiddleware,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AppPasswordMiddleware).forRoutes('*');
+    consumer.apply(AppPasswordMiddleware, ApiKeyMiddleware).forRoutes('*');
   }
 }

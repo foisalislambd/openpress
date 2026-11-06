@@ -125,6 +125,7 @@ function Post({ content, comments }: ThemeSingleProps) {
           ))}
         </div>
         <h1 className="mt-2 text-4xl font-extrabold tracking-tight">{content.title}</h1>
+        <LanguageSwitch content={content} />
         <div className="mt-3 text-sm text-zinc-500">
           By {content.author?.name} on <time>{formatDate(content.publishedAt)}</time>
         </div>
@@ -169,6 +170,36 @@ function Page({ content }: ThemeSingleProps) {
   );
 }
 
+function LanguageSwitch({ content }: { content: ThemeSingleProps['content'] }) {
+  const translations = content.translations ?? [];
+  if (translations.length < 2) return null;
+  return (
+    <nav aria-label="Languages" className="mt-3 flex flex-wrap gap-2 text-sm">
+      {translations.map((item) => (
+        <a key={item.locale} href={item.permalink} hrefLang={item.locale} className="rounded border border-zinc-300 px-2 py-0.5">
+          {item.locale}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function ArchiveCategory(props: ThemeArchiveProps) {
+  return (
+    <div data-template="archive-category">
+      <Archive {...props} />
+    </div>
+  );
+}
+
+function ArchiveTag(props: ThemeArchiveProps) {
+  return (
+    <div data-template="archive-tag">
+      <Archive {...props} />
+    </div>
+  );
+}
+
 function Archive({ title, posts }: ThemeArchiveProps) {
   return (
     <div>
@@ -196,6 +227,17 @@ const theme: ThemeDefinition = {
   Post,
   Page,
   Archive,
+  templates: {
+    home: Home,
+    'single-post': Post,
+    'single-page': Page,
+    page: Page,
+    single: Post,
+    'archive-category': ArchiveCategory,
+    'archive-tag': ArchiveTag,
+    archive: Archive,
+    search: Archive,
+  },
 };
 
 export default theme;

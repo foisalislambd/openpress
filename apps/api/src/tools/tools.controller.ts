@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Header,
@@ -9,12 +10,23 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { IsObject, IsOptional } from 'class-validator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtPayload } from '../auth/jwt.strategy';
+import { FieldMapping } from '../feeds/emdash';
 import { ToolsService } from './tools.service';
+
+class EmDashDto {
+  @IsObject()
+  document!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  mapping?: FieldMapping;
+}
 
 @Controller('tools')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -34,6 +46,16 @@ export class ToolsController {
   importWxr(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: JwtPayload) {
     if (!file?.buffer?.length) throw new BadRequestException('Upload a WXR .xml file');
     return this.tools.importWxr(file.buffer.toString('utf8'), user);
+  }
+
+  @Post('import/emdash/preview')
+  previewEmDash(@Body() dto: EmDashDto) {
+    return this.tools.previewEmDash(dto.document, dto.mapping);
+  }
+
+  @Post('import/emdash')
+  importEmDash(@Body() dto: EmDashDto, @CurrentUser() user: JwtPayload) {
+    return this.tools.importEmDash(dto.document, dto.mapping, user);
   }
 
   @Get('imports/:id')

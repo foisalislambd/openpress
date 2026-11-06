@@ -1,6 +1,7 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { DbService } from '../db/db.service';
 import { SettingsService } from '../settings/settings.service';
+import { buildPermalink } from '../cms/publishing';
 import { xmlEscape } from './wxr';
 
 @Controller()
@@ -23,13 +24,14 @@ export class FeedsController {
     }>(
       `SELECT title, slug, excerpt, "publishedAt"
        FROM contents
-       WHERE type = 'POST' AND status = 'PUBLISHED' AND visibility = 'PUBLIC'
+       WHERE type = 'POST' AND "postType" = 'post' AND status = 'PUBLISHED' AND visibility = 'PUBLIC'
        ORDER BY sticky DESC, "publishedAt" DESC NULLS LAST
        LIMIT 20`,
     );
+    const structure = String(settings.permalinkStructure ?? '/%postname%/');
     const items = rows
       .map((row) => {
-        const link = `${siteUrl}/${encodeURIComponent(row.slug)}`;
+        const link = `${siteUrl}${buildPermalink(structure, row)}`;
         const when = row.publishedAt ? new Date(row.publishedAt).toUTCString() : new Date().toUTCString();
         return `<item>
 <title>${xmlEscape(row.title)}</title>
@@ -54,19 +56,21 @@ ${items}
   @Get('sitemap.xml')
   @Header('Content-Type', 'application/xml; charset=utf-8')
   async sitemap() {
+    const settings = await this.settings.getAll();
+    const structure = String(settings.permalinkStructure ?? '/%postname%/');
     const siteUrl = (process.env.WEB_ORIGIN ?? 'http://localhost:3000').replace(/\/$/, '');
-    const rows = await this.db.query<{ slug: string; updatedAt: Date }>(
-      `SELECT slug, "updatedAt"
+    const rows = await this.db.query<{ slug: string; updatedAt: Date; publishedAt: Date | null }>(
+      `SELECT slug, "updatedAt", "publishedAt"
        FROM contents
        WHERE status = 'PUBLISHED' AND visibility = 'PUBLIC'
        ORDER BY "updatedAt" DESC`,
     );
     const urls = [
       `<url><loc>${xmlEscape(siteUrl)}/</loc></url>`,
-      ...rows.map(
-        (row) =>
-          `<url><loc>${xmlEscape(`${siteUrl}/${encodeURIComponent(row.slug)}`)}</loc><lastmod>${new Date(row.updatedAt).toISOString()}</lastmod></url>`,
-      ),
+      ...rows.map((row) => {
+        const loc = `${siteUrl}${buildPermalink(structure, row)}`;
+        return `<url><loc>${xmlEscape(loc)}</loc><lastmod>${new Date(row.updatedAt).toISOString()}</lastmod></url>`;
+      }),
     ];
     return `<?xml version="1.0" encoding="UTF-8" ?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

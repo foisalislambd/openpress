@@ -2,7 +2,7 @@ import type { ComponentType, ReactNode } from 'react';
 
 export type Role = 'ADMIN' | 'EDITOR' | 'AUTHOR' | 'CONTRIBUTOR' | 'SUBSCRIBER';
 export type ContentType = 'POST' | 'PAGE';
-export type ContentStatus = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'TRASHED';
+export type ContentStatus = 'DRAFT' | 'PENDING' | 'PUBLISHED' | 'SCHEDULED' | 'TRASHED';
 export type ContentVisibility = 'PUBLIC' | 'PRIVATE' | 'PASSWORD';
 export type CommentStatus = 'PENDING' | 'APPROVED' | 'SPAM' | 'TRASHED';
 
@@ -54,6 +54,23 @@ export interface Content {
   blocks: unknown[];
   seo: Record<string, unknown>;
   coverImage?: string | null;
+  postType?: string;
+  locale?: string;
+  translationGroup?: string | null;
+  permalink?: string;
+  templates?: string[];
+  translations?: { id: string; locale: string; slug: string; permalink: string }[];
+  terms?: { id: string; taxonomy: string; name: string; slug: string }[];
+  seoHead?: {
+    title: string;
+    description: string;
+    canonical: string;
+    robots: string;
+    openGraph: Record<string, unknown>;
+    twitter: Record<string, unknown>;
+    jsonLd: Record<string, unknown>;
+    hreflang: { locale: string; href: string }[];
+  };
   publishedAt?: string | null;
   scheduledAt?: string | null;
   meta?: ContentMeta[];
@@ -81,6 +98,7 @@ export interface MediaSize {
   width: number;
   height: number;
   filename?: string;
+  formats?: { webp?: { url: string; filename?: string }; avif?: { url: string; filename?: string } };
 }
 
 export interface Media {
@@ -94,6 +112,11 @@ export interface Media {
   alt?: string | null;
   caption?: string | null;
   sizes?: Record<string, MediaSize>;
+  focalX?: number;
+  focalY?: number;
+  srcset?: string;
+  webpSrcset?: string;
+  avifSrcset?: string;
   createdAt: string;
   uploader?: Pick<User, 'id' | 'name'>;
 }
@@ -154,6 +177,8 @@ export interface ThemeDefinition {
   Post: ComponentType<ThemeSingleProps>;
   Page: ComponentType<ThemeSingleProps>;
   Archive: ComponentType<ThemeArchiveProps>;
+  /** Named templates. Each entry is one of the public view components. */
+  templates?: Record<string, ComponentType<ThemeHomeProps> | ComponentType<ThemeSingleProps> | ComponentType<ThemeArchiveProps>>;
 }
 
 export interface SiteSettings {

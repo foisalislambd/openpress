@@ -1,7 +1,7 @@
 import { Allow, IsArray, IsBoolean, IsIn, IsISO8601, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 const TYPES = ['POST', 'PAGE'] as const;
-const STATUSES = ['DRAFT', 'PUBLISHED', 'SCHEDULED', 'TRASHED'] as const;
+const STATUSES = ['DRAFT', 'PENDING', 'PUBLISHED', 'SCHEDULED', 'TRASHED'] as const;
 const VISIBILITY = ['PUBLIC', 'PRIVATE', 'PASSWORD'] as const;
 const COMMENT_STATUS = ['open', 'closed'] as const;
 
@@ -67,6 +67,27 @@ export class CreateContentDto {
   @IsOptional()
   @IsArray()
   tagIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  termIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  postType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  locale?: string;
+
+  @IsOptional()
+  @IsString()
+  translationGroup?: string;
+
+  @IsOptional()
+  @IsObject()
+  fields?: Record<string, unknown>;
 }
 
 export class UpdateContentDto extends CreateContentDto {
@@ -96,6 +117,14 @@ export class QueryContentDto {
   @IsOptional()
   @IsString()
   tag?: string;
+
+  @IsOptional()
+  @IsString()
+  postType?: string;
+
+  @IsOptional()
+  @IsString()
+  locale?: string;
 
   @IsOptional()
   @IsString()

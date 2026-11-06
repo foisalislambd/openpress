@@ -42,19 +42,21 @@ OpenPress fits a team that already works in React and Node and wants WordPress h
 
 ## Features
 
-**Content.** Posts and pages, a block editor, revisions, autosave that does not create a revision, drafts, scheduling, trash, public / private / password visibility, sticky posts, excerpts, SEO fields, categories, tags, and custom fields.
+**Content.** Posts and pages, custom post types and taxonomies, field groups, reusable patterns, a block editor, revisions with a side-by-side diff, autosave that does not create a revision, drafts, pending review, scheduling, trash, public / private / password visibility, sticky posts, excerpts, categories, tags, custom fields, and per-post translations.
 
-**Media.** Uploads with an allow-list, alt text, captions, dimensions, and thumbnail / medium / large sizes.
+**Media.** Uploads with an allow-list, alt text, captions, dimensions, focal point, rotate / flip / resize, thumbnail / medium / large sizes, WebP and AVIF derivatives, and srcset in the default theme. Local disk is the default. Set `STORAGE_DRIVER=s3` for S3-compatible storage.
 
-**People.** Admin, Editor, Author, Contributor, and Subscriber. JWT access and refresh tokens. Application passwords for scripts.
+**People.** Admin, Editor, Author, Contributor, and Subscriber. JWT access and refresh tokens, application passwords, authenticator-app 2FA, passkeys, a session list, and Google or GitHub sign-in when those client ids are set.
 
-**Appearance.** A built-in React theme, uploaded token themes and React themes, primary and footer menus, sidebar and footer widgets.
+**Appearance.** A built-in React theme with a template hierarchy (`single-post`, `archive-category`, and the rest), uploaded token themes and React themes, theme mods and additional CSS, primary and footer menus, sidebar and footer widgets, and pretty permalinks from the permalink structure setting.
+
+**SEO and headless.** Open Graph, Twitter cards, JSON-LD, canonical and hreflang tags, and robots controls. `/wp-json/wp/v2` covers posts, pages, media, categories, and tags, including `_embed`. GraphQL is at `POST /api/graphql`.
 
 **Plugins.** Each plugin runs in its own process. Actions and filters stay WordPress-shaped. Content, storage, email, and HTTP are separate permissions. HTTP is limited to an allow list. Admins review that list before install. Packages can be signed, and a bad release can be rolled back.
 
-**Import.** RSS, a sitemap, public search, and a WordPress WXR import that keeps private and scheduled posts, downloads public attachments, and shows progress.
+**Import.** RSS, a sitemap, public search, an EmDash JSON import, and a WordPress WXR import that keeps private and scheduled posts, comment threads, downloads public attachments, and shows progress.
 
-**Operations.** `GET /api/health`, a login audit log, and production images published from [`VERSION.md`](VERSION.md).
+**Operations.** `GET /api/health`, a login audit log, scoped `opk_` API keys, signed webhooks, and a Redis worker for imports and image derivatives when `REDIS_URL` is set. Without Redis those jobs run in the API process. Production Compose is in `docker-compose.prod.yml`. With `DEMO_MODE=true`, an admin can `POST /api/platform/demo/reset`.
 
 ## Install
 

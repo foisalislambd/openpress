@@ -1,11 +1,20 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
+import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
+import express from 'express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const server = express();
+  server.use((req, _res, next) => {
+    const url = req.url ?? '';
+    if (url === '/wp-json' || url.startsWith('/wp-json/')) {
+      req.url = `/api${url.slice('/wp-json'.length) || '/'}`;
+    }
+    next();
+  });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, new ExpressAdapter(server));
   app.setGlobalPrefix('api');
   // In production set WEB_ORIGIN (e.g. https://mysite.com) to lock down CORS
   app.enableCors({

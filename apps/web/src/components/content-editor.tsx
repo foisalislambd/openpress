@@ -8,6 +8,8 @@ import { api } from '@/lib/client-api';
 import { Button, Input, Label, Textarea } from '@/components/ui';
 import { Notice } from '@/components/admin/screen';
 import { RevisionsPanel } from '@/components/revisions-panel';
+import { FieldGroups, MediaModal, PatternInserter, TranslationBox } from '@/components/editor-tools';
+import type { Media } from '@openpress/shared';
 
 const BlockEditor = dynamic(
   () => import('@/components/block-editor').then((m) => m.BlockEditor),
@@ -34,6 +36,12 @@ export function ContentEditor({
   const [blocks, setBlocks] = useState<unknown[]>([]);
   const [seoTitle, setSeoTitle] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
+  const [seoCanonical, setSeoCanonical] = useState('');
+  const [seoRobots, setSeoRobots] = useState('index, follow');
+  const [seoImage, setSeoImage] = useState('');
+  const [locale, setLocale] = useState('en');
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [coverImage, setCoverImage] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -63,9 +71,20 @@ export function ContentEditor({
           setSlug(c.slug);
           setExcerpt(c.excerpt ?? '');
           setBlocks(c.blocks ?? []);
-          const seo = c.seo as { title?: string; description?: string };
+          const seo = c.seo as { title?: string; description?: string; canonical?: string; robots?: string; ogImage?: string };
           setSeoTitle(seo?.title ?? '');
           setSeoDescription(seo?.description ?? '');
+          setSeoCanonical(seo?.canonical ?? '');
+          setSeoRobots(seo?.robots || 'index, follow');
+          setSeoImage(seo?.ogImage ?? '');
+          setLocale(c.locale || 'en');
+          const nextFields: Record<string, string> = {};
+          for (const field of c.meta ?? []) {
+            if (typeof field.value === 'string' || typeof field.value === 'number' || typeof field.value === 'boolean') {
+              nextFields[field.key] = String(field.value);
+            }
+          }
+          setFieldValues(nextFields);
           setCoverImage(c.coverImage ?? '');
           setCategoryIds(c.categories?.map((x) => x.id) ?? []);
           setTagIds(c.tags?.map((x) => x.id) ?? []);
@@ -122,7 +141,16 @@ export function ContentEditor({
       status: status ?? existing?.status ?? 'DRAFT',
       excerpt: excerpt || undefined,
       blocks,
-      seo: { title: seoTitle || undefined, description: seoDescription || undefined },
+      seo: {
+        title: seoTitle || undefined,
+        description: seoDescription || undefined,
+        canonical: seoCanonical || undefined,
+        robots: seoRobots || undefined,
+        ogImage: seoImage || undefined,
+      },
+      locale,
+      fields: fieldValues,
+      postType: type === 'PAGE' ? 'page' : 'post',
       coverImage: coverImage || undefined,
       categoryIds,
       tagIds,
@@ -183,6 +211,9 @@ export function ContentEditor({
           <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
             Save Draft
           </Button>
+          <Button variant="secondary" disabled={saving} onClick={() => save('PENDING')}>
+            Submit for review
+          </Button>
           <Button disabled={saving} onClick={() => save('PUBLISHED')}>
             {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
           </Button>
@@ -217,6 +248,43 @@ export function ContentEditor({
             className="!px-3 !py-2 !text-[1.7em] !font-normal"
           />
           <BlockEditor key={editorKey} initialBlocks={blocks} onChange={setBlocks} />
+          <div className="flex flex-wrap items-end gap-3">
+            <PatternInserter
+              onInsert={(extra) => {
+                setBlocks((current) => [...current, ...extra]);
+                setEditorKey((key) => key + 1);
+              }}
+            />
+            <Button type="button" variant="secondary" onClick={() => setMediaOpen(true)}>
+              Add media
+            </Button>
+          </div>
+          <MediaModal
+            open={mediaOpen}
+            onClose={() => setMediaOpen(false)}
+            onPick={(item: Media) => {
+              setBlocks((current) => [
+                ...current,
+                {
+                  id: `media-${item.id}`,
+                  type: 'image',
+                  props: {
+                    url: item.url,
+                    caption: item.caption || item.alt || '',
+                    alt: item.alt || '',
+                    srcset: item.srcset || '',
+                    webpSrcset: item.webpSrcset || '',
+                    focalX: item.focalX ?? 0.5,
+                    focalY: item.focalY ?? 0.5,
+                  },
+                  content: [],
+                  children: [],
+                },
+              ]);
+              setEditorKey((key) => key + 1);
+              setMediaOpen(false);
+            }}
+          />
         </div>
         <div className="space-y-3">
           <div className="op-postbox">
@@ -263,6 +331,9 @@ export function ContentEditor({
               <div className="flex flex-wrap gap-2 border-t border-[#dcdcde] pt-3">
                 <Button variant="secondary" disabled={saving} onClick={() => save('DRAFT')}>
                   Save Draft
+                </Button>
+                <Button variant="secondary" disabled={saving} onClick={() => save('PENDING')}>
+                  Pending review
                 </Button>
                 <Button disabled={saving} onClick={() => save('PUBLISHED')}>
                   {existing?.status === 'PUBLISHED' ? 'Update' : 'Publish'}
@@ -408,8 +479,35 @@ export function ContentEditor({
                 <Label>SEO description</Label>
                 <Textarea rows={3} value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} />
               </div>
+              <div>
+                <Label>Canonical URL</Label>
+                <Input value={seoCanonical} onChange={(e) => setSeoCanonical(e.target.value)} placeholder="Leave empty to use the permalink" />
+              </div>
+              <div>
+                <Label>Robots</Label>
+                <select className="w-full border border-[#8c8f94] px-2 py-1" value={seoRobots} onChange={(e) => setSeoRobots(e.target.value)}>
+                  <option value="index, follow">Index, follow</option>
+                  <option value="noindex, follow">No index, follow</option>
+                  <option value="index, nofollow">Index, no follow</option>
+                  <option value="noindex, nofollow">No index, no follow</option>
+                </select>
+              </div>
+              <div>
+                <Label>Open Graph image URL</Label>
+                <Input value={seoImage} onChange={(e) => setSeoImage(e.target.value)} />
+              </div>
+              <div>
+                <Label>Language</Label>
+                <Input value={locale} onChange={(e) => setLocale(e.target.value)} />
+              </div>
             </div>
           </div>
+          <FieldGroups
+            postType={type === 'PAGE' ? 'page' : 'post'}
+            values={fieldValues}
+            onChange={(key, value) => setFieldValues((current) => ({ ...current, [key]: value }))}
+          />
+          <TranslationBox contentId={contentId} base={base} />
         </div>
       </div>
     </div>

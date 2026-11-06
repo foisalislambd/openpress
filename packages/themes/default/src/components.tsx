@@ -14,7 +14,7 @@ export function PostCard({ post }: { post: Content }) {
   return (
     <article className="group rounded-2xl border border-zinc-200 bg-white p-6 transition-shadow hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
       {post.coverImage ? (
-        <a href={`/${post.slug}`} className="mb-4 block overflow-hidden rounded-xl">
+        <a href={post.permalink || `/${post.slug}`} className="mb-4 block overflow-hidden rounded-xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={post.coverImage}
@@ -31,7 +31,7 @@ export function PostCard({ post }: { post: Content }) {
         ))}
       </div>
       <h2 className="mt-2 text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-        <a href={`/${post.slug}`} className="hover:text-indigo-600 dark:hover:text-indigo-400">
+        <a href={post.permalink || `/${post.slug}`} className="hover:text-indigo-600 dark:hover:text-indigo-400">
           {post.title}
         </a>
       </h2>

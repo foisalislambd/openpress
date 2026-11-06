@@ -18,6 +18,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { can } from '../auth/capabilities';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { ContentService } from './content.service';
+import { IsString, Matches } from 'class-validator';
 import {
   AutosaveDto,
   CreateContentDto,
@@ -26,6 +27,12 @@ import {
   UnlockDto,
   UpdateContentDto,
 } from './content.dto';
+
+class TranslationDto {
+  @IsString()
+  @Matches(/^[a-z]{2}(-[a-z0-9]{2,8})?$/)
+  locale!: string;
+}
 
 @Controller('content')
 export class ContentController {
@@ -113,6 +120,12 @@ export class ContentController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.content.restoreRevision(id, revisionId, user);
+  }
+
+  @Post(':id/translations')
+  @UseGuards(JwtAuthGuard)
+  translate(@Param('id') id: string, @Body() dto: TranslationDto, @CurrentUser() user: JwtPayload) {
+    return this.content.createTranslation(id, dto.locale, user);
   }
 
   @Post()

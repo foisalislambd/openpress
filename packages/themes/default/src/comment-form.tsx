@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -11,6 +11,11 @@ export function CommentForm({ contentId, closed }: { contentId: string; closed?:
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    setSignedIn(Boolean(window.localStorage.getItem('op_token')));
+  }, []);
 
   if (closed) {
     return <p className="text-sm text-zinc-500">Comments are closed.</p>;
@@ -22,10 +27,19 @@ export function CommentForm({ contentId, closed }: { contentId: string; closed?:
     setError('');
     setMessage('');
     try {
+      const token = window.localStorage.getItem('op_token');
       const res = await fetch(`${API_URL}/api/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentId, guestName: name, guestEmail: email || undefined, body }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          contentId,
+          guestName: token ? undefined : name,
+          guestEmail: token ? undefined : email || undefined,
+          body,
+        }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -50,22 +64,28 @@ export function CommentForm({ contentId, closed }: { contentId: string; closed?:
   return (
     <form onSubmit={submit} className="mt-6 space-y-3">
       <h3 className="text-sm font-semibold">Leave a comment</h3>
-      <input
-        required
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Name"
-        aria-label="Name"
-        className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-      />
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email (optional)"
-        aria-label="Email"
-        className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-      />
+      {signedIn ? (
+        <p className="text-sm text-zinc-500">Posting as the account signed in to this browser.</p>
+      ) : (
+        <>
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name"
+            aria-label="Name"
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email (optional)"
+            aria-label="Email"
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+          />
+        </>
+      )}
       <textarea
         required
         value={body}
