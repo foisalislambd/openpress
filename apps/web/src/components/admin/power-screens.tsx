@@ -242,10 +242,14 @@ export function SeoSettingsScreen() {
 export function LanguagesScreen() {
   const { settings, setSettings, save, saved } = useSettingsForm();
   const [rows, setRows] = useState<{ locale: string; key: string; value: string }[]>([]);
+  const [messages, setMessages] = useState<{ locale: string; domain: string; context: string; msgid: string; msgstr: string; msgstrPlural: string }[]>([]);
   const [locale, setLocale] = useState('en');
   const [keyName, setKeyName] = useState('nav.search');
   const [value, setValue] = useState('');
-  useEffect(() => { api<typeof rows>('/i18n').then(setRows).catch(() => {}); }, []);
+  useEffect(() => {
+    api<typeof rows>('/i18n').then(setRows).catch(() => {});
+    api<typeof messages>('/i18n/messages').then(setMessages).catch(() => {});
+  }, []);
   return (
     <Screen title="Languages" help="Per-post translations are edited on the post. This catalog is the admin string foundation. RTL locales set dir=rtl on the public site.">
       {settings ? (
@@ -292,6 +296,14 @@ export function LanguagesScreen() {
         <Input name="msgstrPlural" placeholder="plural translation" aria-label="Plural translation" />
         <Button type="submit">Save message</Button>
       </form>
+      <ul>
+        {messages.map((row) => (
+          <li key={`${row.locale}:${row.domain}:${row.context}:${row.msgid}`}>
+            {row.locale} · {row.domain} · {row.msgid} → {row.msgstr}
+            {row.msgstrPlural ? ` / ${row.msgstrPlural}` : ''}
+          </li>
+        ))}
+      </ul>
     </Screen>
   );
 }
@@ -412,7 +424,20 @@ export function MediaEditScreen({ id }: { id: string }) {
   const [media, setMedia] = useState<Media | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [terms, setTerms] = useState<{ id: string; name: string }[]>([]);
+  const [attached, setAttached] = useState<string[]>([]);
   useEffect(() => { api<Media>(`/media/${id}`).then(setMedia).catch(() => setError('Media not found')); }, [id]);
+  useEffect(() => {
+    api<{ id: string; name: string }[]>(`/media/${id}/terms`).then((rows) => setAttached(rows.map((row) => row.id))).catch(() => {});
+    api<{ slug: string }[]>('/modeling/taxonomies')
+      .then(async (taxonomies) => {
+        const lists = await Promise.all(
+          taxonomies.map((taxonomy) => api<{ id: string; name: string }[]>(`/modeling/taxonomies/${taxonomy.slug}/terms`).catch(() => [])),
+        );
+        setTerms(lists.flat());
+      })
+      .catch(() => {});
+  }, [id]);
   if (!media) return <Screen title="Edit media">{error ? <Notice kind="error">{error}</Notice> : <p>Loading…</p>}</Screen>;
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -448,6 +473,24 @@ export function MediaEditScreen({ id }: { id: string }) {
             <Button type="button" variant="secondary" onClick={async () => setMedia(await api<Media>(`/media/${id}/transform`, { method: 'POST', body: JSON.stringify({ width: 1200 }) }))}>Resize to 1200px</Button>
             <Button type="button" variant="secondary" onClick={async () => setMedia(await api<Media>(`/media/${id}/regenerate`, { method: 'POST', body: '{}' }))}>Regenerate sizes</Button>
             <Button type="button" variant="secondary" onClick={() => router.push('/admin/media')}>Back</Button>
+          </div>
+          <Label>Attachment terms</Label>
+          <div className="flex flex-wrap gap-3 text-[13px]">
+            {terms.map((term) => (
+              <label key={term.id} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={attached.includes(term.id)}
+                  onChange={(event) => {
+                    const next = event.target.checked ? [...attached, term.id] : attached.filter((item) => item !== term.id);
+                    setAttached(next);
+                    api(`/media/${id}/terms`, { method: 'PUT', body: JSON.stringify({ termIds: next }) }).catch(() => {});
+                  }}
+                />
+                {term.name}
+              </label>
+            ))}
+            {terms.length === 0 ? <span className="text-[#646970]">No taxonomy terms yet.</span> : null}
           </div>
           {media.srcset ? <p className="break-all text-xs text-[#646970]">srcset: {media.srcset}</p> : null}
         </form>
