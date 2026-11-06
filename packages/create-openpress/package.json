@@ -1,6 +1,6 @@
 {
   "name": "create-openpress",
-  "version": "0.3.0",
+  "version": "1.0.7",
   "description": "Create an OpenPress site directory or a plugin scaffold",
   "license": "MIT",
   "type": "module",

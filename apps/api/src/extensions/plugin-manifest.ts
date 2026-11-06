@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 /** Fallback kept in sync by `pnpm release:bump`. VERSION.md wins when it is on disk. */
-const FALLBACK_OPENPRESS_VERSION = '0.3.0';
+const FALLBACK_OPENPRESS_VERSION = '1.0.7';
 
 function readDeclaredVersion() {
   const candidates = [
