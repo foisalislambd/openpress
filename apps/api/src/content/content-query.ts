@@ -26,6 +26,8 @@ export interface ContentQueryInput {
   siteId?: string;
   after?: string;
   before?: string;
+  /** YYYYMM, matched against publish, schedule, or create time. */
+  month?: string;
   dateColumn?: 'publishedAt' | 'createdAt' | 'updatedAt';
   orderBy?: 'date' | 'title' | 'modified' | 'relevance';
   order?: 'ASC' | 'DESC';
@@ -151,6 +153,13 @@ export function buildContentQuery(input: ContentQueryInput): BuiltContentQuery {
   }
   if (input.after) add(`c."${column}" >= $?::timestamptz`, iso(input.after));
   if (input.before) add(`c."${column}" < $?::timestamptz`, iso(input.before));
+  if (input.month) {
+    if (!/^\d{6}$/.test(input.month)) throw new ContentQueryError('Invalid month');
+    add(
+      `to_char(date_trunc('month', coalesce(c."publishedAt", c."scheduledAt", c."createdAt")), 'YYYYMM') = $?`,
+      input.month,
+    );
+  }
 
   if (input.sticky === 'only') clauses.push('c.sticky = true');
   if (input.sticky === 'exclude') clauses.push('c.sticky = false');
@@ -165,7 +174,7 @@ export function buildContentQuery(input: ContentQueryInput): BuiltContentQuery {
   if (taxSql) clauses.push(taxSql);
 
   const page = clamp(input.page, 1, 1, 1_000_000);
-  const perPage = clamp(input.perPage, 10, 1, 50);
+  const perPage = clamp(input.perPage, 10, 1, 100);
   return {
     where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
     order: orderClause(input, searchParam),

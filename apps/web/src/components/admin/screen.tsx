@@ -10,24 +10,49 @@ export function Screen({
   title,
   action,
   help,
+  options,
   children,
 }: {
   title: string;
   action?: { href: string; label: string };
   help?: string;
+  options?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   return (
     <div>
-      {help ? (
+      {help || options ? (
         <div className="op-screen-meta">
-          <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-            Help
-          </button>
+          {options ? (
+            <button
+              type="button"
+              aria-expanded={optionsOpen}
+              onClick={() => {
+                setOptionsOpen((value) => !value);
+                setHelpOpen(false);
+              }}
+            >
+              Screen Options
+            </button>
+          ) : null}
+          {help ? (
+            <button
+              type="button"
+              aria-expanded={helpOpen}
+              onClick={() => {
+                setHelpOpen((value) => !value);
+                setOptionsOpen(false);
+              }}
+            >
+              Help
+            </button>
+          ) : null}
         </div>
       ) : null}
-      {open && help ? (
+      {optionsOpen && options ? <div className="op-screen-panel">{options}</div> : null}
+      {helpOpen && help ? (
         <div className="op-screen-panel">
           <p>{help}</p>
         </div>
