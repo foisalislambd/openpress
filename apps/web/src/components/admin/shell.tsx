@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { Comment, Role, SiteSettings, User } from '@openpress/shared';
-import { api, clearTokens } from '@/lib/client-api';
+import type { Comment, Role, User } from '@openpress/shared';
+import { AdminBar } from '@/components/admin/admin-bar';
+import { api } from '@/lib/client-api';
 import { cn } from '@/components/ui';
 
 type IconName = string;
@@ -329,24 +330,17 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [hash, setHash] = useState('');
   const folded = useSyncExternalStore(subscribeFold, readFold, () => false);
   const narrow = useSyncExternalStore(subscribeNarrow, readNarrow, () => false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pending, setPending] = useState(0);
   const [pluginPages, setPluginPages] = useState<{ pluginId: string; slug: string; menuTitle: string }[]>([]);
-  const [siteTitle, setSiteTitle] = useState('OpenPress');
-  const [sites, setSites] = useState<{ id: string; name: string; slug: string }[]>([]);
-  const [siteSlug, setSiteSlug] = useState('');
-  const [menuOpen, setMenuOpen] = useState<'new' | 'site' | 'user' | null>(null);
-  const barRef = useRef<HTMLElement>(null);
   const routeKey = `${pathname}#${hash}`;
   const [seenRoute, setSeenRoute] = useState(routeKey);
   if (seenRoute !== routeKey) {
     setSeenRoute(routeKey);
     setMobileOpen(false);
-    setMenuOpen(null);
   }
 
   useEffect(() => {
@@ -362,25 +356,12 @@ export function AdminShell({
         .then((rows) => setPending(rows.length))
         .catch(() => {});
     }
-    api<SiteSettings>('/settings')
-      .then((s) => setSiteTitle(s.siteTitle || 'OpenPress'))
-      .catch(() => {});
-    setSiteSlug(localStorage.getItem('op_site') ?? 'primary');
-    api<{ id: string; name: string; slug: string }[]>('/sites').then(setSites).catch(() => setSites([]));
     if (user.role === 'ADMIN' || user.capabilities?.includes('activate_plugins')) {
       api<{ menus: { pluginId: string; slug: string; menuTitle: string }[] }>('/plugins/registry')
         .then((registry) => setPluginPages(registry.menus))
         .catch(() => setPluginPages([]));
     }
   }, [pathname, user.role]);
-
-  useEffect(() => {
-    function onPointer(event: MouseEvent) {
-      if (!barRef.current?.contains(event.target as Node)) setMenuOpen(null);
-    }
-    document.addEventListener('mousedown', onPointer);
-    return () => document.removeEventListener('mousedown', onPointer);
-  }, []);
 
   const menu = visibleMenu(user).map((entry) => {
     if (entry.kind !== 'item' || entry.id !== 'plugins' || pluginPages.length === 0) return entry;
@@ -397,12 +378,6 @@ export function AdminShell({
       ],
     };
   });
-  const canPages = user.role === 'ADMIN' || user.role === 'EDITOR';
-  const canWrite = user.role !== 'SUBSCRIBER';
-  const canMedia = user.role === 'ADMIN' || user.role === 'EDITOR' || user.role === 'AUTHOR';
-  const isAdmin = user.role === 'ADMIN';
-  const canModerate = user.role === 'ADMIN' || user.role === 'EDITOR';
-
   function selectHash(next: string) {
     setHash(next);
     // Same-page hash links do not always emit hashchange. Taxonomy and media
@@ -419,92 +394,12 @@ export function AdminShell({
 
   return (
     <div className="op-admin min-h-screen bg-[#f0f0f0] text-[#3c434a]">
-      <header
-        ref={barRef}
-        className="fixed inset-x-0 top-0 z-40 flex h-8 items-center bg-[#1e1e1e] text-[13px] text-white"
-      >
-        <button
-          type="button"
-          className="grid h-8 w-9 place-items-center hover:bg-[#0c0c0c] hover:text-[#7b90ff] md:hidden"
-          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-          onClick={() => setMobileOpen((open) => !open)}
-        >
-          <span className="block h-0.5 w-4 bg-current shadow-[0_5px_0_currentColor,0_-5px_0_currentColor]" />
-        </button>
-        <BarMenu
-          label={siteTitle}
-          open={menuOpen === 'site'}
-          onToggle={() => setMenuOpen(menuOpen === 'site' ? null : 'site')}
-        >
-          <a href="/" target="_blank" rel="noreferrer" className="flex items-center gap-2">
-            <Icon name="external" />
-            Visit Site
-          </a>
-          {sites.length > 1 ? (
-            <label className="mt-2 block text-[12px] text-[#dcdcde]">
-              Site
-              <select
-                className="mt-1 w-full bg-[#1e1e1e] text-white"
-                value={siteSlug}
-                onChange={(event) => {
-                  localStorage.setItem('op_site', event.target.value);
-                  window.location.reload();
-                }}
-              >
-                {sites.map((site) => (
-                  <option key={site.id} value={site.slug}>{site.name}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </BarMenu>
-        <BarMenu
-          icon="plus"
-          label="New"
-          open={menuOpen === 'new'}
-          onToggle={() => setMenuOpen(menuOpen === 'new' ? null : 'new')}
-        >
-          {canWrite ? <Link href="/admin/posts/new">Post</Link> : null}
-          {canMedia ? <Link href="/admin/media/new">Media</Link> : null}
-          {canPages ? <Link href="/admin/pages/new">Page</Link> : null}
-          {isAdmin ? <Link href="/admin/users/new">User</Link> : null}
-        </BarMenu>
-        <div className="ml-auto flex h-full items-center">
-          {canModerate ? (
-            <Link
-              href="/admin/comments"
-              className="relative flex h-8 items-center px-2 hover:bg-[#0c0c0c] hover:text-[#7b90ff]"
-              title={pending > 0 ? `${pending} in moderation` : 'Comments'}
-            >
-              <Icon name="comments" />
-              {pending > 0 ? (
-                <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-[#d63638] px-1 text-center text-[9px] leading-4 text-white">
-                  {pending > 99 ? '99+' : pending}
-                </span>
-              ) : null}
-            </Link>
-          ) : null}
-          <BarMenu
-            label={`Howdy, ${user.name}`}
-            open={menuOpen === 'user'}
-            onToggle={() => setMenuOpen(menuOpen === 'user' ? null : 'user')}
-            align="right"
-          >
-            <div className="px-3 py-2 text-[12px] text-[#a7aaad]">{user.name}</div>
-            <div className="px-3 pb-2 text-[12px] text-[#a7aaad]">{user.role}</div>
-            <Link href="/admin/profile">Edit Profile</Link>
-            <button
-              type="button"
-              onClick={() => {
-                clearTokens();
-                router.replace('/admin/login');
-              }}
-            >
-              Log Out
-            </button>
-          </BarMenu>
-        </div>
-      </header>
+      <AdminBar
+        user={user}
+        context="admin"
+        menuOpen={mobileOpen}
+        onToggleMenu={() => setMobileOpen((open) => !open)}
+      />
 
       {mobileOpen ? (
         <button
@@ -670,50 +565,5 @@ function Submenu({
         );
       })}
     </ul>
-  );
-}
-
-function BarMenu({
-  label,
-  icon,
-  open,
-  onToggle,
-  align = 'left',
-  children,
-}: {
-  label: string;
-  icon?: IconName;
-  open: boolean;
-  onToggle: () => void;
-  align?: 'left' | 'right';
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="relative h-full">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="flex h-8 items-center gap-1 px-2 hover:bg-[#0c0c0c] hover:text-[#7b90ff]"
-      >
-        {icon ? <Icon name={icon} /> : null}
-        {align === 'right' ? (
-          <span className="grid h-4 w-4 place-items-center rounded-full bg-[#50575e] text-[10px] uppercase text-white">
-            {label.replace(/^Howdy,\s*/, '').slice(0, 1)}
-          </span>
-        ) : null}
-        <span className="max-w-40 truncate">{label}</span>
-      </button>
-      {open ? (
-        <div
-          className={cn(
-            'absolute top-8 z-50 min-w-44 border border-[#0c0c0c] bg-[#0c0c0c] py-1 text-[#bcbcbc] shadow-lg [&_a]:block [&_a]:px-3 [&_a]:py-1.5 [&_a]:text-[#bcbcbc] [&_a]:no-underline [&_a]:hover:text-[#7b90ff] [&_button]:block [&_button]:w-full [&_button]:px-3 [&_button]:py-1.5 [&_button]:text-left [&_button]:text-[#bcbcbc] [&_button]:hover:text-[#7b90ff]',
-            align === 'right' ? 'right-0' : 'left-0',
-          )}
-        >
-          {children}
-        </div>
-      ) : null}
-    </div>
   );
 }

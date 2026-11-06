@@ -1,4 +1,4 @@
-# OpenPress
+# <img src="docs/brand/openpress-icon-64.png" alt="" width="32" height="32" /> OpenPress
 
 **WordPress-shaped publishing, on a TypeScript monorepo you can actually extend.**
 

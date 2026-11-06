@@ -9,6 +9,7 @@ import type {
   ThemeSingleProps,
 } from '@openpress/shared';
 import { BlockRenderer } from '@openpress/theme-default';
+import { OpenPressMark } from '@/components/brand/openpress-mark';
 
 // Runtime theme engine ("runtime-v1"): renders uploaded themes described by
 // a theme.json manifest with design tokens + optional style.css.
@@ -184,8 +185,12 @@ export function buildRuntimeTheme(
                 fontWeight: 800,
                 fontSize: '1.25rem',
                 textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
               }}
             >
+              <OpenPressMark size={28} />
               {settings.siteTitle}
             </Link>
             <nav style={{ display: 'flex', gap: '1.25rem' }}>

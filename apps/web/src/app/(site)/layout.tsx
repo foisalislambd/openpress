@@ -1,3 +1,4 @@
+import { FrontAdminBar } from '@/components/admin/admin-bar';
 import { getPluginChrome, getPublicPages, getSettings } from '@/lib/api';
 import { resolveTheme } from '@/lib/themes';
 
@@ -14,8 +15,11 @@ export default async function SiteLayout({
   const theme = await resolveTheme(settings.activeTheme);
   const { Layout } = theme;
   return (
-    <Layout settings={{ ...settings, pluginChrome }} pages={pages.items}>
-      {children}
-    </Layout>
+    <>
+      <FrontAdminBar />
+      <Layout settings={{ ...settings, pluginChrome }} pages={pages.items}>
+        {children}
+      </Layout>
+    </>
   );
 }
