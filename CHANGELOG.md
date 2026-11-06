@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Core power systems: custom roles and per-user capabilities, a typed settings registry, a structured content query, Postgres cron, nav menus, widget instances, rewrite rules, and server-side block validation
 - Core depth: meta and tax query groups, term and comment meta, transients, comment and widget HTML allow-list, post edit locks, and a multisite foundation (sites table, site options, per-site content)
+- Network admin and per-site roles, a block canvas in the editor, and drag-and-drop menus
 
 ### Changed
 

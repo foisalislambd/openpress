@@ -31,6 +31,23 @@ export class SitesService {
     }
   }
 
+  async listForUser(userId: string, network: boolean) {
+    if (network) return this.list();
+    try {
+      return await this.db.query<SiteRow>(
+        `SELECT s.id, s.name, s.slug, s.domain, s.path, s.status
+         FROM sites s
+         JOIN site_users su ON su."siteId" = s.id
+         WHERE su."userId" = $1 AND s.status = 'public'
+         ORDER BY s."createdAt" ASC`,
+        [userId],
+      );
+    } catch (error) {
+      if (isUndefinedTable(error)) return [primaryFallback()];
+      throw error;
+    }
+  }
+
   async resolve(input: { slug?: string; host?: string }) {
     const sites = await this.list();
     const slug = input.slug?.trim().toLowerCase();
@@ -50,6 +67,8 @@ export class SitesService {
     const name = input.name.trim().slice(0, 80);
     const slug = input.slug.trim().toLowerCase();
     const domain = hostname(input.domain) ?? '';
+    const flag = await this.db.one<{ value: unknown }>('SELECT value FROM settings WHERE key = $1', ['allowNewSites']).catch(() => null);
+    if (flag?.value === false) throw new BadRequestException('The network does not allow new sites');
     if (!name) throw new BadRequestException('Site name is required');
     if (!SLUG.test(slug) || slug === 'primary') throw new BadRequestException('Invalid site slug');
     try {
@@ -109,6 +128,26 @@ export class SitesService {
       [currentSiteId(), key, JSON.stringify(value ?? null)],
     );
     return { key, value };
+  }
+
+  async remove(id: string) {
+    if (id === PRIMARY_SITE_ID) throw new BadRequestException('The primary site cannot be deleted');
+    const site = await this.db.one('SELECT id FROM sites WHERE id = $1', [id]);
+    if (!site) throw new NotFoundException('Site not found');
+    await this.db.tx(async (sql) => {
+      await sql.query('DELETE FROM contents WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM categories WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM tags WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM terms WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM media WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM nav_menus WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM widget_instances WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM rewrite_rules WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM menu_locations WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM transients WHERE "siteId" = $1', [id]);
+      await sql.query('DELETE FROM sites WHERE id = $1', [id]);
+    });
+    return { id, deleted: true };
   }
 }
 

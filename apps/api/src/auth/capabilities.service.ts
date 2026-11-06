@@ -6,9 +6,10 @@ import {
 } from '@nestjs/common';
 import { CoreRegistry } from '../core/core-registry';
 import { DbService } from '../db/db.service';
-import { isUndefinedTable } from '../db/errors';
+import { isUndefinedColumn, isUndefinedTable } from '../db/errors';
+import { PRIMARY_SITE_ID, currentSiteId } from '../sites/site-context';
 import { ROLE_CAPABILITIES, RoleName, capabilitiesFor, type Capability } from './capabilities';
-import { hasAll, hasAny, resolveCapabilities } from './capability-resolve';
+import { hasAll, hasAny, resolveCapabilities, withNetworkAdmin } from './capability-resolve';
 
 const ROLE_SLUG = /^[A-Z][A-Z0-9_]{1,40}$/;
 const BUILTIN = new Set<string>(Object.keys(ROLE_CAPABILITIES));
@@ -119,7 +120,10 @@ export class CapabilitiesService {
   async deleteRole(slug: string) {
     if (BUILTIN.has(slug)) throw new BadRequestException('Built-in roles cannot be deleted');
     const used = await this.db.one<{ count: number }>(
-      'SELECT count(*)::int AS count FROM users WHERE role = $1',
+      `SELECT (
+         (SELECT count(*)::int FROM users WHERE role = $1) +
+         (SELECT count(*)::int FROM site_users WHERE role = $1)
+       ) AS count`,
       [slug],
     );
     if ((used?.count ?? 0) > 0) throw new BadRequestException('Reassign users before deleting this role');
@@ -133,11 +137,19 @@ export class CapabilitiesService {
     const known = await this.roles();
     if (!known.some((item) => item.slug === role)) throw new BadRequestException('Unknown role');
     if (role === 'ADMIN') {
-      const actor = await this.db.one<{ role: string }>('SELECT role FROM users WHERE id = $1', [actorId]);
-      if (actor?.role !== 'ADMIN') {
+      const actor = await this.membership(actorId);
+      const siteAdmin = actor?.siteRole === 'ADMIN';
+      if (!actor?.networkAdmin && !siteAdmin) {
         throw new ForbiddenException('Only an administrator can assign the administrator role');
       }
     }
+  }
+
+  async membership(userId: string) {
+    const user = await this.readUser(userId);
+    if (!user) return null;
+    const siteRole = await this.siteRole(userId, user.role);
+    return { role: user.role, siteRole, networkAdmin: user.networkAdmin, siteId: currentSiteId() };
   }
 
   async userAccess(userId: string) {
@@ -153,18 +165,19 @@ export class CapabilitiesService {
     if (!user) throw new NotFoundException('User not found');
     const grantSet = this.cleanCaps(grants);
     const denySet = this.cleanCaps(denies).filter((cap) => !grantSet.includes(cap));
+    const siteId = currentSiteId();
     await this.db.tx(async (sql) => {
-      await sql.query('DELETE FROM user_capabilities WHERE "userId" = $1', [userId]);
+      await sql.query('DELETE FROM user_capabilities WHERE "userId" = $1 AND "siteId" = $2', [userId, siteId]);
       for (const capability of grantSet) {
         await sql.query(
-          'INSERT INTO user_capabilities ("userId", capability, granted) VALUES ($1, $2, true)',
-          [userId, capability],
+          'INSERT INTO user_capabilities ("siteId", "userId", capability, granted) VALUES ($1, $2, $3, true)',
+          [siteId, userId, capability],
         );
       }
       for (const capability of denySet) {
         await sql.query(
-          'INSERT INTO user_capabilities ("userId", capability, granted) VALUES ($1, $2, false)',
-          [userId, capability],
+          'INSERT INTO user_capabilities ("siteId", "userId", capability, granted) VALUES ($1, $2, $3, false)',
+          [siteId, userId, capability],
         );
       }
     });
@@ -179,39 +192,87 @@ export class CapabilitiesService {
   }
 
   private async resolve(userId: string) {
-    const user = await this.db.one<{ role: string }>('SELECT role FROM users WHERE id = $1', [userId]);
+    const user = await this.readUser(userId);
     if (!user) return null;
+    const siteRole = await this.siteRole(userId, user.role);
     try {
-      const role = await this.db.one<{ capabilities: string[] | null }>(
-        'SELECT capabilities FROM roles WHERE slug = $1',
-        [user.role],
-      );
+      const role = siteRole
+        ? await this.db.one<{ capabilities: string[] | null }>(
+            'SELECT capabilities FROM roles WHERE slug = $1',
+            [siteRole],
+          )
+        : null;
       const extras = await this.safeExtras(userId);
-      const roleCapabilities = role?.capabilities?.length ? role.capabilities : capabilitiesFor(user.role);
+      const roleCapabilities = siteRole
+        ? role?.capabilities?.length
+          ? role.capabilities
+          : capabilitiesFor(siteRole)
+        : [];
+      const resolved = resolveCapabilities({
+        role: siteRole ?? '',
+        roleCapabilities,
+        protectedCapabilities: siteRole === 'ADMIN' ? ROLE_CAPABILITIES.ADMIN : [],
+        grants: extras.filter((row) => row.granted).map((row) => row.capability),
+        denies: extras.filter((row) => !row.granted).map((row) => row.capability),
+      });
       return {
-        role: user.role,
-        capabilities: resolveCapabilities({
-          role: user.role,
-          roleCapabilities,
-          protectedCapabilities: user.role === 'ADMIN' ? ROLE_CAPABILITIES.ADMIN : [],
-          grants: extras.filter((row) => row.granted).map((row) => row.capability),
-          denies: extras.filter((row) => !row.granted).map((row) => row.capability),
-        }),
+        role: siteRole ?? user.role,
+        networkAdmin: user.networkAdmin,
+        capabilities: withNetworkAdmin(resolved, user.networkAdmin),
       };
     } catch (error) {
-      if (!isUndefinedTable(error)) throw error;
-      return { role: user.role, capabilities: capabilitiesFor(user.role) };
+      if (!isUndefinedTable(error) && !isUndefinedColumn(error)) throw error;
+      return {
+        role: user.role,
+        networkAdmin: user.networkAdmin,
+        capabilities: withNetworkAdmin(capabilitiesFor(user.role), user.networkAdmin),
+      };
     }
   }
 
-  private async safeExtras(userId: string) {
+  private async readUser(userId: string) {
     try {
-      return await this.db.query<{ capability: string; granted: boolean }>(
-        'SELECT capability, granted FROM user_capabilities WHERE "userId" = $1',
+      return await this.db.one<{ role: string; networkAdmin: boolean }>(
+        'SELECT role, "networkAdmin" FROM users WHERE id = $1',
         [userId],
       );
     } catch (error) {
+      if (!isUndefinedColumn(error)) throw error;
+      const row = await this.db.one<{ role: string }>('SELECT role FROM users WHERE id = $1', [userId]);
+      return row ? { role: row.role, networkAdmin: row.role === 'ADMIN' } : null;
+    }
+  }
+
+  private async siteRole(userId: string, fallbackRole: string) {
+    const siteId = currentSiteId();
+    try {
+      const row = await this.db.one<{ role: string }>(
+        'SELECT role FROM site_users WHERE "siteId" = $1 AND "userId" = $2',
+        [siteId, userId],
+      );
+      if (row?.role) return row.role;
+    } catch (error) {
       if (!isUndefinedTable(error)) throw error;
+      return fallbackRole;
+    }
+    return siteId === PRIMARY_SITE_ID ? fallbackRole : null;
+  }
+
+  private async safeExtras(userId: string) {
+    const siteId = currentSiteId();
+    try {
+      return await this.db.query<{ capability: string; granted: boolean }>(
+        'SELECT capability, granted FROM user_capabilities WHERE "userId" = $1 AND "siteId" = $2',
+        [userId, siteId],
+      );
+    } catch (error) {
+      if (!isUndefinedTable(error) && !isUndefinedColumn(error)) throw error;
+      if (isUndefinedColumn(error)) {
+        return this.db.query<{ capability: string; granted: boolean }>(
+          'SELECT capability, granted FROM user_capabilities WHERE "userId" = $1',
+          [userId],
+        );
+      }
       return [];
     }
   }

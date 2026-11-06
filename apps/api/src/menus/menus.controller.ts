@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { Allow, IsArray, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { MenusService } from './menus.service';
@@ -42,6 +42,12 @@ class ItemPatchDto {
   parentId?: string | null;
 }
 
+class OrderDto {
+  @IsArray()
+  @Allow()
+  items!: { id: string; parentId?: string | null }[];
+}
+
 class LocationsDto {
   @IsOptional()
   @IsString()
@@ -81,6 +87,11 @@ export class MenusController {
   @Post()
   create(@Body() dto: MenuDto) {
     return this.menus.create(dto.name);
+  }
+
+  @Put(':id/order')
+  reorder(@Param('id') id: string, @Body() dto: OrderDto) {
+    return this.menus.reorder(id, Array.isArray(dto.items) ? dto.items : []);
   }
 
   @Post(':id/items')

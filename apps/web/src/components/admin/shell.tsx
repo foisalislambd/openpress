@@ -18,6 +18,8 @@ type MenuLink = {
   href: string;
   label: string;
   roles: Role[];
+  /** When set, the capability is the check. The role list is only a fallback before /auth/me returns. */
+  cap?: string;
   /** Highlight only this path, not deeper routes. */
   exact?: boolean;
   /** Paths that belong to a sibling item, not this one. */
@@ -34,9 +36,10 @@ type MenuEntry =
       label: string;
       icon: IconName;
       href: string;
-      roles: Role[];
-      children: MenuLink[];
-    };
+  roles: Role[];
+  cap?: string;
+  children: MenuLink[];
+};
 
 /** Same groups and order as wp-admin/menu.php. */
 const MENU: MenuEntry[] = [
@@ -182,6 +185,20 @@ const MENU: MenuEntry[] = [
   },
   {
     kind: 'item',
+    id: 'network',
+    label: 'Network',
+    icon: 'dashboard',
+    href: '/admin/network',
+    roles: ['ADMIN'],
+    cap: 'manage_network',
+    children: [
+      { href: '/admin/network', label: 'Sites', roles: ['ADMIN'], cap: 'manage_network', exact: true },
+      { href: '/admin/network#settings', label: 'Settings', roles: ['ADMIN'], cap: 'manage_network' },
+      { href: '/admin/network#users', label: 'Users', roles: ['ADMIN'], cap: 'manage_network' },
+    ],
+  },
+  {
+    kind: 'item',
     id: 'settings',
     label: 'Settings',
     icon: 'settings',
@@ -266,7 +283,12 @@ function linkActive(pathname: string, hash: string, link: MenuLink) {
   return true;
 }
 
-function allowed(user: User, roles: string[]) {
+function allowed(user: User, roles: string[], cap?: string) {
+  if (cap) {
+    if (user.capabilities?.includes(cap)) return true;
+    if (!user.capabilities && user.role === 'ADMIN' && cap === 'manage_network') return true;
+    return false;
+  }
   if (roles.includes(user.role)) return true;
   const builtin = ['ADMIN', 'EDITOR', 'AUTHOR', 'CONTRIBUTOR', 'SUBSCRIBER'];
   if (builtin.includes(user.role)) return false;
@@ -284,11 +306,11 @@ function allowed(user: User, roles: string[]) {
 function visibleMenu(user: User): MenuEntry[] {
   return MENU.flatMap((entry): MenuEntry[] => {
     if (entry.kind === 'separator') return [entry];
-    if (!allowed(user, entry.roles)) return [];
+    if (!allowed(user, entry.roles, entry.kind === 'item' ? entry.cap : undefined)) return [];
     return [
       {
         ...entry,
-        children: entry.children.filter((child) => allowed(user, child.roles)),
+        children: entry.children.filter((child) => allowed(user, child.roles, child.cap)),
       },
     ];
   }).filter((entry, index, list) => {
@@ -343,9 +365,9 @@ export function AdminShell({
     api<SiteSettings>('/settings')
       .then((s) => setSiteTitle(s.siteTitle || 'OpenPress'))
       .catch(() => {});
-    if (user.role === 'ADMIN') {
-      setSiteSlug(localStorage.getItem('op_site') ?? 'primary');
-      api<{ id: string; name: string; slug: string }[]>('/sites').then(setSites).catch(() => {});
+    setSiteSlug(localStorage.getItem('op_site') ?? 'primary');
+    api<{ id: string; name: string; slug: string }[]>('/sites').then(setSites).catch(() => setSites([]));
+    if (user.role === 'ADMIN' || user.capabilities?.includes('activate_plugins')) {
       api<{ menus: { pluginId: string; slug: string; menuTitle: string }[] }>('/plugins/registry')
         .then((registry) => setPluginPages(registry.menus))
         .catch(() => setPluginPages([]));

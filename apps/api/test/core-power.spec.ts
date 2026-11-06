@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { resolveCapabilities } from '../src/auth/capability-resolve';
+import { resolveCapabilities, withNetworkAdmin } from '../src/auth/capability-resolve';
 import { ROLE_CAPABILITIES } from '../src/auth/capabilities';
 import { serializeBlocks, validateBlocks } from '../src/blocks/block-document';
 import { buildContentQuery, ContentQueryError } from '../src/content/content-query';
@@ -31,6 +31,9 @@ describe('capability resolution', () => {
     });
     assert.equal(admin.includes('manage_options'), true);
     assert.equal(admin.includes('delete_users'), true);
+    const network = withNetworkAdmin(admin, true);
+    assert.equal(network.includes('manage_network'), true);
+    assert.equal(withNetworkAdmin(editor, false).includes('manage_sites'), false);
   });
 });
 

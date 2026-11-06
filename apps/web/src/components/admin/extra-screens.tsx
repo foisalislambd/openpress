@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { DragEvent, FormEvent, useEffect, useState } from 'react';
 import type { Category, Content, Paginated, SiteSettings, User } from '@openpress/shared';
 import { api, getToken } from '@/lib/client-api';
 import { Button, Input, Label, Select, Textarea } from '@/components/ui';
@@ -107,140 +107,172 @@ export function CustomizeScreen() {
   );
 }
 
-type MenuItem = { label: string; url: string };
-type NavMenu = { name: string; items: MenuItem[] };
+type MenuNode = {
+  id: string;
+  title: string;
+  url: string;
+  parentId: string | null;
+  children?: MenuNode[];
+};
+type MenuRecord = { id: string; name: string; items: MenuNode[] };
+type MenuList = { menus: MenuRecord[]; locations: { primary: string | null; footer: string | null } };
+type MenuRow = { id: string; title: string; url: string; parentId: string | null; depth: number };
+
+function menuRows(items: MenuNode[], depth = 0): MenuRow[] {
+  return items.flatMap((item) => [
+    { id: item.id, title: item.title, url: item.url, parentId: item.parentId, depth },
+    ...menuRows(item.children ?? [], depth + 1),
+  ]);
+}
 
 export function MenusScreen() {
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
-  const [name, setName] = useState('Primary');
+  const [menus, setMenus] = useState<MenuRecord[]>([]);
+  const [locations, setLocations] = useState<{ primary: string | null; footer: string | null }>({ primary: null, footer: null });
+  const [menuId, setMenuId] = useState('');
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('/');
-  const [saved, setSaved] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    api<SiteSettings>('/settings')
+  function load() {
+    api<MenuList>('/menus')
       .then((loaded) => {
-        setSettings(loaded);
-        const stored = Array.isArray(loaded.menus) ? (loaded.menus as NavMenu[]) : [];
-        if (stored[0]?.name) setName(stored[0].name);
+        setMenus(loaded.menus);
+        setLocations(loaded.locations);
+        setMenuId((current) => current || loaded.menus[0]?.id || '');
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load menus'));
+  }
 
-  const menus = (Array.isArray(settings?.menus) ? settings.menus : []) as NavMenu[];
-  const current = menus[0] ?? { name, items: [] as MenuItem[] };
-  const locations = (settings?.menuLocations ?? {}) as { primary?: string; footer?: string };
+  useEffect(load, []);
 
-  async function persist(next: NavMenu, nextLocations = locations) {
-    if (!settings) return;
-    const updated = await api<SiteSettings>('/settings', {
-      method: 'PUT',
-      body: JSON.stringify({ ...settings, menus: [next], menuLocations: nextLocations }),
+  const menu = menus.find((item) => item.id === menuId) ?? menus[0];
+  const rows = menu ? menuRows(menu.items) : [];
+
+  async function addItem() {
+    if (!menu || !label.trim()) return;
+    setError('');
+    await api(`/menus/${menu.id}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ title: label.trim(), url: url.trim() || '/', type: 'custom' }),
     });
-    setSettings(updated);
-    setName(next.name);
-    setSaved(true);
+    setLabel('');
+    setMessage('Item added.');
+    load();
+  }
+
+  async function saveOrder(next: { id: string; parentId: string | null }[]) {
+    if (!menu) return;
+    setError('');
+    await api(`/menus/${menu.id}/order`, { method: 'PUT', body: JSON.stringify({ items: next }) });
+    setMessage('Menu order saved.');
+    load();
+  }
+
+  function dropOn(targetId: string, event: DragEvent) {
+    event.preventDefault();
+    if (!dragId || dragId === targetId) return;
+    const nest = event.clientX - (event.currentTarget as HTMLElement).getBoundingClientRect().left > 48;
+    const next = [...rows];
+    const from = next.findIndex((row) => row.id === dragId);
+    const [moved] = next.splice(from, 1);
+    const to = next.findIndex((row) => row.id === targetId);
+    next.splice(to, 0, moved);
+    const order = next.map((row, index) => ({
+      id: row.id,
+      parentId: row.id === moved.id && nest && index > 0 ? next[index - 1].id : row.id === moved.id && !nest ? null : row.parentId,
+    }));
+    setDragId(null);
+    saveOrder(order).catch((err) => setError(err instanceof Error ? err.message : 'Could not save the order'));
   }
 
   return (
     <Screen title="Menus">
-      {saved ? <Notice kind="success">Menu saved.</Notice> : null}
-      <table className="op-form">
-        <tbody>
-          {field(
-            'Menu name',
-            <Input value={name} onChange={(e) => setName(e.target.value)} />,
-          )}
-          {field(
-            'Add item',
-            <div className="flex gap-2">
-              <Input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
-              <Input placeholder="URL" value={url} onChange={(e) => setUrl(e.target.value)} />
-              <Button
-                type="button"
-                onClick={async () => {
-                  if (!label.trim() || !settings) return;
-                  await persist({
-                    name: name.trim() || 'Primary',
-                    items: [...current.items, { label: label.trim(), url: url.trim() || '/' }],
-                  });
-                  setLabel('');
-                }}
-              >
-                Add to menu
-              </Button>
-            </div>,
-          )}
-        </tbody>
-      </table>
+      {message ? <Notice kind="success">{message}</Notice> : null}
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      <div className="mb-3 flex flex-wrap gap-2">
+        <select className="border border-[#8c8f94] px-2 py-1" value={menu?.id ?? ''} onChange={(event) => setMenuId(event.target.value)}>
+          {menus.map((item) => (
+            <option key={item.id} value={item.id}>{item.name}</option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          onClick={async () => {
+            const created = await api<{ id: string }>('/menus', { method: 'POST', body: JSON.stringify({ name: 'Menu' }) });
+            setMenuId(created.id);
+            load();
+          }}
+        >
+          New menu
+        </Button>
+      </div>
+      <div className="mb-4 flex gap-2">
+        <Input placeholder="Label" value={label} onChange={(event) => setLabel(event.target.value)} />
+        <Input placeholder="URL" value={url} onChange={(event) => setUrl(event.target.value)} />
+        <Button type="button" onClick={() => addItem().catch((err) => setError(err instanceof Error ? err.message : 'Could not add the item'))}>
+          Add to menu
+        </Button>
+      </div>
+      <ul className="border border-[#c3c4c7] bg-white">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            draggable
+            onDragStart={() => setDragId(row.id)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => dropOn(row.id, event)}
+            className="flex items-center gap-3 border-b border-[#dcdcde] px-3 py-2 text-[13px]"
+            style={{ paddingLeft: 12 + row.depth * 24 }}
+          >
+            <span aria-hidden className="cursor-grab text-[#787c82]">≡</span>
+            <span className="font-medium">{row.title}</span>
+            <span className="text-[#646970]">{row.url}</span>
+            <button
+              type="button"
+              className="ml-auto is-delete"
+              onClick={() => {
+                api(`/menus/items/${row.id}`, { method: 'DELETE' }).then(load).catch((err) => setError(err instanceof Error ? err.message : 'Could not remove the item'));
+              }}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+        {rows.length === 0 ? <li className="px-3 py-2 text-[13px] text-[#646970]">No items yet. Drag items to reorder them. Drop toward the right to nest under the item above.</li> : null}
+      </ul>
       <div className="op-postbox mt-4">
         <h2 className="px-3 py-2">Menu locations</h2>
         <div className="space-y-2 p-3 text-[13px]">
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={locations.primary === (name.trim() || 'Primary')}
-              onChange={(e) =>
-                persist(current, {
-                  ...locations,
-                  primary: e.target.checked ? name.trim() || 'Primary' : '',
-                })
-              }
+              checked={Boolean(menu) && locations.primary === menu?.id}
+              onChange={(event) => {
+                api('/menus/locations', {
+                  method: 'PUT',
+                  body: JSON.stringify({ ...locations, primary: event.target.checked ? menu?.id ?? null : null }),
+                }).then(load);
+              }}
             />
             Primary menu
           </label>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={Boolean(locations.footer) && locations.footer === (name.trim() || 'Primary')}
-              onChange={(e) =>
-                persist(current, {
-                  ...locations,
-                  footer: e.target.checked ? name.trim() || 'Primary' : '',
-                })
-              }
+              checked={Boolean(menu) && locations.footer === menu?.id}
+              onChange={(event) => {
+                api('/menus/locations', {
+                  method: 'PUT',
+                  body: JSON.stringify({ ...locations, footer: event.target.checked ? menu?.id ?? null : null }),
+                }).then(load);
+              }}
             />
             Footer menu
           </label>
-          <p className="text-[#646970]">The default theme reads these locations. A location with no menu falls back to the first menu in the header only.</p>
         </div>
       </div>
-      <table className="op-list mt-4">
-        <thead>
-          <tr>
-            <th>Label</th>
-            <th>URL</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {current.items.map((item, index) => (
-            <tr key={`${item.url}-${index}`}>
-              <td>{item.label}</td>
-              <td>{item.url}</td>
-              <td>
-                <button
-                  type="button"
-                  className="is-delete"
-                  onClick={() =>
-                    persist({
-                      name: name.trim() || 'Primary',
-                      items: current.items.filter((_, i) => i !== index),
-                    })
-                  }
-                >
-                  Remove
-                </button>
-              </td>
-            </tr>
-          ))}
-          {current.items.length === 0 ? (
-            <tr>
-              <td colSpan={3}>No items yet.</td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
     </Screen>
   );
 }
