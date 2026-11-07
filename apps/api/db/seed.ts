@@ -80,7 +80,7 @@ async function main() {
   const category = await pool.query<{ id: string }>(
     `INSERT INTO categories (id, name, slug, description)
      VALUES ($1, $2, $3, $4)
-     ON CONFLICT (slug) DO UPDATE SET slug = categories.slug
+     ON CONFLICT ("siteId", slug) DO UPDATE SET slug = categories.slug
      RETURNING id`,
     [randomUUID(), 'General', 'general', 'General posts'],
   );
@@ -89,7 +89,7 @@ async function main() {
   const tag = await pool.query<{ id: string }>(
     `INSERT INTO tags (id, name, slug)
      VALUES ($1, $2, $3)
-     ON CONFLICT (slug) DO UPDATE SET slug = tags.slug
+     ON CONFLICT ("siteId", slug) DO UPDATE SET slug = tags.slug
      RETURNING id`,
     [randomUUID(), 'Getting Started', 'getting-started'],
   );
@@ -103,7 +103,7 @@ async function main() {
        $1, 'POST', 'PUBLISHED', $2, $3, $4, $5::jsonb, '{}'::jsonb,
        now(), $6, now()
      )
-     ON CONFLICT (slug) DO NOTHING
+     ON CONFLICT ("siteId", slug) DO NOTHING
      RETURNING id`,
     [
       randomUUID(),
@@ -135,7 +135,7 @@ async function main() {
        $1, 'PAGE', 'PUBLISHED', $2, $3, $4, $5::jsonb, '{}'::jsonb,
        now(), $6, now()
      )
-     ON CONFLICT (slug) DO NOTHING`,
+     ON CONFLICT ("siteId", slug) DO NOTHING`,
     [
       randomUUID(),
       'About',

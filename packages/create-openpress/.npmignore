@@ -1,0 +1,3 @@
+*.spec.mjs
+template/**/.env
+template/**/node_modules
