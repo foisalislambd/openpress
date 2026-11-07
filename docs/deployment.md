@@ -11,7 +11,7 @@ docker pull ghcr.io/foisalislambd/openpress-api:0.3.0
 docker pull ghcr.io/foisalislambd/openpress-web:0.3.0
 ```
 
-`npx create-openpress my-site` writes a Compose file that uses those images. Images for 0.3.0 exist after that version is merged to `main` and the Release workflow finishes.
+From a GitHub checkout, `node packages/create-openpress/bin/create-openpress.mjs compose <version>` prints a Compose file that pins those images. It does not pull them. `npx create-openpress` is not published. A normal project scaffold (`create-openpress <directory>`) copies this source tree instead, and `docker-compose.prod.yml` builds images from that source. Image tags for a version exist after that version is merged to `main` and the Release workflow finishes. See [releasing.md](releasing.md).
 
 ## Build
 

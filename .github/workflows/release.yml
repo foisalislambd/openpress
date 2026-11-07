@@ -172,7 +172,8 @@ jobs:
           set -euo pipefail
           pnpm install --frozen-lockfile
           node scripts/version.mjs sync
-          pnpm --filter @openpress/plugin-sdk --filter @openpress/theme-sdk --filter create-openpress build
+          # create-openpress is version-synced above and is not built or published here.
+          pnpm --filter @openpress/plugin-sdk --filter @openpress/theme-sdk build
 
       - name: Publish to npm
         shell: bash
@@ -187,8 +188,18 @@ jobs:
             exit 0
           fi
           tag="$(node --input-type=module -e 'import { distTag } from "./scripts/version.mjs"; process.stdout.write(distTag(process.argv[1]))' "${VERSION}")"
-          for dir in packages/plugin-sdk packages/theme-sdk packages/create-openpress; do
+          # create-openpress is source-only. Do not add it to this list.
+          for dir in packages/plugin-sdk packages/theme-sdk; do
             name="$(node -p "require('./${dir}/package.json').name")"
+            if [ "$name" = "create-openpress" ]; then
+              echo "::error::create-openpress is source-only and is not published to npm."
+              exit 1
+            fi
+            private="$(node -p "Boolean(require('./${dir}/package.json').private)")"
+            if [ "$private" = "true" ]; then
+              echo "::error::${name} is private. This workflow only publishes the public SDK packages."
+              exit 1
+            fi
             version="$(node -p "require('./${dir}/package.json').version")"
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
               echo "::warning title=already published::${name}@${version} is already on npm. Skipping."

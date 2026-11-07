@@ -11,6 +11,7 @@ openpress/
     shared/              # types
     themes/
       default/           # built-in theme only
+    create-openpress/    # source-only project scaffolder; not published
   scripts/
     local-postgres.mjs   # embedded DB helper
   docs/                  # you are here

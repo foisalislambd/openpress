@@ -12,7 +12,7 @@
 [![Version check](https://img.shields.io/github/actions/workflow/status/foisalislambd/openpress/version-check.yml?label=version)](https://github.com/foisalislambd/openpress/actions/workflows/version-check.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A self-hosted CMS for posts, pages, media, themes, plugins, and roles, without a PHP runtime. The admin follows WordPress. The code is NestJS, Next.js, and PostgreSQL. Version `0.3.0` in [`VERSION.md`](VERSION.md) is what gets tagged, imaged, and published.
+A self-hosted CMS for posts, pages, media, themes, plugins, and roles, without a PHP runtime. The admin follows WordPress. The code is NestJS, Next.js, and PostgreSQL. The version in [`VERSION.md`](VERSION.md) is what gets tagged and imaged. `@openpress/plugin-sdk` and `@openpress/theme-sdk` follow that version. `create-openpress` follows it too, and stays in this repository until a later, explicit publish.
 
 ## See it in action
 
@@ -60,48 +60,11 @@ OpenPress fits a team that already works in React and Node and wants WordPress h
 
 ## Install
 
-Images and npm packages appear after this version is merged to `main` and the Release workflow finishes. Until then, use the source setup below.
+**Requirements:** Node.js 20 or newer, pnpm 10 or newer, and PostgreSQL 14 or newer.
 
-### Docker, from the published images
+Two ways to get the API and web app onto a machine are available from GitHub today. Neither one downloads `create-openpress` from npm.
 
-```bash
-npx create-openpress@latest my-site
-cd my-site
-# Replace both JWT secrets in docker-compose.yml
-docker compose up -d
-docker compose exec api pnpm db:migrate
-docker compose exec api pnpm db:seed
-```
-
-That Compose file pins `ghcr.io/foisalislambd/openpress-api` and `ghcr.io/foisalislambd/openpress-web` to the CLI version. Open http://localhost:3000.
-
-```bash
-docker pull ghcr.io/foisalislambd/openpress-api:0.3.0
-docker pull ghcr.io/foisalislambd/openpress-web:0.3.0
-```
-
-`latest`, `0.3`, and `0` move only on a stable release. A prerelease is tagged with its full version only.
-
-To build the images yourself from this repository:
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-Change the JWT secrets in that file before you expose it. The first GHCR push may leave the packages private. Set them to public on the package page if `docker pull` should work without a login. Details are in [docs/releasing.md](docs/releasing.md).
-
-### npm
-
-```bash
-npm install -D @openpress/plugin-sdk @openpress/theme-sdk
-npx create-openpress plugin hello-note
-```
-
-`@openpress/plugin-sdk` types `plugin.json` and `activate(ctx)`. `@openpress/theme-sdk` types `theme.json`. Prereleases use the `next` dist-tag. The API and the Next.js app are not published as installable apps. They ship as the container images above.
-
-### From source
-
-**Requirements:** Node.js 20+, pnpm 10+, and PostgreSQL 14+.
+### From a GitHub checkout
 
 ```bash
 git clone https://github.com/foisalislambd/openpress.git
@@ -111,7 +74,7 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
-Start Postgres. Both options use `postgresql://openpress:openpress@localhost:5432/openpress`.
+Edit `apps/api/.env` before a shared deploy. The example database URL matches `docker-compose.yml` and `pnpm db:local`.
 
 ```bash
 docker compose up -d
@@ -130,13 +93,67 @@ pnpm dev
 | http://localhost:3000 | Public site |
 | http://localhost:3000/admin | Admin |
 | http://localhost:4000/api | REST API |
+| http://localhost:4000/api/health | API health |
 
-Seeded login, for local development only:
+`pnpm dev` runs the NestJS API and the Next.js app together. Stop both with Ctrl+C.
+
+`pnpm db:migrate` applies every numbered SQL file in `apps/api/db/migrations`. It does not drop the database. Seeded login, for local development only:
 
 - Email: `admin@openpress.local`
 - Password: `admin12345`
 
-Change that password before any shared deploy. `pnpm db:migrate` applies `001_init.sql`, `002_core_parity.sql`, and `003_platform.sql`.
+Change that password before any shared deploy.
+
+Build, then start each service:
+
+```bash
+pnpm build
+pnpm --filter @openpress/api start
+pnpm --filter @openpress/web start
+```
+
+`docker compose up -d` starts PostgreSQL only. `docker-compose.prod.yml` is the self-hosted option that builds the API and web images from this source. Change the JWT values in that file before exposing it. Details are in [docs/installation.md](docs/installation.md) and [docs/deployment.md](docs/deployment.md).
+
+### create-openpress from this checkout
+
+This is available now. It copies this repository's API, web app, workspace packages, lockfile, and migrations into an empty directory. It does not publish a package.
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs --help
+node packages/create-openpress/bin/create-openpress.mjs --version
+node packages/create-openpress/bin/create-openpress.mjs ../my-site --yes
+```
+
+`--yes` accepts the defaults: write gitignored env files with generated JWT secrets, run `pnpm install --frozen-lockfile`, and do not migrate or seed. Pass `--skip-install` to copy files only. Pass `--migrate` or `--seed` only when PostgreSQL is already running. The command refuses a directory that already has files.
+
+A packed tarball, still without a registry, is:
+
+```bash
+pnpm --filter create-openpress pack --pack-destination /tmp/openpress-cli
+tar -xzf /tmp/openpress-cli/create-openpress-1.0.7.tgz -C /tmp/openpress-cli
+node /tmp/openpress-cli/package/bin/create-openpress.mjs "/tmp/my site" --yes --skip-install
+```
+
+The tarball name uses the version in `packages/create-openpress/package.json`. After either command, follow `SETUP.md` in the new directory. The next steps are the same as the checkout above: PostgreSQL, `pnpm db:migrate`, `pnpm db:seed`, and `pnpm dev`.
+
+Plugin files, from the same CLI:
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs plugin hello-note
+```
+
+Flags, errors, and troubleshooting are in [packages/create-openpress/README.md](packages/create-openpress/README.md).
+
+### Not published
+
+These commands are the intended future interface. They are **not published**, and merging this repository does not publish them. The npm name `create-openpress` is provisional and is not claimed to be available.
+
+```bash
+npx create-openpress@latest my-site
+npm create openpress@latest my-site
+```
+
+`create-openpress compose <version>`, from a checkout, only prints a Compose file that pins `ghcr.io/foisalislambd/openpress-api` and `ghcr.io/foisalislambd/openpress-web`. It does not pull images. Image tags and the SDK packages are described in [docs/releasing.md](docs/releasing.md).
 
 ## Plugins, in short
 
@@ -157,14 +174,14 @@ WordPress export files go to **Tools → Import**. Private, password, and schedu
 
 ## Releasing
 
-`VERSION.md` is one version number. `pnpm release:bump patch|minor|major` advances it. Merging a higher version to `main` tags `vX.Y.Z`, opens a GitHub Release whose notes are the generated changelog, pushes the images, and publishes the npm packages. The same or a lower version does nothing. See [docs/releasing.md](docs/releasing.md).
+`VERSION.md` is one version number. `pnpm release:bump patch|minor|major` advances it. Merging a higher version to `main` tags `vX.Y.Z`, opens a GitHub Release whose notes are the generated changelog, pushes the images, and publishes `@openpress/plugin-sdk` and `@openpress/theme-sdk`. `create-openpress` is versioned with that file and is not published. The same or a lower version does nothing. See [docs/releasing.md](docs/releasing.md).
 
 ## Documentation
 
 | Guide | Description |
 |---|---|
 | [Docs index](docs/README.md) | All guides |
-| [Releasing](docs/releasing.md) | Version file, images, npm, secrets |
+| [Releasing](docs/releasing.md) | Version file, images, npm SDKs, source-only CLI |
 | [Installation](docs/installation.md) | Env vars and database options |
 | [Themes](docs/themes.md) | `runtime-v1` and `react-v1` |
 | [Plugins](docs/plugins.md) | Manifest, permissions, actions, filters |

@@ -31,7 +31,7 @@ Rules the workflow enforces:
 
    - `packages/plugin-sdk`
    - `packages/theme-sdk`
-   - `packages/create-openpress`
+   - `packages/create-openpress` (version only; this package is not published)
    - the fallback core version in `apps/api/src/extensions/plugin-manifest.ts`
 
    The API reads `VERSION.md` at startup when that file is present.
@@ -80,11 +80,13 @@ docker pull ghcr.io/foisalislambd/openpress-api:0.3.0
 docker pull ghcr.io/foisalislambd/openpress-web:0.3.0
 ```
 
-Or generate a Compose file pinned to a version:
+Or, from a GitHub checkout, print a Compose file pinned to a version. This does not pull images and does not use npm:
 
 ```bash
-npx create-openpress compose 0.3.0 > docker-compose.yml
+node packages/create-openpress/bin/create-openpress.mjs compose 1.0.7 > docker-compose.ghcr.yml
 ```
+
+`npx create-openpress compose` is not available. `create-openpress` is not published.
 
 The first push creates the GHCR packages. GitHub often leaves a new package private even when the repository is public. Open each package's settings, link it to `foisalislambd/openpress`, and set the visibility to public if `docker pull` should work without a login.
 
@@ -92,19 +94,25 @@ The first push creates the GHCR packages. GitHub often leaves a new package priv
 
 | Package | What it is |
 |---|---|
-| `@openpress/plugin-sdk` | Types for `plugin.json` and `activate(ctx)` |
-| `@openpress/theme-sdk` | Types for `theme.json` |
-| `create-openpress` | CLI: `npm create openpress@latest my-site` or `npx create-openpress plugin <id>` |
+| `@openpress/plugin-sdk` | Types for `plugin.json` and `activate(ctx)`. Published by the Release workflow. |
+| `@openpress/theme-sdk` | Types for `theme.json`. Published by the Release workflow. |
+| `create-openpress` | Project scaffolder. **Not published.** `"private": true`. The workflow's publish loop is `packages/plugin-sdk` and `packages/theme-sdk` only, and it exits if that loop ever names `create-openpress` or a private package. |
 
-The workflow sets those package versions from `VERSION.md` before publishing. Stable versions use the `latest` dist-tag. Prereleases use `next`.
+The workflow sets the SDK versions, and the `create-openpress` version, from `VERSION.md` before publishing the SDKs. Stable SDK versions use the `latest` dist-tag. Prereleases use `next`.
 
 ```bash
 npm install -D @openpress/plugin-sdk @openpress/theme-sdk
-npm create openpress@latest my-site
-npm create openpress@next my-site
 ```
 
-Publish uses `npm publish --provenance --access public`. Provenance needs the workflow `id-token: write` permission, which this repository's release workflow sets. It also needs `NPM_TOKEN`.
+Use the scaffolder from a checkout, not from npm:
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs ../my-site --yes
+```
+
+`npx create-openpress` and `npm create openpress` are the future commands. They are not published. The npm name is provisional and this document does not claim it is available. A future publish has to remove `"private": true`, confirm the registry name, and add the package to the workflow on purpose. Do not do that as part of an unrelated release.
+
+Publish of the two SDK packages uses `npm publish --provenance --access public`. Provenance needs the workflow `id-token: write` permission, which this repository's release workflow sets. It also needs `NPM_TOKEN`. The `create-openpress` GitHub Actions workflow only runs tests and has `contents: read`.
 
 ### If `NPM_TOKEN` is missing
 
@@ -112,14 +120,14 @@ The npm job prints a warning and exits successfully. The git tag, GitHub Release
 
 ### Names that were free on 2026-11-02
 
-The registry returned 404 for `@openpress/plugin-sdk`, `@openpress/theme-sdk`, and `create-openpress`. Nothing was published under those names. `@open-press/*` (with a hyphen) is a different project. Do not publish there.
+The registry returned 404 for `@openpress/plugin-sdk`, `@openpress/theme-sdk`, and `create-openpress` on that date. `@open-press/*` (with a hyphen) is a different project. Do not publish there. `create-openpress` stays unpublished: the name was not re-checked for this change and is not reserved by this repository.
 
 `@openpress` is an organization scope, not the GitHub user `foisalislambd`. npm will reject the first publish until that organization exists and the token can write to it.
 
 ## Secrets and access the owner sets up once
 
 1. **npm organization.** Create an organization named `openpress` at [npmjs.com/org/create](https://www.npmjs.com/org/create) with the account that should own the scope. Public packages are free.
-2. **`NPM_TOKEN`.** In npm, create a granular access token (or an automation token) that can publish `@openpress/plugin-sdk`, `@openpress/theme-sdk`, and the unscoped `create-openpress` package. Enable bypass for 2FA / CI so Actions can publish. Add it to the GitHub repository as a secret named exactly `NPM_TOKEN` (Settings → Secrets and variables → Actions).
+2. **`NPM_TOKEN`.** In npm, create a granular access token (or an automation token) that can publish `@openpress/plugin-sdk` and `@openpress/theme-sdk`. Do not grant it a publish path for `create-openpress` while that package is source-only. Enable bypass for 2FA / CI so Actions can publish the SDKs. Add it to the GitHub repository as a secret named exactly `NPM_TOKEN` (Settings → Secrets and variables → Actions).
 3. **Actions permissions.** Settings → Actions → General → Workflow permissions: read and write, so the workflow can push tags and create Releases. The workflow already requests `contents: write`, `packages: write`, and `id-token: write`.
 4. **GHCR visibility.** After the first release, set `openpress-api` and `openpress-web` to public if pulls should be anonymous.
 5. **Package link.** On each GHCR package, connect it to this repository so the token from Actions keeps working.

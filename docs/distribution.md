@@ -16,7 +16,7 @@ OpenPress is released under the [MIT License](../LICENSE). You may use, copy, mo
 | **Plugins** | Zip upload or share zip publicly | Your choice (MIT recommended) |
 | **Services** | Hosting, setup, support, custom development | Commercial — allowed |
 
-OpenPress publishes container images and a few npm packages from [`VERSION.md`](../VERSION.md). The site itself is still self-hosted. See [Releasing](releasing.md).
+OpenPress publishes container images and the `@openpress/plugin-sdk` and `@openpress/theme-sdk` packages from [`VERSION.md`](../VERSION.md). `create-openpress` is kept in the GitHub repository and is not published to a registry. The site itself is still self-hosted. See [Releasing](releasing.md).
 
 ---
 
@@ -172,7 +172,7 @@ Plugins run server-side with database access. Only distribute plugins from sourc
 | **Your own docs site** | Installation guides for clients |
 | **Theme/plugin repo** | Separate repos per extension |
 | **Docker Hub** (custom) | Pre-built images — not official yet; see [deployment.md](deployment.md) |
-| **Package registries** | Future — core is monorepo-only today |
+| **Package registries** | `@openpress/plugin-sdk` and `@openpress/theme-sdk` only. `create-openpress` and the API/web apps stay in git |
 
 Official Docker images for API + Web are on the [roadmap](../README.md#roadmap). Until then, build your own Dockerfile or deploy Node directly.
 

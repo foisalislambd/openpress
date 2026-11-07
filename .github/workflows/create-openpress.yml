@@ -1,0 +1,66 @@
+name: create-openpress
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only. This workflow tests the CLI and must not publish it.
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+
+      - name: Check and test create-openpress without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter create-openpress build
+          pnpm test:release
+          test "$(node -p "require('./packages/create-openpress/package.json').private")" = "true"
+
+      - name: Scaffold, migrate, and build a generated project
+        shell: bash
+        run: |
+          set -euo pipefail
+          parent="$(mktemp -d)"
+          dest="${parent}/my site"
+          node packages/create-openpress/bin/create-openpress.mjs "$dest" --yes --non-interactive
+          cd "$dest"
+          pnpm db:local > /tmp/openpress-pg.log 2>&1 &
+          echo $! > /tmp/openpress-pg.pid
+          ready=0
+          for _ in $(seq 1 30); do
+            if pnpm db:migrate > /tmp/openpress-migrate.log 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then
+            echo "PostgreSQL did not accept migrations in time."
+            exit 1
+          fi
+          pnpm db:seed
+          pnpm test
+          pnpm build
+          kill -INT "$(cat /tmp/openpress-pg.pid)" || true

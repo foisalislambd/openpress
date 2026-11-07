@@ -52,6 +52,22 @@ pnpm dev
 
 More detail: [docs/installation.md](docs/installation.md), [docs/running-dev.md](docs/running-dev.md), [docs/development.md](docs/development.md).
 
+`create-openpress` can copy this tree into an empty directory outside the checkout. It is available from GitHub now and is **not published** to npm. `npx create-openpress` is a future command only.
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs --help
+node packages/create-openpress/bin/create-openpress.mjs ../my-site --yes --skip-install
+```
+
+The generated project uses the same `pnpm` scripts as this repository. See [packages/create-openpress/README.md](packages/create-openpress/README.md). Do not add a registry publish for that package in a feature pull request. The Release workflow publishes `@openpress/plugin-sdk` and `@openpress/theme-sdk` only.
+
+CLI checks:
+
+```bash
+pnpm --filter create-openpress build
+pnpm --filter create-openpress test
+```
+
 ## Development workflow
 
 1. **Fork** the repo and create a branch from `main`:
@@ -77,6 +93,7 @@ More detail: [docs/installation.md](docs/installation.md), [docs/running-dev.md]
 | Web (Next.js site + admin) | `apps/web/` |
 | Shared types | `packages/shared/` |
 | Default theme | `packages/themes/default/` |
+| Project scaffolder (source only, not published) | `packages/create-openpress/` |
 | Docs | `docs/` |
 
 Do **not** commit:

@@ -9,10 +9,31 @@
 ## 1. Clone and install
 
 ```bash
-git clone <your-repo-url> openpress
+git clone https://github.com/foisalislambd/openpress.git
 cd openpress
 pnpm install
 ```
+
+### Or scaffold a new directory with create-openpress
+
+Available from this checkout, or from a tarball packed in this checkout. **Not published.** `npx create-openpress` and `npm create openpress` do not work yet. The npm name is provisional.
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs --help
+node packages/create-openpress/bin/create-openpress.mjs ../my-site --yes
+```
+
+`--yes` writes gitignored env files, runs `pnpm install --frozen-lockfile`, and does not migrate or seed. The destination must be empty and must sit outside this checkout. Then use the generated `SETUP.md`. The commands below are the same for a checkout and for a generated project.
+
+Tarball, without publishing:
+
+```bash
+pnpm --filter create-openpress pack --pack-destination /tmp/openpress-cli
+tar -xzf /tmp/openpress-cli/create-openpress-1.0.7.tgz -C /tmp/openpress-cli
+node /tmp/openpress-cli/package/bin/create-openpress.mjs "/tmp/my site" --yes --skip-install
+```
+
+Flags and errors: [packages/create-openpress/README.md](../packages/create-openpress/README.md).
 
 ## 2. Database
 
@@ -80,7 +101,17 @@ Seed creates:
 pnpm dev
 ```
 
-Starts API (port 4000) and web (port 3000) via Turborepo.
+Starts API (port 4000) and web (port 3000) via Turborepo. Stop both with Ctrl+C.
+
+Build, then start the compiled services:
+
+```bash
+pnpm build
+pnpm --filter @openpress/api start
+pnpm --filter @openpress/web start
+```
+
+`pnpm db:migrate` applies every numbered SQL file in `apps/api/db/migrations`. It does not drop the database. Health check: http://localhost:4000/api/health.
 
 ## First login
 
@@ -94,6 +125,8 @@ After the first user exists, public registration is **disabled** until you enabl
 
 | Problem | Fix |
 |---------|-----|
-| Password authentication failed | Check `DATABASE_URL` matches your Postgres user/password |
+| Password authentication failed | Check `DATABASE_URL` in `apps/api/.env` without pasting that file into a ticket |
+| `create-openpress` says the directory is not empty | Pick a new path. The CLI does not replace existing files |
+| `npx create-openpress` fails | Expected until a future publish. Use `node packages/create-openpress/bin/create-openpress.mjs` from a checkout |
 | Port 5432 in use | Stop the other Postgres process, or change the port in `docker-compose.yml` / `scripts/local-postgres.mjs` and update `DATABASE_URL` |
 | Admin shows "Forbidden" | Log out and back in after role change; only **Admin** can change settings/themes |

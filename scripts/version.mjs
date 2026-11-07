@@ -9,7 +9,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const VERSION_FILE = join(ROOT, 'VERSION.md');
 
-/** package.json files whose versions follow VERSION.md. */
+/**
+ * package.json files whose versions follow VERSION.md.
+ * create-openpress is included so the CLI version stays aligned. The Release
+ * workflow does not publish it; packages/create-openpress/package.json is private.
+ */
 export const PUBLISHED_PACKAGES = [
   'packages/plugin-sdk/package.json',
   'packages/theme-sdk/package.json',

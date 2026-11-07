@@ -1,7 +1,8 @@
 {
   "name": "create-openpress",
   "version": "1.0.7",
-  "description": "Create an OpenPress site directory or a plugin scaffold",
+  "private": true,
+  "description": "Create a local OpenPress project from a GitHub checkout. Not published to npm.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -9,13 +10,15 @@
   },
   "files": [
     "bin",
+    "lib",
+    "template",
     "README.md"
   ],
   "scripts": {
-    "build": "node --check bin/create-openpress.mjs"
-  },
-  "publishConfig": {
-    "access": "public"
+    "build": "node --check bin/create-openpress.mjs && node --check lib/scaffold.mjs && node --check lib/pack-template.mjs",
+    "prepack": "node ./lib/pack-template.mjs",
+    "postpack": "node ./lib/pack-template.mjs --clean",
+    "test": "node --test cli.spec.mjs"
   },
   "repository": {
     "type": "git",

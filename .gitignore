@@ -1,4 +1,5 @@
 node_modules/
+packages/create-openpress/template/
 dist/
 .next/
 .turbo/
