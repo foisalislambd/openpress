@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 import type { Comment, SiteSettings, User } from '@openpress/shared';
 import { OpenPressMark } from '@/components/brand/openpress-mark';
-import { api, clearTokens, getToken } from '@/lib/client-api';
+import { api, clearTokens } from '@/lib/client-api';
 import './admin-bar.css';
 
 const DOCS = 'https://github.com/foisalislambd/openpress/tree/main/docs';
@@ -80,7 +80,8 @@ export function AdminBar({
     api<SiteSettings>('/settings')
       .then((settings) => setSiteTitle(settings.siteTitle || 'OpenPress'))
       .catch(() => {});
-    setSiteSlug(window.localStorage.getItem('op_site') ?? 'primary');
+    const storedSite = window.localStorage.getItem('op_site') ?? 'primary';
+    queueMicrotask(() => setSiteSlug(storedSite));
     api<{ id: string; name: string; slug: string }[]>('/sites').then(setSites).catch(() => setSites([]));
     if (canModerate) {
       api<Comment[]>('/comments?status=PENDING')
@@ -113,7 +114,7 @@ export function AdminBar({
         </BarItem>
         <BarItem label={siteTitle} href={context === 'admin' ? '/' : '/admin'}>
           {context === 'admin' ? (
-            <a href="/" role="menuitem">Visit Site</a>
+            <Link href="/" role="menuitem">Visit Site</Link>
           ) : (
             <Link href="/admin" role="menuitem">Dashboard</Link>
           )}
@@ -189,7 +190,6 @@ export function FrontAdminBar() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (!getToken()) return;
     api<User>('/auth/me').then(setUser).catch(() => setUser(null));
   }, []);
 

@@ -4,6 +4,8 @@ import { dirname, join, resolve } from 'path';
 import { Logger } from '@nestjs/common';
 import { PluginManifest } from '../plugin-manifest';
 
+export { hostAllowed, isPublicHostname } from '../../security/outbound-url';
+
 export interface PluginRegistration {
   id: string;
   kind: string;
@@ -56,32 +58,6 @@ export function workerFile() {
   const beside = join(__dirname, 'plugin-worker.cjs');
   if (existsSync(beside)) return beside;
   return join(process.cwd(), 'src/extensions/sandbox/plugin-worker.cjs');
-}
-
-export function isPublicHostname(host: string) {
-  const name = host.trim().toLowerCase().replace(/\.$/, '');
-  if (!name || name === 'localhost' || name.endsWith('.local') || name.endsWith('.internal')) return false;
-  if (name.includes(':')) return false;
-  const ipv4 = name.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    if (a === 10 || a === 127 || a === 0) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    return true;
-  }
-  return /^[a-z0-9.-]+$/.test(name);
-}
-
-export function hostAllowed(hostname: string, allowlist: string[]) {
-  const host = hostname.toLowerCase();
-  if (!isPublicHostname(host)) return false;
-  return allowlist.some((entry) => {
-    const rule = entry.toLowerCase();
-    if (rule.startsWith('*.')) return host === rule.slice(2) || host.endsWith(rule.slice(1));
-    return host === rule;
-  });
 }
 
 /**

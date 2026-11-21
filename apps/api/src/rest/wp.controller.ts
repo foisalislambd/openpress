@@ -5,6 +5,7 @@ import { can } from '../auth/capabilities';
 import { ApiKeyService } from '../auth/api-key.service';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { scopeAllows } from '../cms/publishing';
+import { ACCESS_COOKIE, readCookie } from '../auth/session-cookie';
 import { DbService } from '../db/db.service';
 import { WpService } from './wp.service';
 
@@ -46,8 +47,15 @@ export class WpController {
   }
 
   @Get('media')
-  media(@Query('page') page?: string, @Query('per_page') perPage?: string) {
-    return this.wp.media(page, perPage);
+  async media(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('per_page') perPage?: string,
+    @Headers('authorization') authorization?: string,
+  ) {
+    const cookie = readCookie(req, ACCESS_COOKIE);
+    const header = authorization || (cookie ? `Bearer ${cookie}` : undefined);
+    return this.wp.media(page, perPage, !(await this.trusted(header)));
   }
 
   @Get('categories')

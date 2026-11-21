@@ -1,6 +1,6 @@
 {
   "name": "@openpress/theme-sdk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "TypeScript types for OpenPress theme.json manifests",
   "license": "MIT",
   "type": "module",

@@ -2,7 +2,7 @@
  * Parse VERSION.md, compare semver, and bump the release version.
  * VERSION.md contains only the current version.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -18,6 +18,16 @@ export const PUBLISHED_PACKAGES = [
   'packages/plugin-sdk/package.json',
   'packages/theme-sdk/package.json',
   'packages/create-openpress/package.json',
+];
+
+/** Every workspace package.json that should match VERSION.md. Missing files are skipped so fixtures can sync a subset. */
+export const VERSIONED_PACKAGES = [
+  'package.json',
+  'apps/api/package.json',
+  'apps/web/package.json',
+  'packages/shared/package.json',
+  'packages/themes/default/package.json',
+  ...PUBLISHED_PACKAGES,
 ];
 
 const SEMVER =
@@ -219,8 +229,9 @@ const FALLBACK_VERSION_DECLARATION =
 
 export function syncPackageVersions(version, root = ROOT) {
   const parsed = parseSemver(version).raw;
-  for (const relative of PUBLISHED_PACKAGES) {
+  for (const relative of VERSIONED_PACKAGES) {
     const path = join(root, relative);
+    if (!existsSync(path)) continue;
     const json = JSON.parse(readFileSync(path, 'utf8'));
     if (json.version === parsed) continue;
     json.version = parsed;

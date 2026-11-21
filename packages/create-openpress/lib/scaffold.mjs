@@ -286,17 +286,18 @@ export function renderCompose(version) {
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: openpress
-      POSTGRES_PASSWORD: openpress
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: openpress
     volumes:
       - pgdata:/var/lib/postgresql/data
   api:
     image: ghcr.io/foisalislambd/openpress-api:${version}
     environment:
-      DATABASE_URL: postgresql://openpress:openpress@postgres:5432/openpress
-      JWT_SECRET: change-me
-      JWT_REFRESH_SECRET: change-me-too
-      WEB_ORIGIN: http://localhost:3000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://openpress:\${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/openpress
+      JWT_SECRET: \${JWT_SECRET:?Set JWT_SECRET to a random string of at least 32 characters}
+      JWT_REFRESH_SECRET: \${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET to a different random string of at least 32 characters}
+      WEB_ORIGIN: \${WEB_ORIGIN:-http://localhost:3000}
       PORT: 4000
     depends_on:
       - postgres

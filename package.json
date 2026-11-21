@@ -1,6 +1,6 @@
 {
   "name": "openpress",
-  "version": "0.1.0",
+  "version": "1.0.8",
   "private": true,
   "description": "OpenPress - a modern, open-source WordPress alternative built with NestJS, Next.js and PostgreSQL",
   "license": "MIT",
@@ -11,20 +11,38 @@
     "build": "turbo run build --filter=@openpress/api --filter=@openpress/web",
     "build:api": "pnpm --filter @openpress/api build",
     "build:web": "pnpm --filter @openpress/web build",
-    "lint": "turbo run lint --filter=@openpress/web",
+    "lint": "pnpm --filter @openpress/web lint && pnpm --filter @openpress/shared lint",
+    "typecheck": "pnpm --filter @openpress/api exec tsc --noEmit -p tsconfig.json && pnpm --filter @openpress/shared exec tsc --noEmit && pnpm --filter @openpress/web exec tsc --noEmit && pnpm --filter @openpress/plugin-sdk exec tsc --noEmit && pnpm --filter @openpress/theme-sdk exec tsc --noEmit",
     "db:local": "node scripts/local-postgres.mjs",
     "db:migrate": "pnpm --filter @openpress/api db:migrate",
     "db:seed": "pnpm --filter @openpress/api db:seed",
     "test": "pnpm --filter @openpress/api test && pnpm test:release",
+    "test:e2e": "playwright test",
     "test:release": "node --test scripts/version.spec.mjs packages/create-openpress/cli.spec.mjs",
     "release:bump": "node scripts/version.mjs bump"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "embedded-postgres": "^17.5.0-beta.15",
     "turbo": "^2.5.0"
   },
   "packageManager": "pnpm@10.34.1",
   "pnpm": {
+    "overrides": {
+      "body-parser": ">=2.4.0",
+      "proxy-addr": ">=2.0.8",
+      "multer": ">=2.5.0",
+      "markdown-it": ">=14.3.3",
+      "adm-zip": ">=0.6.1",
+      "fast-uri": ">=3.1.7",
+      "js-yaml": ">=4.3.2",
+      "postcss": ">=8.5.18",
+      "browserslist": ">=4.28.7",
+      "source-map-js": ">=1.2.2",
+      "prosemirror-view": ">=1.42.3",
+      "zod": ">=4.6.6",
+      "brace-expansion@>=5 <5.0.11": "5.0.11"
+    },
     "onlyBuiltDependencies": [
       "@embedded-postgres/windows-x64",
       "@embedded-postgres/darwin-arm64",

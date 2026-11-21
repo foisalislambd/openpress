@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { DbService } from '../db/db.service';
 import { AuditService } from './audit.service';
+import { OPENPRESS_VERSION } from '../extensions/plugin-manifest';
 
 class RedirectDto {
   @IsString()
@@ -31,7 +32,7 @@ export class PlatformController {
     return {
       ok: row?.ok === 1,
       service: 'openpress-api',
-      version: '0.1.0',
+      version: OPENPRESS_VERSION,
       demo: process.env.DEMO_MODE === 'true',
       storage: (process.env.STORAGE_DRIVER || 'local').toLowerCase(),
       redis: Boolean(process.env.REDIS_URL),

@@ -18,7 +18,6 @@ import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from
 import { CapabilitiesService } from '../auth/capabilities.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -98,9 +97,9 @@ const storage = diskStorage({
     if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
-  filename: (_req, file, cb) => {
+  filename: (_req, _file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}${extname(file.originalname).toLowerCase()}`);
+    cb(null, `${unique}.bin`);
   },
 });
 
@@ -152,7 +151,6 @@ export class MediaController {
           'image/png',
           'image/gif',
           'image/webp',
-          'image/svg+xml',
           'image/avif',
           'video/mp4',
           'video/webm',

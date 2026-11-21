@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtPayload } from '../auth/jwt.strategy';
 import { ContentService } from '../content/content.service';
 import { DbService } from '../db/db.service';
+import { currentSiteId } from '../sites/site-context';
 
 class RpcDto {
   @IsOptional()
@@ -115,14 +116,16 @@ export class McpController {
       return { content: { id: updated.id, status: updated.status, scheduledAt: updated.scheduledAt } };
     }
     if (name === 'media.search') {
+      if (!(await this.caps.allows(user.sub, 'upload_files'))) throw new Error('You cannot view media');
       const query = String(args.query ?? '').trim();
       const rows = await this.db.query(
         `SELECT id, filename, url, alt, "mimeType"
          FROM media
-         WHERE ($1 = '' OR filename ILIKE $2 OR COALESCE(alt, '') ILIKE $2)
+         WHERE "siteId" = $3
+           AND ($1 = '' OR filename ILIKE $2 ESCAPE '\\' OR COALESCE(alt, '') ILIKE $2 ESCAPE '\\')
          ORDER BY "createdAt" DESC
          LIMIT 20`,
-        [query, `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`],
+        [query, `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`, currentSiteId()],
       );
       return { content: rows };
     }

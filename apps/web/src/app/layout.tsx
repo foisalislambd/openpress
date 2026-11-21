@@ -1,17 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { getSettings } from '@/lib/api';
+import { safeCss } from '@/lib/safe-html';
 
 function isRtl(locale: string) {
   const base = locale.toLowerCase().split('-')[0];
   return base === 'ar' || base === 'he' || base === 'fa' || base === 'ur';
-}
-
-function safeCss(css: unknown) {
-  return String(css ?? '')
-    .replace(/<\/style/gi, '')
-    .replace(/@import[^;]+;?/gi, '')
-    .slice(0, 20000);
 }
 
 export async function generateMetadata(): Promise<Metadata> {

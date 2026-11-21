@@ -1,7 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 import { buildSchema, graphql } from 'graphql';
 import { ContentService } from '../content/content.service';
+import { PUBLISHED_MEDIA_MATCH } from '../content/public-media';
 import { currentSiteId } from '../sites/site-context';
 import { DbService } from '../db/db.service';
 
@@ -64,6 +65,9 @@ export class GraphqlController {
 
   @Post()
   async query(@Body() body: GraphqlDto) {
+    if (!body.query || body.query.length > 12_000 || braceDepth(body.query) > 8) {
+      throw new BadRequestException('Query is empty or too expensive');
+    }
     const root = {
       posts: async (args: { page?: number; perPage?: number; search?: string }) => {
         const result = await this.content.findAll(
@@ -88,7 +92,11 @@ export class GraphqlController {
       media: async (args: { limit?: number }) => {
         const limit = Math.min(50, Math.max(1, args.limit ?? 12));
         return this.db.query(
-          'SELECT id, filename, url, alt FROM media WHERE "siteId" = $2 ORDER BY "createdAt" DESC LIMIT $1',
+          `SELECT m.id, m.filename, m.url, m.alt
+           FROM media m
+           WHERE m."siteId" = $2 AND ${PUBLISHED_MEDIA_MATCH}
+           ORDER BY m."createdAt" DESC
+           LIMIT $1`,
           [limit, currentSiteId()],
         );
       },
@@ -107,6 +115,18 @@ export class GraphqlController {
     };
     return graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
   }
+}
+
+function braceDepth(source: string) {
+  let depth = 0;
+  let max = 0;
+  for (const char of source) {
+    if (char === '{') {
+      depth += 1;
+      if (depth > max) max = depth;
+    } else if (char === '}') depth = Math.max(0, depth - 1);
+  }
+  return max;
 }
 
 function mapPost(item: { id: string; title: string; slug: string; excerpt?: string | null; status: string; permalink?: string; type: string }) {

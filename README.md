@@ -191,7 +191,7 @@ WordPress export files go to **Tools → Import**. Private, password, and schedu
 
 ## Contributing
 
-Branch from `main`. Keep the admin familiar to WordPress users and the code a typed monorepo. `pnpm test` covers the API and the version file. `pnpm lint` checks the web app. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues through [SECURITY.md](SECURITY.md).
+Branch from `main`. Keep the admin familiar to WordPress users and the code a typed monorepo. `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test` are what CI runs. `pnpm test:e2e` logs in, publishes a post, and logs out against Postgres. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues through [SECURITY.md](SECURITY.md).
 
 ## License
 

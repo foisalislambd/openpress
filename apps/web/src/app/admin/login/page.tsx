@@ -23,12 +23,13 @@ export default function LoginPage() {
     api<{ google?: boolean; github?: boolean }>('/auth/oauth/providers').then(setProviders).catch(() => {});
     const oauth = new URLSearchParams(window.location.search).get('oauth');
     if (!oauth) return;
-    api<{ accessToken: string; refreshToken: string }>('/auth/oauth/exchange', {
+    api<{ accessToken?: string; refreshToken?: string; cookie?: boolean }>('/auth/oauth/exchange', {
       method: 'POST',
       body: JSON.stringify({ code: oauth }),
     })
       .then((data) => {
-        setTokens(data.accessToken, data.refreshToken);
+        if (data.cookie) setTokens();
+        else if (data.accessToken && data.refreshToken) setTokens(data.accessToken, data.refreshToken);
         router.replace('/admin');
       })
       .catch(() => setError('The sign-in link expired. Try again.'));
@@ -40,15 +41,16 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (ticket) {
-        const data = await api<{ accessToken: string; refreshToken: string }>('/auth/mfa', {
+        const data = await api<{ accessToken?: string; refreshToken?: string; cookie?: boolean }>('/auth/mfa', {
           method: 'POST',
           body: JSON.stringify({ ticket, code }),
         });
-        setTokens(data.accessToken, data.refreshToken);
+        if (data.cookie) setTokens();
+        else if (data.accessToken && data.refreshToken) setTokens(data.accessToken, data.refreshToken);
         router.replace('/admin');
         return;
       }
-      const data = await api<{ accessToken?: string; refreshToken?: string; mfaRequired?: boolean; ticket?: string }>(
+      const data = await api<{ accessToken?: string; refreshToken?: string; cookie?: boolean; mfaRequired?: boolean; ticket?: string }>(
         mode === 'login' ? '/auth/login' : '/auth/register',
         {
           method: 'POST',
@@ -61,8 +63,9 @@ export default function LoginPage() {
         setTicket(data.ticket);
         return;
       }
-      if (!data.accessToken || !data.refreshToken) throw new Error('Sign-in did not return a session');
-      setTokens(data.accessToken, data.refreshToken);
+      if (data.cookie) setTokens();
+      else if (data.accessToken && data.refreshToken) setTokens(data.accessToken, data.refreshToken);
+      else throw new Error('Sign-in did not return a session');
       router.replace('/admin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -136,11 +139,13 @@ export default function LoginPage() {
                 body: JSON.stringify({ email: email || undefined }),
               });
               const response = await startAuthentication({ optionsJSON: options as never });
-              const data = await api<{ accessToken: string; refreshToken: string }>('/auth/passkeys/login/verify', {
+              const data = await api<{ accessToken?: string; refreshToken?: string; cookie?: boolean }>('/auth/passkeys/login/verify', {
                 method: 'POST',
                 body: JSON.stringify({ response }),
               });
-              setTokens(data.accessToken, data.refreshToken);
+              if (data.cookie) setTokens();
+              else if (data.accessToken && data.refreshToken) setTokens(data.accessToken, data.refreshToken);
+              else throw new Error('Sign-in did not return a session');
               router.replace('/admin');
             }}
           >

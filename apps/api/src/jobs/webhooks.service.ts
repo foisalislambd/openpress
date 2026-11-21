@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { signWebhookBody } from '../cms/publishing';
 import { DbService } from '../db/db.service';
 import { newId } from '../db/ids';
-import { isPublicHostname } from '../extensions/sandbox/plugin-sandbox';
+import { isPublicHostname, requestPublic } from '../security/outbound-url';
 import { HooksService } from '../hooks/hooks.service';
 
 const EVENTS = ['content.published', 'content.created', 'comment.created'];
@@ -74,19 +74,19 @@ export class WebhooksService implements OnModuleInit {
           continue;
         }
         try {
-          const response = await fetch(target, {
+          const response = await requestPublic(target.toString(), {
             method: 'POST',
-            redirect: 'manual',
             headers: {
               'content-type': 'application/json',
               'x-openpress-event': event,
               'x-openpress-signature': `sha256=${signature}`,
             },
             body,
-            signal: AbortSignal.timeout(8000),
+            timeoutMs: 8000,
+            maxBytes: 1_000_000,
           });
           status = response.status;
-          if (!response.ok) error = `HTTP ${response.status}`;
+          if (status < 200 || status >= 300) error = `HTTP ${status}`;
         } catch (err) {
           error = err instanceof Error ? err.message : 'delivery failed';
           this.logger.warn(`Webhook ${hook.id} failed: ${error}`);

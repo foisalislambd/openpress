@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { IsArray, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -11,6 +11,15 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import { JwtPayload } from './jwt.strategy';
 import { SecurityService } from './security.service';
+import {
+  ACCESS_COOKIE,
+  clearSessionCookies,
+  ensureCsrfCookie,
+  readCookie,
+  REFRESH_COOKIE,
+  wantsCookieSession,
+  writeSessionCookies,
+} from './session-cookie';
 
 class UpdateProfileDto {
   @IsOptional()
@@ -85,27 +94,53 @@ export class AuthController {
   ) {}
 
   // Stricter limits on credential endpoints to slow brute-force attempts
+  @Get('csrf')
+  csrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return { csrfToken: ensureCsrfCookie(req, res) };
+  }
+
+  @Post('logout')
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const bearer = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice('Bearer '.length).trim()
+      : undefined;
+    await this.auth.revokePresented([
+      readCookie(req, ACCESS_COOKIE),
+      readCookie(req, REFRESH_COOKIE),
+      bearer,
+    ]);
+    clearSessionCookies(res);
+    return { ok: true };
+  }
+
   @Post('register')
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
-  register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto);
+  register(@Body() dto: RegisterDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.respond(req, res, this.auth.register(dto));
   }
 
   @Post('login')
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
-  login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.auth.login(dto, meta(req));
+  login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.respond(req, res, this.auth.login(dto, meta(req)));
   }
 
   @Post('mfa')
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
-  mfa(@Body() dto: MfaDto, @Req() req: Request) {
-    return this.auth.confirmMfa(dto.ticket, dto.code, (userId, code) => this.security.verifyUserCode(userId, code), meta(req));
+  mfa(@Body() dto: MfaDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.respond(
+      req,
+      res,
+      this.auth.confirmMfa(dto.ticket, dto.code, (userId, code) => this.security.verifyUserCode(userId, code), meta(req)),
+    );
   }
 
   @Post('refresh')
-  refresh(@Body() dto: RefreshDto, @Req() req: Request) {
-    return this.auth.refresh(dto.refreshToken, meta(req));
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  refresh(@Body() dto: RefreshDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = dto.refreshToken || readCookie(req, REFRESH_COOKIE);
+    if (!refreshToken) throw new UnauthorizedException('Invalid refresh token');
+    return this.respond(req, res, this.auth.refresh(refreshToken, meta(req)));
   }
 
   @Get('oauth/providers')
@@ -130,8 +165,9 @@ export class AuthController {
   }
 
   @Post('oauth/exchange')
-  exchange(@Body() dto: ExchangeDto, @Req() req: Request) {
-    return this.security.exchangeOAuth(dto.code, meta(req));
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  exchange(@Body() dto: ExchangeDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.respond(req, res, this.security.exchangeOAuth(dto.code, meta(req)));
   }
 
   @Post('totp/setup')
@@ -182,8 +218,9 @@ export class AuthController {
   }
 
   @Post('passkeys/login/verify')
-  passkeyLogin(@Body() body: PasskeyDto, @Req() req: Request) {
-    return this.security.verifyLogin(body.response as unknown as AuthenticationResponseJSON, meta(req));
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  passkeyLogin(@Body() body: PasskeyDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.respond(req, res, this.security.verifyLogin(body.response as unknown as AuthenticationResponseJSON, meta(req)));
   }
 
   @Get('api-keys')
@@ -232,6 +269,16 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   appPasswordRemove(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     return this.appPasswords.remove(user.sub, id);
+  }
+
+  private async respond(req: Request, res: Response, pending: Promise<unknown>) {
+    const result = await pending;
+    if (!result || typeof result !== 'object' || !('accessToken' in result) || !('refreshToken' in result)) return result;
+    const record = result as { accessToken: string; refreshToken: string };
+    if (!wantsCookieSession(req) || !record.accessToken || !record.refreshToken) return result;
+    const csrfToken = writeSessionCookies(res, record);
+    const { accessToken: _access, refreshToken: _refresh, ...rest } = record;
+    return { ...rest, csrfToken, cookie: true };
   }
 }
 

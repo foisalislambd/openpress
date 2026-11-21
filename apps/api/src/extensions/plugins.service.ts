@@ -14,6 +14,7 @@ import { DbService } from '../db/db.service';
 import { HooksService } from '../hooks/hooks.service';
 import { ExtensionRegistry } from './extension-registry';
 import { hashPackageFiles, SIGNATURE_FILE, verifyPackageHash, compareVersions, PackageSignature } from './package-signature';
+import { requestPublic } from '../security/outbound-url';
 import { hostAllowed, PluginRegistration, SandboxHandle, startPluginSandbox } from './sandbox/plugin-sandbox';
 import { PluginManifest, PluginPermission, validatePluginManifest } from './plugin-manifest';
 import { pluginActivationOrder } from './plugin-order';
@@ -472,14 +473,13 @@ export class PluginsService implements OnModuleInit {
         throw new Error(`Host "${url.hostname}" is not in this plugin's allow list`);
       }
       const init = (args[1] ?? {}) as { method?: string; body?: string };
-      const response = await fetch(url, {
+      const response = await requestPublic(url.toString(), {
         method: init.method === 'POST' ? 'POST' : 'GET',
         body: init.method === 'POST' ? String(init.body ?? '').slice(0, 100_000) : undefined,
-        redirect: 'manual',
-        signal: AbortSignal.timeout(10_000),
+        timeoutMs: 10_000,
+        maxBytes: 1_000_000,
       });
-      const text = (await response.text()).slice(0, 1_000_000);
-      return { status: response.status, body: text };
+      return { status: response.status, body: response.body.toString('utf8') };
     }
     if (method === 'email.send') {
       const message = (args[0] ?? {}) as { to?: string; subject?: string; body?: string };

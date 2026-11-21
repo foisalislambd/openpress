@@ -2,18 +2,25 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 /** Fallback kept in sync by `pnpm release:bump`. VERSION.md wins when it is on disk. */
-const FALLBACK_OPENPRESS_VERSION = '1.0.7';
+const FALLBACK_OPENPRESS_VERSION = '1.0.8';
 
 function readDeclaredVersion() {
   const candidates = [
+    join(__dirname, '../../../../VERSION.md'),
     join(__dirname, '../../../VERSION.md'),
     join(process.cwd(), 'VERSION.md'),
     join(process.cwd(), '../../VERSION.md'),
   ];
   for (const file of candidates) {
     if (!existsSync(file)) continue;
-    const match = /^Version:\s*(\S+)\s*$/m.exec(readFileSync(file, 'utf8'));
-    if (match) return match[1];
+    const text = readFileSync(file, 'utf8');
+    const labeled = /^Version:\s*(\S+)\s*$/m.exec(text);
+    if (labeled) return labeled[1];
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('<!--') || trimmed.startsWith('#')) continue;
+      if (/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/.test(trimmed)) return trimmed;
+    }
   }
   return null;
 }

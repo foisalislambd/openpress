@@ -54,7 +54,7 @@ Event bus: `@nestjs/event-emitter`. Plugins subscribe via `ctx.hooks.on()`.
 Theme resolution (`lib/themes.ts`):
 
 1. Built-in `default` from `packages/themes/default`
-2. Uploaded `react-v1` — load `bundle.js`, evaluate server-side
+2. Uploaded `react-v1` — load `bundle.js` and evaluate it only when code themes are enabled
 3. Uploaded `runtime-v1` — token-based renderer
 4. Fallback to default
 
@@ -94,13 +94,17 @@ Body is **BlockNote JSON** stored in `Content.blocks`. Themes receive `blocks` a
 
 ## Security layers
 
-- JWT on protected routes
-- `RolesGuard` for Admin / Editor actions
+- Browser sessions use httpOnly cookies plus a CSRF header, including the first login. Logout sets `user_sessions.revokedAt`. Refresh tokens rotate and the previous token stops working. Bearer tokens remain for API clients, application passwords, and API keys.
+- Public GraphQL `media` and unauthenticated `/wp-json/wp/v2/media` return only files already used by a published public post or page. A trusted bearer or cookie session still lists the library on the REST route.
+- Capability checks on admin, content, media, and MCP routes
 - Author scoped to own posts
 - Settings whitelist (no internal keys exposed)
-- Rate limiting (`@nestjs/throttler`)
+- Rate limiting (`@nestjs/throttler`), stricter on login, refresh, and password unlock
+- Production startup refuses default `JWT_SECRET` / `JWT_REFRESH_SECRET` and an open `WEB_ORIGIN`
 - Zip-slip protection on theme/plugin extract
-- Media MIME whitelist
+- Upload bytes are sniffed; SVG and HTML are rejected; `/uploads` is served with `nosniff` and a sandbox CSP
+- Plugin, import, and webhook HTTP refuses private hosts and private DNS answers
+- `react-v1` themes are not evaluated in production unless `OPENPRESS_CODE_THEMES=1`
 
 ## Request flow (publish post)
 

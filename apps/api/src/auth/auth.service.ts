@@ -13,6 +13,7 @@ import { newId } from '../db/ids';
 import { AuditService } from '../platform/audit.service';
 import { CapabilitiesService } from './capabilities.service';
 import { LoginDto, RegisterDto } from './auth.dto';
+import { hashRefreshToken } from './refresh-token';
 
 const PUBLIC_USER = `id, email, name, role, "avatarUrl", bio, "createdAt"`;
 
@@ -136,26 +137,49 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string, meta?: SessionMeta) {
+    let payload: { sub: string; sid?: string };
     try {
-      const payload = this.jwt.verify<{ sub: string; sid?: string }>(refreshToken, {
-        secret: this.refreshSecret,
-      });
-      const user = await this.db.one<AuthUser>(
-        'SELECT id, email, role FROM users WHERE id = $1',
-        [payload.sub],
-      );
-      if (!user) throw new UnauthorizedException();
-      if (payload.sid) {
-        const session = await this.db.one<{ id: string }>(
-          'SELECT id FROM user_sessions WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL',
-          [payload.sid, user.id],
-        );
-        if (!session) throw new UnauthorizedException();
-      }
-      return this.issueTokens(user.id, user.email, user.role, meta, payload.sid);
-    } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
+      payload = this.jwt.verify(refreshToken, { secret: this.refreshSecret });
+    } catch {
       throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (!payload.sid) throw new UnauthorizedException('Invalid refresh token');
+    const user = await this.db.one<AuthUser>(
+      'SELECT id, email, role FROM users WHERE id = $1',
+      [payload.sub],
+    );
+    if (!user) throw new UnauthorizedException('Invalid refresh token');
+    const tokens = this.signSession(user.id, user.email, user.role, payload.sid);
+    const rotated = await this.db.one<{ id: string }>(
+      `UPDATE user_sessions
+       SET "refreshHash" = $4, "lastSeenAt" = now()
+       WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL
+         AND ("refreshHash" IS NULL OR "refreshHash" = $3)
+       RETURNING id`,
+      [payload.sid, user.id, hashRefreshToken(refreshToken), hashRefreshToken(tokens.refreshToken)],
+    );
+    if (!rotated) throw new UnauthorizedException('Invalid refresh token');
+    if (meta?.userAgent || meta?.ip) {
+      await this.db.query(
+        `UPDATE user_sessions
+         SET "userAgent" = COALESCE($2, "userAgent"), ip = COALESCE($3, ip)
+         WHERE id = $1`,
+        [payload.sid, meta.userAgent?.slice(0, 300) ?? null, meta.ip?.slice(0, 64) ?? null],
+      );
+    }
+    return tokens;
+  }
+
+  async revokePresented(tokens: Array<string | undefined>) {
+    for (const token of tokens) {
+      if (!token) continue;
+      const payload = this.readSessionToken(token);
+      if (!payload?.sid || !payload.sub) continue;
+      await this.db.query(
+        `UPDATE user_sessions SET "revokedAt" = now()
+         WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL`,
+        [payload.sid, payload.sub],
+      );
     }
   }
 
@@ -230,34 +254,48 @@ export class AuthService {
     };
   }
 
-  async issueTokens(sub: string, email: string, role: string, meta?: SessionMeta, existingSid?: string) {
-    let sid = existingSid;
-    if (sid) {
-      const session = await this.db.one<{ id: string }>(
-        'SELECT id FROM user_sessions WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL',
-        [sid, sub],
-      );
-      if (!session) sid = undefined;
-      else {
-        await this.db.query('UPDATE user_sessions SET "lastSeenAt" = now() WHERE id = $1', [sid]);
-      }
-    }
-    if (!sid) {
-      sid = newId();
-      await this.db.query(
-        `INSERT INTO user_sessions (id, "userId", "userAgent", ip) VALUES ($1, $2, $3, $4)`,
-        [sid, sub, meta?.userAgent?.slice(0, 300) ?? null, meta?.ip?.slice(0, 64) ?? null],
-      );
-    }
-    const payload = { sub, email, role, sid, purpose: 'access' };
+  async issueTokens(sub: string, email: string, role: string, meta?: SessionMeta) {
+    const sid = newId();
+    const tokens = this.signSession(sub, email, role, sid);
+    await this.db.query(
+      `INSERT INTO user_sessions (id, "userId", "userAgent", ip, "refreshHash")
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        sid,
+        sub,
+        meta?.userAgent?.slice(0, 300) ?? null,
+        meta?.ip?.slice(0, 64) ?? null,
+        hashRefreshToken(tokens.refreshToken),
+      ],
+    );
+    return tokens;
+  }
+
+  private signSession(sub: string, email: string, role: string, sid: string) {
+    const payload = { sub, email, role, sid, purpose: 'access' as const };
     return {
       accessToken: this.jwt.sign(payload),
       refreshToken: this.jwt.sign(payload, {
         secret: this.refreshSecret,
-        expiresIn: '7d',
+        expiresIn: '7d' as const,
       }),
       user: { id: sub, email, role },
     };
+  }
+
+  private readSessionToken(token: string) {
+    try {
+      return this.jwt.verify<{ sub?: string; sid?: string }>(token, { ignoreExpiration: true });
+    } catch {
+      try {
+        return this.jwt.verify<{ sub?: string; sid?: string }>(token, {
+          secret: this.refreshSecret,
+          ignoreExpiration: true,
+        });
+      } catch {
+        return null;
+      }
+    }
   }
 }
 

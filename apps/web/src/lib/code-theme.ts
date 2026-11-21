@@ -1,6 +1,8 @@
 import React from 'react';
 import * as JsxRuntime from 'react/jsx-runtime';
+import vm from 'node:vm';
 import type { ThemeDefinition } from '@openpress/shared';
+import { codeThemesEnabled, themeSourceError } from './code-theme-policy';
 
 // Loader for uploaded full-code React themes ("react-v1" engine).
 // The API bundles the theme's JSX source into a single CommonJS file;
@@ -27,21 +29,33 @@ export async function loadCodeTheme(
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
+  if (!codeThemesEnabled()) return null;
+
   try {
     const res = await fetch(`${API_URL}/api/themes/installed/${id}/bundle.js`, {
       next: { revalidate: 10 },
     });
     if (!res.ok) return null;
     const source = await res.text();
+    if (themeSourceError(source)) {
+      console.error(`Theme "${id}" was rejected by the code-theme policy`);
+      return null;
+    }
 
     const themeModule = { exports: {} as Record<string, unknown> };
-    const evaluate = new Function(
-      'module',
-      'exports',
-      'require',
-      `${source}\n//# sourceURL=openpress-theme-${id}.js`,
+    const sandbox = vm.createContext(
+      {
+        module: themeModule,
+        exports: themeModule.exports,
+        require: requireShim,
+        console: { log() {}, info() {}, warn() {}, error() {} },
+      },
+      { codeGeneration: { strings: false, wasm: false } },
     );
-    evaluate(themeModule, themeModule.exports, requireShim);
+    vm.runInContext(`"use strict";\n${source}`, sandbox, {
+      timeout: 1000,
+      filename: `openpress-theme-${id}.js`,
+    });
 
     const exported =
       (themeModule.exports.default as Partial<ThemeDefinition>) ??

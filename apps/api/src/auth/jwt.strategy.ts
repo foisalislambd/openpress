@@ -2,7 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import type { Request } from 'express';
 import { DbService } from '../db/db.service';
+import { ACCESS_COOKIE, readCookie } from './session-cookie';
 
 export interface JwtPayload {
   sub: string;
@@ -20,7 +22,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private db: DbService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req: Request) => readCookie(req, ACCESS_COOKIE) ?? null,
+      ]),
       secretOrKey: config.get<string>('JWT_SECRET') ?? 'openpress-dev-secret',
     });
   }

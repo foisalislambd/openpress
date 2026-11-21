@@ -13,7 +13,8 @@ export async function middleware(request: NextRequest) {
     });
     if (response.ok) {
       const data = (await response.json()) as { to?: string | null; statusCode?: number };
-      if (data.to) return NextResponse.redirect(new URL(data.to, request.url), data.statusCode || 301);
+      const redirect = safeInternalPath(data.to, request);
+      if (redirect) return NextResponse.redirect(redirect, data.statusCode || 301);
     }
     const permalinks = await fetch(`${api}/api/permalinks/resolve?path=${encodeURIComponent(pathname)}`, {
       cache: 'no-store',
@@ -26,7 +27,8 @@ export async function middleware(request: NextRequest) {
         statusCode?: number;
       };
       if (resolved.action === 'redirect' && resolved.to) {
-        return NextResponse.redirect(new URL(resolved.to, request.url), resolved.statusCode || 301);
+        const target = safeInternalPath(resolved.to, request);
+        if (target) return NextResponse.redirect(target, resolved.statusCode || 301);
       }
       if (resolved.action === 'rewrite' && resolved.slug) {
         const url = request.nextUrl.clone();
@@ -38,7 +40,7 @@ export async function middleware(request: NextRequest) {
       });
       if (rules.ok) {
         const matched = (await rules.json()) as { rewriteTo?: string | null };
-        if (matched.rewriteTo && matched.rewriteTo !== pathname) {
+        if (matched.rewriteTo && matched.rewriteTo !== pathname && safeInternalPath(matched.rewriteTo, request)) {
           const url = request.nextUrl.clone();
           url.pathname = matched.rewriteTo;
           return NextResponse.rewrite(url);
@@ -49,6 +51,11 @@ export async function middleware(request: NextRequest) {
     // The public site still renders when the lookup is unavailable.
   }
   return NextResponse.next();
+}
+
+function safeInternalPath(value: string | null | undefined, request: NextRequest) {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\') || value.includes('..')) return null;
+  return new URL(value, request.url);
 }
 
 export const config = {

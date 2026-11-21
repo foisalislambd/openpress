@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| `0.1.x` (main) | Yes |
+| `1.0.x` (main, see `VERSION.md`) | Yes |
 | Older / unreleased forks | Best effort only |
 
 OpenPress is under active development. Security fixes are applied to the latest `main` branch first.
@@ -52,9 +52,10 @@ Out of scope examples:
 
 Operators should follow [docs/deployment.md](docs/deployment.md):
 
-- Change all JWT / session secrets
+- Change all JWT / session secrets. Production boot refuses the placeholders from `.env.example`.
+- Set `WEB_ORIGIN` to the real site origin. The admin UI stores its session in httpOnly cookies and sends `X-OpenPress-CSRF` on every browser mutation, including the first login. Logout revokes that server session, and each refresh token works only once. Bearer tokens still work for non-browser clients.
 - Use HTTPS and a strong `DATABASE_URL`
-- Only install trusted themes and plugins
+- Only install trusted themes and plugins. `react-v1` themes are not executed in production unless `OPENPRESS_CODE_THEMES=1`.
 - Keep Node.js and dependencies updated
 
 Thank you for helping keep OpenPress and its users safe.
