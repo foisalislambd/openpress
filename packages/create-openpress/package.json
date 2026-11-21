@@ -1,6 +1,6 @@
 {
   "name": "create-openpress",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "description": "Create a local OpenPress project from a GitHub checkout. Not published to npm.",
   "license": "MIT",
