@@ -6,13 +6,14 @@ import { useParams } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import { Button, Input, Textarea } from '@/components/ui';
 import { Notice, Screen } from '@/components/admin/screen';
+import { IsolatedFrame } from '@/components/admin/isolated-frame';
 
 type Field = { key: string; label: string; type: 'text' | 'textarea' };
 type Column = { key: string; label: string };
 type Page = {
   title: string;
   fields: Field[];
-  screen?: 'form' | 'list' | 'content' | 'html';
+  screen?: 'form' | 'list' | 'content' | 'html' | 'app';
   collection?: string;
   postType?: string;
   columns?: Column[];
@@ -89,6 +90,14 @@ export default function PluginSettingsPage() {
     <Screen title={page?.title ?? 'Plugin'}>
       {error ? <Notice kind="error">{error}</Notice> : null}
       {notice ? <Notice kind="success">{notice}</Notice> : null}
+      {page?.screen === 'app' ? (
+        <IsolatedFrame
+          title={page.title}
+          pluginId={params.pluginId}
+          src={`/api/plugins/${params.pluginId}/app/${params.slug}`}
+          className="min-h-[32rem] w-full border border-[#c3c4c7] bg-white"
+        />
+      ) : null}
       {page?.screen === 'html' ? (
         <iframe className="min-h-80 w-full border border-[#c3c4c7] bg-white" sandbox="" title={page.title} srcDoc={page.html || ''} />
       ) : null}

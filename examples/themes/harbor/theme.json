@@ -10,7 +10,18 @@
   "menuLocations": [{ "id": "primary", "label": "Primary" }],
   "widgetAreas": ["sidebar", "footer"],
   "settings": [{ "key": "tagline", "type": "string", "label": "Tagline", "default": "Notes from the harbor" }],
-  "patterns": [{ "name": "harbor/intro", "title": "Intro", "blocks": [] }],
+  "styles": [{ "block": "seo/note", "name": "harbor-lead", "label": "Lead" }],
+  "patterns": [{
+    "name": "harbor/intro",
+    "title": "Intro",
+    "blocks": [{
+      "id": "harbor-intro",
+      "type": "paragraph",
+      "props": {},
+      "content": [{ "type": "text", "text": "Welcome to the harbor.", "styles": {} }],
+      "children": []
+    }]
+  }],
   "tokens": {
     "background": "#f4f7fb",
     "text": "#102033",

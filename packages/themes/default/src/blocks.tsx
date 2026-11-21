@@ -127,7 +127,7 @@ function BlockView({ block }: { block: Block }) {
     }
     case 'pluginBlock':
       return (
-        <aside className="my-4 rounded border border-zinc-200 px-3 py-2 text-sm">
+        <aside className={`my-4 rounded border border-zinc-200 px-3 py-2 text-sm${styleClass(block.props)}`}>
           {String(block.props?.text || block.props?.title || block.props?.name || 'Plugin block')}
         </aside>
       );
@@ -135,7 +135,7 @@ function BlockView({ block }: { block: Block }) {
     default:
       if (block.type.includes('/')) {
         return (
-          <aside className="my-4 rounded border border-zinc-200 px-3 py-2 text-sm">
+          <aside className={`my-4 rounded border border-zinc-200 px-3 py-2 text-sm${styleClass(block.props)}`}>
             {String(block.props?.text || block.props?.title || '')}
           </aside>
         );
@@ -147,6 +147,11 @@ function BlockView({ block }: { block: Block }) {
         </>
       );
   }
+}
+
+function styleClass(props?: Block['props']) {
+  const style = typeof props?.blockStyle === 'string' ? props.blockStyle : '';
+  return /^[a-z0-9-]{1,40}$/.test(style) ? ` is-style-${style}` : '';
 }
 
 export function BlockList({ blocks }: { blocks: Block[] }) {

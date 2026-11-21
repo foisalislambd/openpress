@@ -25,6 +25,7 @@ export const PLUGIN_PERMISSIONS = [
   'media',
   'modeling',
   'i18n',
+  'graphql',
   'database',
 ] as const;
 
@@ -249,11 +250,13 @@ export interface PluginContext {
       title: string;
       menuTitle?: string;
       fields?: AdminField[];
-      screen?: 'form' | 'list' | 'content' | 'html';
+      screen?: 'form' | 'list' | 'content' | 'html' | 'app';
       collection?: string;
       postType?: string;
       columns?: { key: string; label: string }[];
       html?: string;
+      /** HTML file inside the plugin. Rendered in an opaque iframe. */
+      entry?: string;
     }) => void;
     addMetaBox: (box: { id: string; title: string; postTypes?: string[]; fields: AdminField[] }) => void;
     addDashboardWidget: (widget: { id: string; title: string; render?: () => unknown }) => void;
@@ -270,10 +273,24 @@ export interface PluginContext {
       title: string;
       description?: string;
       attributes?: BlockAttribute[];
+      /** HTML file for the isolated block editor. */
+      editor?: string;
       render?: (props: Record<string, unknown>) => unknown;
     }) => void;
   };
-  rest: { route: (method: string, path: string, handler: (req: { query: Record<string, string>; body: unknown }) => unknown) => void };
+  graphql: {
+    type: (definition: string) => void;
+    query: (name: string, returns: string, resolve: (args: Record<string, unknown>) => unknown) => void;
+    mutation: (name: string, args: string, returns: string, resolve: (args: Record<string, unknown>) => unknown) => void;
+  };
+  rest: {
+    route: (
+      method: string,
+      path: string,
+      handler: (req: { query: Record<string, string>; body: unknown }) => unknown,
+      options?: { auth?: boolean },
+    ) => void;
+  };
   assets: {
     enqueueStyle: (handle: string, file: string) => void;
     enqueueScript: (handle: string, file: string) => void;

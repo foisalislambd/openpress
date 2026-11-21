@@ -31,9 +31,14 @@ export async function buildTemplateTheme(manifest: {
       }
     }),
   );
-  const siteData = (settings: { siteTitle: string; siteDescription?: string }) => ({
-    site: { title: settings.siteTitle, description: settings.siteDescription ?? '' },
-  });
+  const siteData = (settings: {
+    siteTitle: string;
+    siteDescription?: string;
+    themeMods?: unknown;
+    menus?: unknown;
+    menuLocations?: unknown;
+    widgets?: unknown;
+  }) => themeView(settings);
   const Layout = (({ settings, children }: ThemeLayoutProps) => {
     const html = renderThemeTemplate(files.layout || '<header><h1>{{site.title}}</h1></header>{{yield}}<footer></footer>', siteData(settings));
     const parts = splitYield(html);
@@ -89,6 +94,62 @@ export async function buildTemplateTheme(manifest: {
       index: Home,
     },
   };
+}
+
+function themeView(settings: {
+  siteTitle: string;
+  siteDescription?: string;
+  themeMods?: unknown;
+  menus?: unknown;
+  menuLocations?: unknown;
+  widgets?: unknown;
+}) {
+  const mods = settings.themeMods && typeof settings.themeMods === 'object' ? (settings.themeMods as Record<string, unknown>) : {};
+  const plainMods: Record<string, string> = {};
+  for (const [key, value] of Object.entries(mods)) {
+    if (typeof value === 'string' || typeof value === 'number') plainMods[key] = String(value);
+  }
+  return {
+    site: { title: settings.siteTitle, description: settings.siteDescription ?? '' },
+    mods: plainMods,
+    menus: menuModel(settings.menus, settings.menuLocations),
+    widgets: widgetModel(settings.widgets),
+  };
+}
+
+function menuModel(menus: unknown, locations: unknown) {
+  const list = Array.isArray(menus) ? menus : [];
+  const assigned = locations && typeof locations === 'object' ? (locations as Record<string, unknown>) : {};
+  const out: Record<string, { title: string; url: string }[]> = {};
+  for (const [location, name] of Object.entries(assigned)) {
+    const menu = list.find((item) => item && typeof item === 'object' && (item as { name?: string }).name === name);
+    const items = menu && Array.isArray((menu as { items?: unknown[] }).items) ? (menu as { items: unknown[] }).items : [];
+    out[location] = items.flatMap((item) => flattenMenu(item));
+  }
+  return out;
+}
+
+function flattenMenu(item: unknown): { title: string; url: string }[] {
+  if (!item || typeof item !== 'object') return [];
+  const record = item as { title?: string; label?: string; url?: string; children?: unknown[] };
+  const title = String(record.title || record.label || '');
+  const url = String(record.url || '');
+  const children = Array.isArray(record.children) ? record.children.flatMap((child) => flattenMenu(child)) : [];
+  return title ? [{ title, url }, ...children] : children;
+}
+
+function widgetModel(widgets: unknown) {
+  const source = widgets && typeof widgets === 'object' ? (widgets as Record<string, unknown>) : {};
+  const out: Record<string, { title: string; text: string }[]> = {};
+  for (const [area, items] of Object.entries(source)) {
+    if (!Array.isArray(items)) continue;
+    out[area] = items.flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const row = item as { title?: string; text?: string };
+      return [{ title: String(row.title ?? ''), text: String(row.text ?? '').replace(/<[^>]+>/g, '') }];
+    });
+  }
+  return out;
 }
 
 function SingleTemplate({ source, settings, content }: ThemeSingleProps & { source?: string }) {

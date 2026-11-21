@@ -13,10 +13,12 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { createReadStream, existsSync } from 'fs';
 import { normalize, resolve } from 'path';
 import { Request, Response } from 'express';
@@ -30,6 +32,8 @@ import { WidgetsService } from '../widgets/widgets.service';
 import { InstalledThemesService } from './themes.service';
 import { HooksService } from '../hooks/hooks.service';
 import { sanitizeFooterHtml, sanitizeHeadHtml } from './head-html';
+import { isolatedAppCsp } from './isolated-app';
+import { ACCESS_COOKIE, readCookie } from '../auth/session-cookie';
 
 const zipUpload = FileInterceptor('file', {
   storage: memoryStorage(),
@@ -43,6 +47,7 @@ export class PluginsController {
     private registry: ExtensionRegistry,
     private widgets: WidgetsService,
     private hooks: HooksService,
+    private jwt: JwtService,
   ) {}
 
   @Get()
@@ -110,6 +115,30 @@ export class PluginsController {
     return form.submit(values);
   }
 
+  @Get('block-editor')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('edit_posts')
+  blockEditor(@Query('name') name: string | undefined, @Res() res: Response) {
+    const block = this.registry.blockByName(String(name || ''));
+    if (!block?.editor) throw new NotFoundException('Block editor not found');
+    res.setHeader('Content-Security-Policy', isolatedAppCsp(process.env.WEB_ORIGIN));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type('html').send(this.plugins.isolatedDocument(block.pluginId, block.editor));
+  }
+
+  @Get(':id/app/:slug')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  app(@Param('id') id: string, @Param('slug') slug: string, @Res() res: Response) {
+    const page = this.registry.page(id, slug);
+    if (!page || page.screen !== 'app' || !page.entry) throw new NotFoundException('Plugin screen not found');
+    res.setHeader('Content-Security-Policy', isolatedAppCsp(process.env.WEB_ORIGIN));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type('html').send(this.plugins.isolatedDocument(id, page.entry));
+  }
+
   @All(':id/rest/*path')
   async rest(
     @Param('id') id: string,
@@ -119,9 +148,22 @@ export class PluginsController {
     @Req() req: Request,
   ) {
     const routePath = `/${(Array.isArray(path) ? path.join('/') : path).replace(/^\/+/, '')}`;
-    const result = await this.registry.route(id, req.method, routePath, query, body);
-    if (result === null) throw new NotFoundException('Plugin route not found');
-    return result;
+    const route = this.registry.matchRoute(id, req.method, routePath);
+    if (!route) throw new NotFoundException('Plugin route not found');
+    if (route.auth && !(await this.sessionUser(req))) throw new UnauthorizedException('Sign in required');
+    return route.handler({ query, body });
+  }
+
+  private async sessionUser(req: Request) {
+    const header = req.header('authorization') ?? '';
+    const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const token = bearer || readCookie(req, ACCESS_COOKIE);
+    if (!token) return null;
+    try {
+      return await this.jwt.verifyAsync(token);
+    } catch {
+      return null;
+    }
   }
 
   @Get(':id/collections/:name')
@@ -238,7 +280,7 @@ export class InstalledThemesController {
 
   @Get('installed/:id')
   manifest(@Param('id') id: string) {
-    return this.themes.manifest(id);
+    return this.themes.resolved(id);
   }
 
   @Get('installed/:id/template')

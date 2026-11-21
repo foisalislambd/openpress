@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Allow, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
@@ -16,7 +17,8 @@ class OptionDto {
 export class SettingsController {
   constructor(private settings: SettingsService) {}
 
-  // Public: the frontend needs site title, active theme, etc.
+  // Public and read on every page render, so it is not on the credential throttle.
+  @SkipThrottle()
   @Get()
   getAll() {
     return this.settings.getAll();

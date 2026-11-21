@@ -26,6 +26,12 @@ async function activate(ctx) {
     postType: 'book',
   });
 
+  ctx.graphql.type('type BookCount { total: Int! }');
+  ctx.graphql.query('bookCount', 'BookCount!', async () => {
+    const rows = await ctx.content.query({ postType: 'book', limit: 50 });
+    return { total: Array.isArray(rows) ? rows.length : 0 };
+  });
+
   const job = await ctx.cron.schedule({ hook: 'recount', intervalSeconds: 86400 });
   ctx.hooks.addAction(job.hook, async () => {
     const books = await ctx.content.query({ postType: 'book', limit: 50 });

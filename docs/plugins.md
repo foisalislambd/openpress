@@ -61,7 +61,7 @@ hello-logger/
 | `assets` | `ctx.assets.enqueueStyle` / `enqueueScript` |
 | `widgets` | `ctx.widgets.register` |
 | `shortcodes` | `ctx.shortcodes.add` |
-| `blocks` | `ctx.blocks.register` with attributes and a server render function |
+| `blocks` | `ctx.blocks.register` with attributes, an optional isolated editor HTML file, and a server render function |
 | `data` | `ctx.data` collections and `ctx.migrations`. Not raw SQL |
 | `cron` | `ctx.cron.schedule` / `unschedule`. The fired hook is `<plugin-id>.<hook>` |
 | `users:read` | `ctx.users.list` / `get`. Password hashes and sessions are not included |
@@ -70,7 +70,12 @@ hello-logger/
 | `media` | `ctx.media.list` |
 | `modeling` | `ctx.content.types.register` and `ctx.content.taxonomies.register` |
 | `i18n` | `ctx.i18n.load` and `ctx.i18n.t` for this plugin's text domain |
+| `graphql` | `ctx.graphql.type`, `query`, and `mutation`. Resolvers run in the sandbox. Mutations require a signed-in session |
 | `database` | Parsed for older manifests. `ctx.db` throws. Use `data` or `content:*` |
+
+An admin screen with `screen: "app"` and `entry` points at an HTML file in the plugin. OpenPress serves that file inside an iframe with `sandbox="allow-scripts"` and without `allow-same-origin`. The document is an opaque origin, so it cannot read `op_access` or `op_csrf`. Its content security policy sets `connect-src 'none'`, so the bundle cannot call the API itself. `window.openpress.call(method, path, body)` posts a message to the admin page. The admin page checks the message came from that iframe and repeats it, with the session cookie and CSRF header, to a REST route this plugin registered. A route passed `{ auth: true }` rejects anonymous callers.
+
+A block `editor` file uses the same iframe. `window.openpress.setAttributes` sends attribute changes. `window.onOpenPressBlock` receives the current attributes. The public page uses the block's `render` function. Returned HTML is sanitized.
 
 Hooks do not require a permission. Each plugin runs in its own Node process with the permission model (filesystem outside the plugin directory is denied) and sealed `fetch`, `http`, and `fs` requires. Actions and filters still use `addAction` and `addFilter`; the parent runs them by RPC. A hook that runs longer than 30 seconds is killed without taking down the API. Memory is capped at 128MB.
 

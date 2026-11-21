@@ -12,6 +12,9 @@ import { validatePluginManifest } from '../src/extensions/plugin-manifest';
 import { startPluginSandbox } from '../src/extensions/sandbox/plugin-sandbox';
 import { HooksService } from '../src/hooks/hooks.service';
 import { renderThemeTemplate } from '../../../packages/theme-sdk/src/templates.ts';
+import { composeIsolatedDocument, isolatedAppCsp, readBridgeCall, resolvePluginFile } from '../src/extensions/isolated-app';
+import { compilePluginGraphql, parseGraphqlType } from '../src/extensions/plugin-graphql';
+import { mergeThemeManifest } from '../src/extensions/theme-merge';
 
 describe('plugin collections', () => {
   const schema = parseCollectionSchema({
@@ -84,6 +87,7 @@ describe('extension permissions and hooks', () => {
     assert.equal(html.includes('<script>'), false);
     assert.equal(html.includes('javascript:'), false);
     assert.match(html, /Ada/);
+    assert.equal(html.match(/<a /g)?.length, 1);
   });
 });
 
@@ -171,5 +175,52 @@ describe('sandbox platform boundary', () => {
     } finally {
       handle.dispose();
     }
+  });
+});
+
+describe('isolated bundles and theme contributions', () => {
+  it('serves a bridge that cannot read the session cookie and refuses a path escape', () => {
+    const html = composeIsolatedDocument('<html><head></head><body>Hi</body></html>', 'http://localhost:3000');
+    assert.match(html, /openpress/);
+    assert.equal(html.includes('op_access'), false);
+    assert.equal(html.includes('document.cookie'), false);
+    assert.match(isolatedAppCsp('http://localhost:3000'), /connect-src 'none'/);
+    assert.match(isolatedAppCsp('http://localhost:3000'), /frame-ancestors http:\/\/localhost:3000/);
+    const call = readBridgeCall({ type: 'openpress:call', id: '1', method: 'GET', path: '/entries' });
+    assert.equal(call?.path, '/entries');
+    assert.equal(readBridgeCall({ type: 'openpress:call', id: '1', method: 'GET', path: '/../auth/me' }), null);
+    const root = mkdtempSync(join(tmpdir(), 'op-plugin-'));
+    writeFileSync(join(root, 'inbox.html'), 'ok');
+    assert.equal(resolvePluginFile(root, 'inbox.html').endsWith('inbox.html'), true);
+    assert.throws(() => resolvePluginFile(root, '../secret.html'), /Invalid plugin file/);
+  });
+
+  it('accepts a plugin GraphQL type and drops a redefinition of Query', () => {
+    assert.equal(parseGraphqlType('type Query { secret: String }'), null);
+    const compiled = compilePluginGraphql(
+      [{ pluginId: 'books', sdl: 'type BookCount { total: Int! }' }],
+      [{ pluginId: 'books', role: 'query', name: 'bookCount', args: '', returns: 'BookCount!' }],
+    );
+    assert.match(compiled.types, /BookCount/);
+    assert.deepEqual(compiled.queries, ['bookCount: BookCount!']);
+    const rejected = compilePluginGraphql([], [{ pluginId: 'books', role: 'query', name: 'posts', args: '', returns: 'String' }]);
+    assert.equal(rejected.queries.length, 0);
+  });
+
+  it('lets a child theme override the layout and keep the parent pattern', () => {
+    const merged = mergeThemeManifest(
+      { id: 'harbor-child', parent: 'harbor', templates: ['layout'], settings: [{ key: 'tagline', label: 'Tagline', default: 'Child harbor' }] },
+      {
+        id: 'harbor',
+        templates: ['layout', 'index'],
+        settings: [{ key: 'tagline', label: 'Tagline', default: 'Notes' }],
+        patterns: [{ name: 'harbor/intro', title: 'Intro' }],
+        menuLocations: [{ id: 'primary', label: 'Primary' }],
+      },
+    );
+    assert.deepEqual(merged.templates, ['layout', 'index']);
+    assert.equal(merged.settings?.[0]?.default, 'Child harbor');
+    assert.equal(merged.patterns?.[0]?.title, 'Intro');
+    assert.equal(merged.menuLocations?.[0]?.id, 'primary');
   });
 });

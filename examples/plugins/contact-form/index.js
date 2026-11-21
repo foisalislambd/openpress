@@ -26,6 +26,14 @@ function activate(ctx) {
     ],
   });
 
+  ctx.admin.addMenuPage({
+    slug: 'inbox',
+    title: 'Inbox',
+    menuTitle: 'Inbox',
+    screen: 'app',
+    entry: 'admin/inbox.html',
+  });
+
   ctx.forms.register({
     id: 'contact',
     title: 'Contact',
@@ -43,6 +51,11 @@ function activate(ctx) {
   });
 
   ctx.shortcodes.add('contact_form', () => 'Send a note to /api/plugins/contact-form/forms/contact');
+
+  ctx.rest.route('GET', '/entries', async () => {
+    const items = await ctx.data.find('entries', { limit: 50 });
+    return { items };
+  }, { auth: true });
 
   ctx.rest.route('POST', '/entries', async (req) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};

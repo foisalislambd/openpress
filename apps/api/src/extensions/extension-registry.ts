@@ -19,12 +19,14 @@ export interface AdminPage {
   title: string;
   menuTitle: string;
   fields: AdminField[];
-  /** form saves settings. list reads a collection. content lists a post type. html is pre-sanitized. */
-  screen?: 'form' | 'list' | 'content' | 'html';
+  /** form saves settings. list reads a collection. content lists a post type. html is pre-sanitized. app is an isolated bundle. */
+  screen?: 'form' | 'list' | 'content' | 'html' | 'app';
   collection?: string;
   postType?: string;
   columns?: AdminColumn[];
   html?: string;
+  /** Plugin-relative HTML file for an app screen. Not sent to the browser. */
+  entry?: string;
 }
 
 export interface MetaBox {
@@ -75,13 +77,31 @@ export interface EditorBlock {
   title: string;
   description?: string;
   attributes?: { key: string; type: 'string' | 'number' | 'boolean'; label?: string }[];
+  /** Plugin-relative HTML file for the isolated block editor. */
+  editor?: string;
   render?: (props: Record<string, unknown>) => string | Promise<string>;
+}
+
+export interface GraphqlTypeDef {
+  pluginId: string;
+  sdl: string;
+}
+
+export interface GraphqlFieldDef {
+  pluginId: string;
+  role: 'query' | 'mutation';
+  name: string;
+  args: string;
+  returns: string;
+  resolve: (args: Record<string, unknown>) => unknown | Promise<unknown>;
 }
 
 export interface PluginRoute {
   pluginId: string;
   method: string;
   path: string;
+  /** When true, the route requires a signed-in session. The iframe never sees that session. */
+  auth?: boolean;
   handler: (req: { query: Record<string, string>; body: unknown }) => unknown | Promise<unknown>;
 }
 
@@ -94,6 +114,14 @@ export interface PluginAsset {
 }
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+function styleClass(props: Record<string, unknown> | undefined) {
+  const style = typeof props?.blockStyle === 'string' ? props.blockStyle : '';
+  const current = typeof props?.className === 'string' ? props.className : '';
+  if (!/^[a-z0-9-]{1,40}$/.test(style)) return current;
+  const extra = `is-style-${style}`;
+  return current.includes(extra) ? current : `${current} ${extra}`.trim();
+}
 
 export function escapePluginText(value: string) {
   return value
@@ -127,6 +155,8 @@ export class ExtensionRegistry {
   private dashboard: DashboardWidget[] = [];
   private notices: AdminNotice[] = [];
   private forms: PluginForm[] = [];
+  private graphqlTypes: GraphqlTypeDef[] = [];
+  private graphqlFields: GraphqlFieldDef[] = [];
 
   clear(pluginId: string) {
     const keep = <T extends { pluginId: string }>(rows: T[]) => rows.filter((row) => row.pluginId !== pluginId);
@@ -141,6 +171,8 @@ export class ExtensionRegistry {
     this.dashboard = keep(this.dashboard);
     this.notices = keep(this.notices);
     this.forms = keep(this.forms);
+    this.graphqlTypes = keep(this.graphqlTypes);
+    this.graphqlFields = keep(this.graphqlFields);
   }
 
   addPage(page: AdminPage) {
@@ -220,7 +252,23 @@ export class ExtensionRegistry {
     this.routes = this.routes.filter(
       (row) => !(row.pluginId === route.pluginId && row.method === method && row.path === route.path),
     );
-    this.routes.push({ ...route, method });
+    this.routes.push({ ...route, method, auth: route.auth === true });
+  }
+
+  addGraphqlType(type: GraphqlTypeDef) {
+    this.graphqlTypes = this.graphqlTypes.filter((row) => !(row.pluginId === type.pluginId && row.sdl === type.sdl));
+    this.graphqlTypes.push(type);
+  }
+
+  addGraphqlField(field: GraphqlFieldDef) {
+    this.graphqlFields = this.graphqlFields.filter(
+      (row) => !(row.pluginId === field.pluginId && row.role === field.role && row.name === field.name),
+    );
+    this.graphqlFields.push(field);
+  }
+
+  graphqlExtensions() {
+    return { types: this.graphqlTypes.map((row) => ({ ...row })), fields: this.graphqlFields.map((row) => ({ ...row })) };
   }
 
   addAsset(asset: PluginAsset) {
@@ -231,7 +279,11 @@ export class ExtensionRegistry {
   }
 
   adminPages() {
-    return this.pages.map((page) => ({ ...page }));
+    return this.pages.map((page) => {
+      const copy = { ...page };
+      delete copy.entry;
+      return copy;
+    });
   }
 
   listMetaBoxes() {
@@ -261,13 +313,18 @@ export class ExtensionRegistry {
   }
 
   blocksForEditor() {
-    return this.blocks.map(({ pluginId, name, title, description, attributes }) => ({
+    return this.blocks.map(({ pluginId, name, title, description, attributes, editor }) => ({
       pluginId,
       name,
       title,
       description,
       attributes: attributes ?? [],
+      editor: Boolean(editor),
     }));
+  }
+
+  blockByName(name: string) {
+    return this.blocks.find((block) => block.name === name) ?? null;
   }
 
   assetsForSite() {
@@ -278,10 +335,16 @@ export class ExtensionRegistry {
     return this.assets.find((asset) => asset.pluginId === pluginId && asset.file === file) ?? null;
   }
 
-  async route(pluginId: string, method: string, path: string, query: Record<string, string>, body: unknown) {
-    const found = this.routes.find(
-      (route) => route.pluginId === pluginId && route.method === method.toUpperCase() && route.path === path,
+  matchRoute(pluginId: string, method: string, path: string) {
+    return (
+      this.routes.find(
+        (route) => route.pluginId === pluginId && route.method === method.toUpperCase() && route.path === path,
+      ) ?? null
     );
+  }
+
+  async route(pluginId: string, method: string, path: string, query: Record<string, string>, body: unknown) {
+    const found = this.matchRoute(pluginId, method, path);
     if (!found) return null;
     return found.handler({ query, body });
   }
@@ -331,7 +394,7 @@ export class ExtensionRegistry {
         if (pluginBlock?.render) {
           const html = kses(String(await pluginBlock.render(record.props ?? {}))).slice(0, 20_000);
           const text = html.replace(/<[^>]+>/g, '');
-          props = { ...(record.props ?? {}), html, text };
+          props = { ...(record.props ?? {}), html, text, className: styleClass(record.props) };
         }
         let content = record.content;
         if (Array.isArray(content)) {

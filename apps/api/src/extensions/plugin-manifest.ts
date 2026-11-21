@@ -50,6 +50,8 @@ export const PLUGIN_PERMISSIONS = [
   'media',
   'modeling',
   'i18n',
+  /** Add fields to the public GraphQL schema. Resolvers run in the sandbox. */
+  'graphql',
   /** Accepted so older manifests still parse. The sandbox does not expose raw SQL. */
   'database',
 ] as const;

@@ -6,8 +6,10 @@ import type { CanvasBlock } from './tree';
 export function BlockInspector({
   block,
   onChange,
+  styles = [],
 }: {
   block: CanvasBlock | null;
+  styles?: { block: string; name: string; label: string }[];
   onChange: (patch: Partial<CanvasBlock>) => void;
 }) {
   if (!block) {
@@ -43,6 +45,25 @@ export function BlockInspector({
           )}
         </label>
       ))}
+      {styles.filter((style) => style.block === block.type).length ? (
+        <div className="op-gb-field">
+          Style
+          <div className="flex flex-wrap gap-2">
+            {styles
+              .filter((style) => style.block === block.type)
+              .map((style) => (
+                <button
+                  key={style.name}
+                  type="button"
+                  className="border border-[#c3c4c7] px-2 py-1"
+                  onClick={() => onChange({ props: { ...block.props, blockStyle: style.name } })}
+                >
+                  {style.label}
+                </button>
+              ))}
+          </div>
+        </div>
+      ) : null}
       <p className="op-gb-cat">Advanced</p>
       <label className="op-gb-field">
         HTML anchor

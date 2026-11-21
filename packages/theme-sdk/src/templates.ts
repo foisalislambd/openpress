@@ -39,6 +39,9 @@ function renderPart(source: string, data: ThemeTemplateData): string {
   let html = '';
   for (const match of source.matchAll(pattern)) {
     const index = match.index ?? 0;
+    // A section moves the cursor past its closing tag. Later matches inside that
+    // section belong to the section, so the outer scan skips them.
+    if (index < cursor) continue;
     html += source.slice(cursor, index);
     const sigil = match[1] ?? '';
     const key = match[2];

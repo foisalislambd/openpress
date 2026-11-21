@@ -25,6 +25,13 @@ export interface PluginRegistration {
   file?: string;
   assetKind?: 'style' | 'script';
   screen?: string;
+  entry?: string;
+  editor?: string;
+  auth?: boolean;
+  role?: string;
+  sdl?: string;
+  args?: string;
+  returns?: string;
   collection?: string;
   postType?: string;
   columns?: { key: string; label: string }[];

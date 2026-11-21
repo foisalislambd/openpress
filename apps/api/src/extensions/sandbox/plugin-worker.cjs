@@ -396,6 +396,7 @@ const ctx = {
         postType: page.postType,
         columns: page.columns || [],
         html: typeof page.html === 'string' ? page.html.slice(0, 20000) : '',
+        entry: typeof page.entry === 'string' ? page.entry.slice(0, 120) : '',
       });
     },
     addMetaBox: (box) => {
@@ -444,16 +445,36 @@ const ctx = {
           title: block.title,
           description: block.description,
           attributes: Array.isArray(block.attributes) ? block.attributes.slice(0, 12) : [],
+          editor: typeof block.editor === 'string' ? block.editor.slice(0, 120) : '',
         },
         block.render,
       );
     },
   },
   rest: {
-    route: (method, routePath, handler) => {
+    route: (method, routePath, handler, options) => {
       allow('rest');
       const normalized = routePath.startsWith('/') ? routePath : `/${routePath}`;
-      track('rest', { method, path: normalized }, handler);
+      track('rest', { method, path: normalized, auth: Boolean(options && options.auth) }, handler);
+    },
+  },
+  graphql: {
+    type: (definition) => {
+      allow('graphql');
+      track('graphql-type', { sdl: String(definition || '').slice(0, 2000) });
+    },
+    query: (name, returns, fn) => {
+      allow('graphql');
+      track('graphql-field', { role: 'query', name: String(name || ''), returns: String(returns || '') }, fn);
+    },
+    mutation: (name, args, returns, fn) => {
+      allow('graphql');
+      track('graphql-field', {
+        role: 'mutation',
+        name: String(name || ''),
+        args: String(args || ''),
+        returns: String(returns || ''),
+      }, fn);
     },
   },
   assets: {

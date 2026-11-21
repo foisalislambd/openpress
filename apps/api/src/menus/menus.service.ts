@@ -142,10 +142,10 @@ export class MenusService {
     return removed;
   }
 
-  async setLocations(locations: { primary?: string | null; footer?: string | null }) {
-    for (const location of ['primary', 'footer'] as const) {
-      if (!(location in locations)) continue;
-      const menuId = locations[location] || null;
+  async setLocations(locations: Record<string, string | null | undefined>) {
+    for (const [location, raw] of Object.entries(locations)) {
+      if (!/^[a-z][a-z0-9-]{0,40}$/.test(location) || raw === undefined) continue;
+      const menuId = raw || null;
       if (menuId) {
         const menu = await this.db.one('SELECT id FROM nav_menus WHERE id = $1', [menuId]);
         if (!menu) throw new BadRequestException('Menu was not found');
@@ -217,10 +217,7 @@ export class MenusService {
         name: menu.name,
         items: flatten(menu.items),
       })),
-      menuLocations: {
-        primary: listed.locations.primary ? byId.get(listed.locations.primary) ?? '' : '',
-        footer: listed.locations.footer ? byId.get(listed.locations.footer) ?? '' : '',
-      },
+      menuLocations: locationNames(listed.locations, byId),
     };
   }
 
@@ -229,10 +226,9 @@ export class MenusService {
       'SELECT location, "menuId" FROM menu_locations WHERE "siteId" = $1',
       [currentSiteId()],
     );
-    return {
-      primary: rows.find((row) => row.location === 'primary')?.menuId ?? null,
-      footer: rows.find((row) => row.location === 'footer')?.menuId ?? null,
-    };
+    const locations: Record<string, string | null> = { primary: null, footer: null };
+    for (const row of rows) locations[row.location] = row.menuId;
+    return locations;
   }
 
   private async one(id: string) {
@@ -258,10 +254,7 @@ export class MenusService {
     const listed = await this.list();
     const byId = new Map(listed.menus.map((menu) => [menu.id, menu.name]));
     const menus = listed.menus.map((menu) => ({ name: menu.name, items: flatten(menu.items) }));
-    const menuLocations = {
-      primary: listed.locations.primary ? byId.get(listed.locations.primary) ?? '' : '',
-      footer: listed.locations.footer ? byId.get(listed.locations.footer) ?? '' : '',
-    };
+    const menuLocations = locationNames(listed.locations, byId);
     await this.writeSetting('menus', menus);
     await this.writeSetting('menuLocations', menuLocations);
   }
@@ -293,6 +286,10 @@ async function insertTree(sql: Db, menuId: string, items: unknown[], parentId: s
     position += 1;
     if (Array.isArray(record.children)) await insertTree(sql, menuId, record.children, id);
   }
+}
+
+function locationNames(locations: Record<string, string | null>, byId: Map<string, string>) {
+  return Object.fromEntries(Object.entries(locations).map(([location, id]) => [location, id ? byId.get(id) ?? '' : '']));
 }
 
 function stripMenu(item: FlatMenuItem & { menuId?: string }): FlatMenuItem {

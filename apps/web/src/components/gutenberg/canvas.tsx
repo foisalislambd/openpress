@@ -5,6 +5,8 @@ import { getBlockType } from '@openpress/shared';
 import { BlockToolbar } from './block-toolbar';
 import { SlashMenu } from './inserter';
 import { textOf, type CanvasBlock } from './tree';
+import { IsolatedFrame } from '@/components/admin/isolated-frame';
+import { blockOwner } from './block-owners';
 
 export function BlockCanvas({
   blocks,
@@ -183,6 +185,17 @@ function BlockFrame(props: {
             </label>
           ))}
         </div>
+      ) : null}
+      {edit === 'app' ? (
+        <IsolatedFrame
+          title={`${definition?.title ?? block.type} editor`}
+          pluginId={blockOwner(block.type)}
+          src={`/api/plugins/block-editor?name=${encodeURIComponent(block.type)}`}
+          className="min-h-40 w-full border border-[#c3c4c7] bg-white"
+          attributes={block.props}
+          allowedKeys={Object.keys(definition?.attributes ?? {})}
+          onAttributes={(next) => props.onProps(block.id, { ...block.props, ...next })}
+        />
       ) : null}
       {edit === 'separator' ? <hr /> : null}
       {edit === 'spacer' ? <div style={{ height: Number(block.props.height ?? 48), background: 'repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0 6px,#fff 6px,#fff 12px)' }} /> : null}

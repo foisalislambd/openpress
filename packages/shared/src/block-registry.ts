@@ -15,7 +15,8 @@ export type BlockEdit =
   | 'container'
   | 'spacer'
   | 'separator'
-  | 'fields';
+  | 'fields'
+  | 'app';
 
 export interface BlockAttribute {
   type: 'string' | 'number' | 'boolean';

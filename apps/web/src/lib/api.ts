@@ -9,7 +9,7 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-async function get<T>(path: string, unlock?: string): Promise<T> {
+async function get<T>(path: string, unlock?: string, fresh = false): Promise<T> {
   let host = '';
   try {
     const incoming = await headers();
@@ -22,7 +22,7 @@ async function get<T>(path: string, unlock?: string): Promise<T> {
       ...(host ? { 'x-openpress-host': host } : {}),
       ...(unlock ? { 'x-openpress-unlock': unlock } : {}),
     },
-    ...(unlock ? { cache: 'no-store' as const } : { next: { revalidate: 10 } }),
+    ...(fresh || unlock ? { cache: 'no-store' as const } : { next: { revalidate: 10 } }),
   });
   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
   return res.json();
@@ -30,7 +30,7 @@ async function get<T>(path: string, unlock?: string): Promise<T> {
 
 export async function getSettings(): Promise<SiteSettings> {
   try {
-    return await get<SiteSettings>('/settings');
+    return await get<SiteSettings>('/settings', undefined, true);
   } catch {
     return {
       siteTitle: 'OpenPress',

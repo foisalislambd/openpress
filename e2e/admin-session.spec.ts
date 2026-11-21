@@ -24,7 +24,7 @@ test('admin cookie session can publish, render, rotate, and log out', async ({ p
   await page.goto('/admin/posts/new');
   await page.getByLabel('Add title').fill(title);
   await page.getByRole('banner').getByRole('button', { name: 'Publish' }).click();
-  await page.waitForURL(/\/admin\/posts\/.+/);
+  await page.waitForURL(/\/admin\/posts\/(?!new(?:\?|$))[^/?#]+/);
   await page.goto(`/${slug}`);
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
 

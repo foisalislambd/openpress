@@ -10,6 +10,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from
 import { randomUUID } from 'crypto';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
+import { composeIsolatedDocument, resolvePluginFile } from './isolated-app';
 import { DbService } from '../db/db.service';
 import { HooksService } from '../hooks/hooks.service';
 import { ExtensionRegistry } from './extension-registry';
@@ -391,7 +392,7 @@ export class PluginsService implements OnModuleInit {
       );
     }
     if (registration.kind === 'page' && registration.slug && registration.title) {
-      const screen = registration.screen === 'list' || registration.screen === 'content' || registration.screen === 'html' ? registration.screen : 'form';
+      const screen = registration.screen === 'list' || registration.screen === 'content' || registration.screen === 'html' || registration.screen === 'app' ? registration.screen : 'form';
       this.registry.addPage({
         pluginId,
         slug: registration.slug,
@@ -402,6 +403,7 @@ export class PluginsService implements OnModuleInit {
         postType: registration.postType,
         columns: (registration.columns ?? []).filter((column) => column.key && column.label).slice(0, 8),
         html: screen === 'html' ? kses(registration.html || '') : undefined,
+        entry: screen === 'app' ? registration.entry : undefined,
         fields: (registration.fields ?? []).map((field) => ({
           key: field.key,
           label: field.label,
@@ -479,7 +481,25 @@ export class PluginsService implements OnModuleInit {
             type: attribute.type === 'number' || attribute.type === 'boolean' ? attribute.type : 'string',
             label: attribute.label,
           })),
+        editor: registration.editor,
         render: (props) => handle.invoke(registration.id, [props]) as Promise<string>,
+      });
+    }
+    if ((registration.kind === 'graphql-type' || registration.kind === 'graphql-field') && !(manifest.permissions ?? []).includes('graphql')) {
+      return null;
+    }
+    if (registration.kind === 'graphql-type' && registration.sdl) {
+      this.registry.addGraphqlType({ pluginId, sdl: registration.sdl });
+    }
+    if (registration.kind === 'graphql-field' && registration.name && registration.returns && registration.role) {
+      const role = registration.role === 'mutation' ? 'mutation' : 'query';
+      this.registry.addGraphqlField({
+        pluginId,
+        role,
+        name: registration.name,
+        args: registration.args || '',
+        returns: registration.returns,
+        resolve: (args) => handle.invoke(registration.id, [args]),
       });
     }
     if (registration.kind === 'rest' && registration.method && registration.path) {
@@ -487,6 +507,7 @@ export class PluginsService implements OnModuleInit {
         pluginId,
         method: registration.method,
         path: registration.path,
+        auth: registration.auth === true,
         handler: (req) => handle.invoke(registration.id, [req]),
       });
     }
@@ -560,6 +581,7 @@ export class PluginsService implements OnModuleInit {
     if (method === 'media.list') allow('media');
     if (method.startsWith('cron.')) allow('cron');
     if (method.startsWith('i18n.')) allow('i18n');
+    if (method.startsWith('graphql.')) allow('graphql');
     if (method === 'data.define' || method.startsWith('data.')) allow('data');
     if (method.startsWith('storage.')) allow('storage');
     if (method.startsWith('settings.')) allow('settings');
@@ -740,6 +762,15 @@ export class PluginsService implements OnModuleInit {
       sidebar: list(value.sidebar) as { type?: string; title?: string; text?: string }[],
       footer: list(value.footer) as { type?: string; title?: string; text?: string }[],
     };
+  }
+
+  isolatedDocument(id: string, relative: string) {
+    this.assertInstalled(id);
+    const file = resolvePluginFile(join(PLUGINS_DIR, id), relative);
+    if (!existsSync(file)) throw new NotFoundException('Plugin bundle not found');
+    const html = readFileSync(file, 'utf8');
+    if (html.length > 100_000) throw new BadRequestException('Plugin bundle is too large');
+    return composeIsolatedDocument(html, process.env.WEB_ORIGIN);
   }
 
   async records(id: string, name: string) {

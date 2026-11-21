@@ -90,13 +90,16 @@ harbor/
 
 | Field | Purpose |
 |-------|---------|
-| `parent` | Theme id. A missing template is read from the parent, one level deep |
+| `parent` | Theme id. Missing templates are read from the parent. Tokens, settings, patterns, styles, menu locations, and widget areas are inherited, and the child wins when it declares the same key |
 | `templates` / `templateParts` | Names the theme provides. The public site asks for `layout`, `index`, `single`, `page`, and `archive` |
-| `menuLocations` | `{ id, label }` pairs for navigation |
-| `widgetAreas` | Sidebar ids such as `sidebar` and `footer` |
-| `settings` | Customizer-style fields. Print them with `{{tagline}}` only after the host passes that value |
-| `patterns` | `{ name, title, blocks }` block patterns shipped with the theme |
+| `menuLocations` | `{ id, label }` pairs. The Menus screen lists them and the layout prints `{{#menus.primary}}<a href="{{url}}">{{title}}</a>{{/menus.primary}}` |
+| `widgetAreas` | Area ids such as `sidebar` and `footer`. The Widgets screen lists them. Print `{{#widgets.sidebar}}<p>{{title}}</p>{{/widgets.sidebar}}` |
+| `settings` | Fields on Customize. Values are saved in theme mods and printed as `{{mods.tagline}}` |
+| `patterns` | `{ name, title, blocks }` patterns. They appear in Patterns and the editor inserter while the theme is active |
+| `styles` | `{ block, name, label }` block styles. The editor offers them for that block and the public page adds `is-style-<name>` |
 | `tokens` | Same color and font tokens as `runtime-v1` |
+
+`examples/themes/harbor-child` sets `"parent": "harbor"` and replaces `layout.html`. The home template still comes from Harbor.
 
 `react-v1` bundles run in the Next.js server. Leave them off in production unless you trust the theme and set `OPENPRESS_CODE_THEMES=1`. `template-v1` does not need that flag.
 
@@ -106,7 +109,7 @@ Scaffold a theme with:
 node packages/create-openpress/bin/create-openpress.mjs theme harbor ./harbor
 ```
 
-The sample theme in this repo is `examples/themes/harbor`.
+The sample themes in this repo are `examples/themes/harbor` and `examples/themes/harbor-child`.
 
 ## react-v1 (full-code theme)
 

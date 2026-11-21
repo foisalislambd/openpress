@@ -17,6 +17,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { join, resolve } from 'path';
+import { mergeThemeManifest } from './theme-merge';
 
 export interface ThemeManifestFile {
   id: string;
@@ -40,6 +41,7 @@ export interface ThemeManifestFile {
   widgetAreas?: string[];
   settings?: { key: string; type?: string; label?: string; default?: string }[];
   patterns?: { name: string; title: string; blocks?: unknown[] }[];
+  styles?: { block: string; name: string; label: string }[];
 }
 
 export const THEMES_STORE_DIR = resolve(process.cwd(), 'themes-store');
@@ -62,6 +64,17 @@ export class InstalledThemesService implements OnModuleInit {
           existsSync(join(THEMES_STORE_DIR, d.name, 'theme.json')),
       )
       .map((d) => this.manifest(d.name));
+  }
+
+  resolved(id: string): ThemeManifestFile & { updatedAt: number } {
+    const child = this.manifest(id);
+    if (!child.parent || child.parent === id) return child;
+    try {
+      const parent = this.manifest(child.parent);
+      return { ...mergeThemeManifest(child, parent), updatedAt: child.updatedAt };
+    } catch {
+      return child;
+    }
   }
 
   manifest(id: string): ThemeManifestFile & { updatedAt: number } {

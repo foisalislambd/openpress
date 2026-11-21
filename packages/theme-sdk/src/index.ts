@@ -42,6 +42,7 @@ export interface ThemeManifest {
   /** Customizer-style settings. Values are escaped when a template prints them. */
   settings?: { key: string; type?: 'string' | 'number' | 'boolean'; label?: string; default?: string }[];
   patterns?: { name: string; title: string; blocks?: unknown[] }[];
+  styles?: { block: string; name: string; label: string }[];
 }
 
 export function defineTheme<T extends ThemeManifest>(manifest: T): T {

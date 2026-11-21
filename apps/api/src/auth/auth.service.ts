@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   ConflictException,
   ForbiddenException,
@@ -288,10 +289,13 @@ export class AuthService {
     const payload = { sub, email, role, sid, purpose: 'access' as const };
     return {
       accessToken: this.jwt.sign(payload),
-      refreshToken: this.jwt.sign(payload, {
-        secret: this.refreshSecret,
-        expiresIn: '7d' as const,
-      }),
+      refreshToken: this.jwt.sign(
+        { ...payload, purpose: 'refresh' as const, jti: randomBytes(16).toString('hex') },
+        {
+          secret: this.refreshSecret,
+          expiresIn: '7d' as const,
+        },
+      ),
       user: { id: sub, email, role },
     };
   }

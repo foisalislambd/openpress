@@ -20,7 +20,10 @@ export default function AdminLayout({
     if (isLogin) return;
     api<User>('/auth/me')
       .then(setUser)
-      .catch(() => {
+      .catch((error: unknown) => {
+        // A navigation aborts the in-flight session check. That is not a logged-out session.
+        const message = error instanceof Error ? error.message : '';
+        if (!/401|403|unauthorized|sign in/i.test(message)) return;
         clearTokens();
         router.replace('/admin/login');
       });

@@ -41,6 +41,7 @@ function activate(ctx) {
     title: 'SEO note',
     description: 'A short note rendered on the public page.',
     attributes: [{ key: 'text', type: 'string', label: 'Text' }],
+    editor: 'editor/note.html',
     render: (props) => String(props.text || ''),
   });
 

@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/client-api';
 import { registerDynamicBlock } from '@openpress/shared';
+import { rememberBlockOwner } from './block-owners';
 import { BlockInspector } from './block-inspector';
 import { BlockCanvas } from './canvas';
 import { Inserter, rememberBlock } from './inserter';
@@ -67,9 +68,11 @@ export function EditorShell({
   const [sidebar, setSidebar] = useState(true);
   const [tab, setTab] = useState<'block' | 'document'>('document');
   const [focus, setFocus] = useState(false);
+  const [styles, setStyles] = useState<{ block: string; name: string; label: string }[]>([]);
+  const [pluginBlocks, setPluginBlocks] = useState(0);
 
   useEffect(() => {
-    api<{ blocks?: { name: string; title: string; description?: string; attributes?: { key: string; type?: 'string' | 'number' | 'boolean'; label?: string }[] }[] }>(
+    api<{ blocks?: { pluginId: string; name: string; title: string; description?: string; editor?: boolean; attributes?: { key: string; type?: 'string' | 'number' | 'boolean'; label?: string }[] }[] }>(
       '/plugins/chrome',
     )
       .then((chrome) => {
@@ -79,6 +82,7 @@ export function EditorShell({
           for (const attribute of block.attributes ?? []) {
             attributes[attribute.key] = { type: attribute.type === 'number' || attribute.type === 'boolean' ? attribute.type : 'string', default: '' };
           }
+          rememberBlockOwner(block.name, block.pluginId);
           registerDynamicBlock({
             name: block.name,
             title: block.title,
@@ -88,11 +92,19 @@ export function EditorShell({
             keywords: [block.name],
             attributes,
             supports: {},
-            edit: 'fields',
+            edit: block.editor ? 'app' : 'fields',
             inserter: true,
             transforms: [],
           });
         }
+        setPluginBlocks((count) => count + 1);
+      })
+      .catch(() => {});
+    api<{ activeTheme?: string }>('/settings')
+      .then(async (settings) => {
+        if (!settings.activeTheme || settings.activeTheme === 'default') return;
+        const theme = await api<{ styles?: { block: string; name: string; label: string }[] }>(`/themes/installed/${settings.activeTheme}`);
+        setStyles(theme.styles ?? []);
       })
       .catch(() => {});
   }, []);
@@ -260,7 +272,7 @@ export function EditorShell({
               onChange={(event) => onTitleChange(event.target.value)}
               onClick={(event) => event.stopPropagation()}
             />
-            <BlockCanvas
+            <BlockCanvas key={pluginBlocks}
               blocks={blocks}
               selected={selected}
               onSelect={(id) => { setSelected(id); setTab('block'); }}
@@ -314,6 +326,7 @@ export function EditorShell({
             {tab === 'block' ? (
               <BlockInspector
                 block={active}
+                styles={styles}
                 onChange={(patch) => {
                   if (!active) return;
                   commit((current) => updateBlock(current, active.id, (block) => ({ ...block, ...patch, props: patch.props ?? block.props })));
