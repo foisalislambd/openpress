@@ -38,11 +38,11 @@ export function setTokens(accessToken?: string, refreshToken?: string) {
 }
 
 export async function clearTokens() {
+  const csrf = (await ensureCsrf()) ?? csrfMemory;
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem(CSRF_KEY);
   localStorage.removeItem('op_token');
   localStorage.removeItem('op_refresh');
-  const csrf = csrfMemory;
   csrfMemory = null;
   await fetch(`${API_URL}/api/auth/logout`, {
     method: 'POST',

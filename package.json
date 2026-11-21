@@ -17,10 +17,12 @@
     "db:migrate": "pnpm --filter @openpress/api db:migrate",
     "db:seed": "pnpm --filter @openpress/api db:seed",
     "test": "pnpm --filter @openpress/api test && pnpm test:release",
+    "test:e2e": "playwright test",
     "test:release": "node --test scripts/version.spec.mjs packages/create-openpress/cli.spec.mjs",
     "release:bump": "node scripts/version.mjs bump"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "embedded-postgres": "^17.5.0-beta.15",
     "turbo": "^2.5.0"
   },
@@ -38,7 +40,8 @@
       "browserslist": ">=4.28.7",
       "source-map-js": ">=1.2.2",
       "prosemirror-view": ">=1.42.3",
-      "zod": ">=4.6.6"
+      "zod": ">=4.6.6",
+      "brace-expansion@>=5 <5.0.11": "5.0.11"
     },
     "onlyBuiltDependencies": [
       "@embedded-postgres/windows-x64",

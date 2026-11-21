@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openpress}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openpress}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-openpress}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
@@ -20,7 +20,7 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-openpress}:${POSTGRES_PASSWORD:-openpress}@postgres:5432/${POSTGRES_DB:-openpress}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openpress}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openpress}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random string of at least 32 characters}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET to a different random string of at least 32 characters}
@@ -63,7 +63,7 @@ services:
     command: ["node", "dist/worker.js"]
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-openpress}:${POSTGRES_PASSWORD:-openpress}@postgres:5432/${POSTGRES_DB:-openpress}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openpress}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-openpress}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random string of at least 32 characters}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET to a different random string of at least 32 characters}

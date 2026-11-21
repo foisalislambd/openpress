@@ -51,6 +51,8 @@ test('pins GHCR images to a strict version and rejects injection', () => {
   assert.match(compose, /ghcr.io\/foisalislambd\/openpress-api:1\.2\.3-beta\.1/);
   assert.match(compose, /ghcr.io\/foisalislambd\/openpress-web:1\.2\.3-beta\.1/);
   assert.doesNotMatch(compose, /:latest/);
+  assert.match(compose, /POSTGRES_PASSWORD: \$\{POSTGRES_PASSWORD:\?Set POSTGRES_PASSWORD\}/);
+  assert.doesNotMatch(compose, /POSTGRES_PASSWORD: openpress/);
   assert.throws(() => renderCompose('1.2.3\nservices:'), /strict semver/);
   assert.throws(() => renderCompose('latest'), /strict semver/);
   assert.throws(() => renderCompose('1.0'), /strict semver/);

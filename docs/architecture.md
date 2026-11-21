@@ -94,7 +94,8 @@ Body is **BlockNote JSON** stored in `Content.blocks`. Themes receive `blocks` a
 
 ## Security layers
 
-- Browser sessions use httpOnly cookies plus a CSRF header. Bearer tokens remain for API clients, application passwords, and API keys.
+- Browser sessions use httpOnly cookies plus a CSRF header, including the first login. Logout sets `user_sessions.revokedAt`. Refresh tokens rotate and the previous token stops working. Bearer tokens remain for API clients, application passwords, and API keys.
+- Public GraphQL `media` and unauthenticated `/wp-json/wp/v2/media` return only files already used by a published public post or page. A trusted bearer or cookie session still lists the library on the REST route.
 - Capability checks on admin, content, media, and MCP routes
 - Author scoped to own posts
 - Settings whitelist (no internal keys exposed)

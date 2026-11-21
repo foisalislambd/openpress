@@ -12,6 +12,7 @@ import { CurrentUser } from './current-user.decorator';
 import { JwtPayload } from './jwt.strategy';
 import { SecurityService } from './security.service';
 import {
+  ACCESS_COOKIE,
   clearSessionCookies,
   ensureCsrfCookie,
   readCookie,
@@ -99,7 +100,15 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const bearer = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice('Bearer '.length).trim()
+      : undefined;
+    await this.auth.revokePresented([
+      readCookie(req, ACCESS_COOKIE),
+      readCookie(req, REFRESH_COOKIE),
+      bearer,
+    ]);
     clearSessionCookies(res);
     return { ok: true };
   }

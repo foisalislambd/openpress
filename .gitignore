@@ -8,6 +8,9 @@ dist/
 *.log
 uploads/
 .pgdata/
+/test-results/
+/playwright-report/
+/blob-report/
 
 # Uploaded themes & plugins (install via admin panel, not stored in git)
 apps/api/plugins/

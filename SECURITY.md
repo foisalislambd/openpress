@@ -53,7 +53,7 @@ Out of scope examples:
 Operators should follow [docs/deployment.md](docs/deployment.md):
 
 - Change all JWT / session secrets. Production boot refuses the placeholders from `.env.example`.
-- Set `WEB_ORIGIN` to the real site origin. The admin UI stores its session in httpOnly cookies and sends `X-OpenPress-CSRF`. Bearer tokens still work for non-browser clients.
+- Set `WEB_ORIGIN` to the real site origin. The admin UI stores its session in httpOnly cookies and sends `X-OpenPress-CSRF` on every browser mutation, including the first login. Logout revokes that server session, and each refresh token works only once. Bearer tokens still work for non-browser clients.
 - Use HTTPS and a strong `DATABASE_URL`
 - Only install trusted themes and plugins. `react-v1` themes are not executed in production unless `OPENPRESS_CODE_THEMES=1`.
 - Keep Node.js and dependencies updated

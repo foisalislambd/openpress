@@ -111,7 +111,7 @@ Either:
 
 ## Docker
 
-`docker-compose.yml` starts Postgres for local development. `docker-compose.prod.yml` builds the API, worker, and web images. It reads `JWT_SECRET` and `JWT_REFRESH_SECRET` from the environment and does not embed a default. Postgres is health-checked, and the API exposes `GET /api/health`.
+`docker-compose.yml` starts Postgres for local development and uses the local password `openpress`. `docker-compose.prod.yml` builds the API, worker, and web images. It reads `JWT_SECRET`, `JWT_REFRESH_SECRET`, and `POSTGRES_PASSWORD` from the environment and does not embed defaults. Use a URL-safe password, because it is also interpolated into `DATABASE_URL`. Postgres is health-checked, and the API exposes `GET /api/health`. Apply migration `009_session_refresh.sql` before deploying this version so logout and refresh rotation can store a refresh-token hash.
 
 Released images are also published to GHCR. Pin them from `VERSION.md`, or print a Compose file with `node packages/create-openpress/bin/create-openpress.mjs compose <version>`.
 

@@ -4,7 +4,10 @@ import { kses } from '../src/html/kses';
 import { detectUpload } from '../src/media/upload-sniff';
 import { assertRuntimeConfig } from '../src/security/runtime-config';
 import { isPublicHostname, isPublicIp, requestPublic } from '../src/security/outbound-url';
+import { requiresCsrf } from '../src/auth/csrf-policy';
+import { hashRefreshToken } from '../src/auth/refresh-token';
 import { safeEqual } from '../src/auth/session-cookie';
+import { PUBLISHED_MEDIA_MATCH } from '../src/content/public-media';
 import { codeThemesEnabled, themeSourceError } from '../../web/src/lib/code-theme-policy';
 import { jsonForScript, safeCss } from '../../web/src/lib/safe-html';
 
@@ -87,6 +90,30 @@ describe('sessions and code themes', () => {
     assert.equal(safeEqual('abcdef', 'abcdef'), true);
     assert.equal(safeEqual('abcdef', 'abcdeg'), false);
     assert.equal(safeEqual('short', 'longer-token'), false);
+  });
+
+  it('requires a CSRF token for browser login before any session cookie exists', () => {
+    const base = { headers: {} as Record<string, string> };
+    assert.equal(requiresCsrf({ method: 'POST', ...base, headers: { 'x-openpress-client': 'web' } }), true);
+    assert.equal(requiresCsrf({ method: 'POST', ...base, headers: { cookie: 'op_access=abc' } }), true);
+    assert.equal(requiresCsrf({ method: 'POST', ...base, headers: { authorization: 'Bearer token' } }), false);
+    assert.equal(requiresCsrf({ method: 'POST', ...base }), false);
+    assert.equal(requiresCsrf({ method: 'GET', ...base, headers: { 'x-openpress-client': 'web' } }), false);
+  });
+
+  it('hashes refresh tokens so a rotated token does not match the previous one', () => {
+    const first = hashRefreshToken('refresh-a');
+    const second = hashRefreshToken('refresh-b');
+    assert.equal(first, hashRefreshToken('refresh-a'));
+    assert.notEqual(first, second);
+    assert.equal(first.length, 64);
+  });
+
+  it('lists GraphQL and REST media only when a public post already exposes them', () => {
+    assert.match(PUBLISHED_MEDIA_MATCH, /status = 'PUBLISHED'/);
+    assert.match(PUBLISHED_MEDIA_MATCH, /visibility = 'PUBLIC'/);
+    assert.match(PUBLISHED_MEDIA_MATCH, /coverImage/);
+    assert.match(PUBLISHED_MEDIA_MATCH, /m\."siteId"/);
   });
 
   it('keeps code themes off in production until an operator opts in', () => {

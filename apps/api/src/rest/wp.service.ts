@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { blocksToHtml } from '../cms/publishing';
 import { ContentService } from '../content/content.service';
 import { DbService } from '../db/db.service';
+import { PUBLISHED_MEDIA_MATCH } from '../content/public-media';
 import { currentSiteId } from '../sites/site-context';
 
 type WpStatus = 'publish' | 'draft' | 'pending' | 'future' | 'trash';
@@ -44,14 +45,16 @@ export class WpService {
     return this.toPost(content, embed);
   }
 
-  async media(page = '1', perPage = '10') {
+  async media(page = '1', perPage = '10', publicOnly = true) {
     const limit = Math.min(100, Math.max(1, Number(perPage) || 10));
     const offset = (Math.max(1, Number(page) || 1) - 1) * limit;
+    const visibility = publicOnly ? `AND ${PUBLISHED_MEDIA_MATCH}` : '';
     return this.db.query(
-      `SELECT id, filename, url, alt, caption, "mimeType", width, height, "createdAt"
-       FROM media
-       WHERE "siteId" = $3
-       ORDER BY "createdAt" DESC
+      `SELECT m.id, m.filename, m.url, m.alt, m.caption, m."mimeType", m.width, m.height, m."createdAt"
+       FROM media m
+       WHERE m."siteId" = $3
+       ${visibility}
+       ORDER BY m."createdAt" DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset, currentSiteId()],
     ).then((rows) =>

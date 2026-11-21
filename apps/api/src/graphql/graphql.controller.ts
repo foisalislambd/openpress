@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 import { buildSchema, graphql } from 'graphql';
 import { ContentService } from '../content/content.service';
+import { PUBLISHED_MEDIA_MATCH } from '../content/public-media';
 import { currentSiteId } from '../sites/site-context';
 import { DbService } from '../db/db.service';
 
@@ -91,7 +92,11 @@ export class GraphqlController {
       media: async (args: { limit?: number }) => {
         const limit = Math.min(50, Math.max(1, args.limit ?? 12));
         return this.db.query(
-          'SELECT id, filename, url, alt FROM media WHERE "siteId" = $2 ORDER BY "createdAt" DESC LIMIT $1',
+          `SELECT m.id, m.filename, m.url, m.alt
+           FROM media m
+           WHERE m."siteId" = $2 AND ${PUBLISHED_MEDIA_MATCH}
+           ORDER BY m."createdAt" DESC
+           LIMIT $1`,
           [limit, currentSiteId()],
         );
       },

@@ -37,3 +37,53 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openpress
+          POSTGRES_PASSWORD: ci-database-password
+          POSTGRES_DB: openpress
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openpress -d openpress"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://openpress:ci-database-password@localhost:5432/openpress
+      JWT_SECRET: 0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: fedcba9876543210fedcba9876543210
+      WEB_ORIGIN: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:4000
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Migrate and seed
+        run: pnpm db:migrate && pnpm db:seed
+
+      - name: Admin session smoke
+        run: pnpm test:e2e
