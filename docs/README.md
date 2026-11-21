@@ -13,8 +13,9 @@ Welcome to the OpenPress docs. Pick a guide below.
 - [Architecture](architecture.md) — how the monorepo fits together
 - [Development](development.md) — scripts, env vars, debugging
 - [API reference](api.md) — REST endpoints and auth
-- [Themes](themes.md) — build and upload themes (`react-v1` and `runtime-v1`)
-- [Plugins](plugins.md) — build and upload server-side plugins
+- [Themes](themes.md) — token, template, and code themes
+- [Plugins](plugins.md) — server plugins, collections, and admin screens
+- [Hooks](hooks.md) — actions and filters core fires
 - [Roles & permissions](roles-and-permissions.md) — who can do what
 
 ## Operations

@@ -14,7 +14,8 @@ OpenPress supports two theme engines. Both are installed as **zip uploads** from
 | Engine | Best for | You provide |
 |--------|----------|-------------|
 | `runtime-v1` | Quick token-based styling | `theme.json` + optional `style.css` |
-| `react-v1` | Full custom UI (like WordPress PHP themes) | `theme.json` + React JSX/TSX + CSS |
+| `template-v1` | Full layouts that stay safe in production | `theme.json` + HTML templates. Values are escaped. No JavaScript |
+| `react-v1` | Trusted custom React UI | `theme.json` + React JSX/TSX + CSS. Production requires `OPENPRESS_CODE_THEMES=1` |
 
 ---
 
@@ -66,6 +67,46 @@ my-theme/
 | Other keys | CSS colors / sizes | Background, text, accent, header |
 
 ---
+
+## template-v1 (safe full theme)
+
+Use this when the theme needs its own markup and should install on a production site without enabling code themes. Templates are HTML. `{{title}}` and `{{site.title}}` are escaped. `{{#posts}}...{{/posts}}` repeats for an array. `{{yield}}` is where OpenPress inserts the page body or the rendered blocks. Script, iframe, and event-handler attributes are removed when the file is read.
+
+```
+harbor/
+  theme.json
+  style.css
+  templates/
+    layout.html
+    index.html
+    single.html
+    page.html
+    archive.html
+  parts/
+    header.html
+```
+
+`theme.json` can also declare:
+
+| Field | Purpose |
+|-------|---------|
+| `parent` | Theme id. A missing template is read from the parent, one level deep |
+| `templates` / `templateParts` | Names the theme provides. The public site asks for `layout`, `index`, `single`, `page`, and `archive` |
+| `menuLocations` | `{ id, label }` pairs for navigation |
+| `widgetAreas` | Sidebar ids such as `sidebar` and `footer` |
+| `settings` | Customizer-style fields. Print them with `{{tagline}}` only after the host passes that value |
+| `patterns` | `{ name, title, blocks }` block patterns shipped with the theme |
+| `tokens` | Same color and font tokens as `runtime-v1` |
+
+`react-v1` bundles run in the Next.js server. Leave them off in production unless you trust the theme and set `OPENPRESS_CODE_THEMES=1`. `template-v1` does not need that flag.
+
+Scaffold a theme with:
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs theme harbor ./harbor
+```
+
+The sample theme in this repo is `examples/themes/harbor`.
 
 ## react-v1 (full-code theme)
 

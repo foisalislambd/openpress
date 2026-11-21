@@ -70,10 +70,14 @@ export function getPluginChrome() {
     assets: { href: string; kind: 'style' | 'script'; handle: string }[];
     widgets: { sidebar: string[]; footer: string[] };
     blocks: { pluginId: string; name: string; title: string }[];
+    head?: string[];
+    footer?: string[];
   }>('/plugins/chrome').catch(() => ({
     assets: [],
     widgets: { sidebar: [], footer: [] },
     blocks: [],
+    head: [],
+    footer: [],
   }));
 }
 

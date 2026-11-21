@@ -75,12 +75,9 @@ export function createPluginContext(options: {
         disposers.push(options.hooks.addAction(event, handler, 10));
       },
     },
-    get db() {
+    get db(): never {
       allow('database');
-      return {
-        query: options.db.query.bind(options.db),
-        one: options.db.one.bind(options.db),
-      };
+      throw new Error('Raw SQL is not available in the plugin sandbox. Use ctx.data for plugin-owned records.');
     },
     transients: {
       get: (key: string) => {

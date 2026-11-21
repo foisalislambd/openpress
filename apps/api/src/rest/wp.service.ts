@@ -4,6 +4,7 @@ import { ContentService } from '../content/content.service';
 import { DbService } from '../db/db.service';
 import { PUBLISHED_MEDIA_MATCH } from '../content/public-media';
 import { currentSiteId } from '../sites/site-context';
+import { HooksService } from '../hooks/hooks.service';
 
 type WpStatus = 'publish' | 'draft' | 'pending' | 'future' | 'trash';
 
@@ -12,6 +13,7 @@ export class WpService {
   constructor(
     private content: ContentService,
     private db: DbService,
+    private hooks: HooksService,
   ) {}
 
   async posts(query: { page?: string; per_page?: string; search?: string; status?: string }, embed: boolean, publicOnly: boolean) {
@@ -28,7 +30,9 @@ export class WpService {
       publicOnly,
     );
     const items = await Promise.all(result.items.map((item) => this.toPost(item, embed)));
-    return { items, total: result.total };
+    const payload = { items, total: result.total };
+    const filtered = await this.hooks.applyFilters('rest_post_dispatch', payload, { route: 'posts' });
+    return filtered && typeof filtered === 'object' ? filtered : payload;
   }
 
   async pages(query: { page?: string; per_page?: string; search?: string }, embed: boolean) {

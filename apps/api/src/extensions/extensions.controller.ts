@@ -28,6 +28,8 @@ import { ExtensionRegistry } from './extension-registry';
 import { PluginsService } from './plugins.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { InstalledThemesService } from './themes.service';
+import { HooksService } from '../hooks/hooks.service';
+import { sanitizeFooterHtml, sanitizeHeadHtml } from './head-html';
 
 const zipUpload = FileInterceptor('file', {
   storage: memoryStorage(),
@@ -40,6 +42,7 @@ export class PluginsController {
     private plugins: PluginsService,
     private registry: ExtensionRegistry,
     private widgets: WidgetsService,
+    private hooks: HooksService,
   ) {}
 
   @Get()
@@ -57,17 +60,25 @@ export class PluginsController {
       menus: this.registry.adminPages(),
       blocks: this.registry.blocksForEditor(),
       widgets: this.registry.widgetTypes(),
+      metaBoxes: this.registry.listMetaBoxes(),
+      notices: this.registry.listNotices(),
+      dashboard: this.registry.dashboardWidgets(),
     };
   }
 
   @Get('chrome')
   async chrome() {
     const rendered = await this.widgets.renderPublic();
+    const head = await this.hooks.applyFilters('wp_head', [] as string[]);
+    const footer = await this.hooks.applyFilters('wp_footer', [] as string[]);
     return {
       assets: this.registry.assetsForSite(),
       blocks: this.registry.blocksForEditor(),
       widgets: rendered.widgets,
       areas: rendered.areas,
+      metaBoxes: this.registry.listMetaBoxes(),
+      head: sanitizeHeadHtml(head),
+      footer: sanitizeFooterHtml(footer),
     };
   }
 
@@ -85,6 +96,20 @@ export class PluginsController {
     createReadStream(target).pipe(res);
   }
 
+  @Post(':id/forms/:formId')
+  async submitForm(@Param('id') id: string, @Param('formId') formId: string, @Body() body: unknown) {
+    const form = this.registry.form(id, formId);
+    if (!form) throw new NotFoundException('Form not found');
+    const source = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    const values: Record<string, string> = {};
+    for (const field of form.fields) {
+      const value = source[field.key];
+      if (typeof value !== 'string') continue;
+      values[field.key] = value.slice(0, field.type === 'textarea' ? 5000 : 500);
+    }
+    return form.submit(values);
+  }
+
   @All(':id/rest/*path')
   async rest(
     @Param('id') id: string,
@@ -97,6 +122,36 @@ export class PluginsController {
     const result = await this.registry.route(id, req.method, routePath, query, body);
     if (result === null) throw new NotFoundException('Plugin route not found');
     return result;
+  }
+
+  @Get(':id/collections/:name')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  records(@Param('id') id: string, @Param('name') name: string) {
+    return this.plugins.records(id, name);
+  }
+
+  @Get(':id/content')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  pluginContent(@Param('id') id: string, @Query('postType') postType?: string) {
+    return this.plugins.pluginContent(id, postType);
+  }
+
+  @Post(':id/content')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  createPluginContent(@Param('id') id: string, @Body() body: { title?: string; postType?: string }) {
+    return this.plugins.createPluginContent(id, body);
+  }
+
+  @Get(':id/dashboard/:widgetId')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('read')
+  async dashboard(@Param('id') id: string, @Param('widgetId') widgetId: string) {
+    const html = await this.registry.renderDashboard(id, widgetId);
+    if (html == null) throw new NotFoundException('Dashboard widget not found');
+    return { html };
   }
 
   @Get(':id/settings/:slug')
@@ -184,6 +239,11 @@ export class InstalledThemesController {
   @Get('installed/:id')
   manifest(@Param('id') id: string) {
     return this.themes.manifest(id);
+  }
+
+  @Get('installed/:id/template')
+  template(@Param('id') id: string, @Query('name') name?: string) {
+    return this.themes.readTemplate(id, name || 'index');
   }
 
   @Get('installed/:id/style.css')

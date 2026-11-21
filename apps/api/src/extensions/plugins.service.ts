@@ -16,16 +16,24 @@ import { ExtensionRegistry } from './extension-registry';
 import { hashPackageFiles, SIGNATURE_FILE, verifyPackageHash, compareVersions, PackageSignature } from './package-signature';
 import { requestPublic } from '../security/outbound-url';
 import { hostAllowed, PluginRegistration, SandboxHandle, startPluginSandbox } from './sandbox/plugin-sandbox';
-import { PluginManifest, PluginPermission, validatePluginManifest } from './plugin-manifest';
+import { parseVersion, PluginManifest, PluginPermission, validatePluginManifest } from './plugin-manifest';
 import { pluginActivationOrder } from './plugin-order';
 import { CoreRegistry, optionType } from '../core/core-registry';
 import { TransientsService } from '../sites/transients.service';
+import { CronService } from '../cron/cron.service';
+import { collectionFromRegistration, handlePluginCall, NOT_HANDLED } from './plugin-calls';
+import { kses } from '../html/kses';
+import { isUndefinedTable } from '../db/errors';
+import { currentSiteId } from '../sites/site-context';
 
 export type { PluginManifest };
 
 interface LoadedPlugin {
   manifest: PluginManifest;
   dir: string;
+  handle: SandboxHandle;
+  lifecycle: { install?: string; deactivate?: string; uninstall?: string };
+  migrations: { version: string; id: string }[];
   dispose: () => void;
 }
 
@@ -54,6 +62,7 @@ export class PluginsService implements OnModuleInit {
     private registry: ExtensionRegistry,
     private core: CoreRegistry,
     private transients: TransientsService,
+    private cron: CronService,
   ) {}
 
   async onModuleInit() {
@@ -78,6 +87,8 @@ export class PluginsService implements OnModuleInit {
       const id = error.split(' ')[0];
       if (id && !this.errors.has(id)) this.errors.set(id, error);
     }
+    await this.hooks.doAction('plugins_loaded');
+    await this.hooks.doAction('init');
   }
 
   async list() {
@@ -196,15 +207,19 @@ export class PluginsService implements OnModuleInit {
     if (problem) throw new BadRequestException(problem);
     await this.setEnabled(id, nowEnabled);
     if (nowEnabled) await this.load(id);
-    else this.unload(id);
+    else await this.shutdown(id, 'deactivate');
     return { id, enabled: nowEnabled };
   }
 
   async remove(id: string) {
     this.assertInstalled(id);
-    this.unload(id);
+    const manifest = this.readManifest(join(PLUGINS_DIR, id));
+    if (this.loaded.has(id)) await this.shutdown(id, 'uninstall');
+    else this.unload(id);
+    if (manifest.removeData) await this.purgePluginData(id);
     await this.setEnabled(id, false);
     rmSync(join(PLUGINS_DIR, id), { recursive: true, force: true });
+    await this.hooks.doAction('plugin.uninstalled', { id });
     return { id };
   }
 
@@ -229,22 +244,126 @@ export class PluginsService implements OnModuleInit {
       this.registry.clear(id);
       throw error;
     }
+    const lifecycle: LoadedPlugin['lifecycle'] = {};
+    const migrations: LoadedPlugin['migrations'] = [];
     for (const registration of handle.registrations) {
+      if (registration.kind === 'lifecycle' && registration.event && registration.id) {
+        if (registration.event === 'install' || registration.event === 'deactivate' || registration.event === 'uninstall') {
+          lifecycle[registration.event] = registration.id;
+        }
+      }
+      if (registration.kind === 'migration' && registration.version && registration.id) {
+        migrations.push({ version: registration.version, id: registration.id });
+      }
       const remove = this.bindRegistration(manifest, handle, registration);
       if (remove) disposers.push(remove);
     }
-    this.loaded.set(id, {
+    const loaded: LoadedPlugin = {
       manifest,
       dir,
+      handle,
+      lifecycle,
+      migrations,
       dispose: () => {
         for (const dispose of disposers) dispose();
         handle.dispose();
         this.registry.clear(id);
         this.core.clear(id);
       },
-    });
+    };
+    this.loaded.set(id, loaded);
+    try {
+      await this.runInstall(loaded);
+      await this.runMigrations(loaded);
+    } catch (error) {
+      loaded.dispose();
+      this.loaded.delete(id);
+      throw error;
+    }
     this.errors.delete(id);
+    await this.hooks.doAction('plugin.activated', { id, version: manifest.version });
     this.logger.log(`Plugin "${id}" activated in a sandbox`);
+  }
+
+  private async shutdown(id: string, event: 'deactivate' | 'uninstall') {
+    const plugin = this.loaded.get(id);
+    const hookId = plugin?.lifecycle[event];
+    if (plugin && hookId) {
+      try {
+        await plugin.handle.invoke(hookId, []);
+      } catch (error) {
+        this.logger.error(`Plugin "${id}" ${event} failed: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+    if (event === 'deactivate') await this.hooks.doAction('plugin.deactivated', { id });
+    this.unload(id);
+  }
+
+  private async runInstall(plugin: LoadedPlugin) {
+    let installed = false;
+    try {
+      const row = await this.db.one<{ installed: boolean }>(
+        'SELECT installed FROM plugin_state WHERE "pluginId" = $1',
+        [plugin.manifest.id],
+      );
+      installed = Boolean(row?.installed);
+    } catch (error) {
+      if (isUndefinedTable(error)) return;
+      throw error;
+    }
+    if (installed) return;
+    if (plugin.lifecycle.install) await plugin.handle.invoke(plugin.lifecycle.install, []);
+    await this.db.query(
+      `INSERT INTO plugin_state ("pluginId", installed, "installedVersion", "updatedAt")
+       VALUES ($1, true, $2, now())
+       ON CONFLICT ("pluginId") DO UPDATE SET installed = true, "installedVersion" = EXCLUDED."installedVersion", "updatedAt" = now()`,
+      [plugin.manifest.id, plugin.manifest.version],
+    );
+  }
+
+  private async runMigrations(plugin: LoadedPlugin) {
+    if (plugin.migrations.length === 0) return;
+    let applied = new Set<string>();
+    try {
+      const rows = await this.db.query<{ version: string }>(
+        'SELECT version FROM plugin_migrations WHERE "pluginId" = $1',
+        [plugin.manifest.id],
+      );
+      applied = new Set(rows.map((row) => row.version));
+    } catch (error) {
+      if (isUndefinedTable(error)) return;
+      throw error;
+    }
+    const pending = [...plugin.migrations].sort((a, b) => {
+      const left = parseVersion(a.version);
+      const right = parseVersion(b.version);
+      if (!left || !right) return a.version.localeCompare(b.version);
+      return left[0] - right[0] || left[1] - right[1] || left[2] - right[2];
+    });
+    for (const migration of pending) {
+      if (applied.has(migration.version)) continue;
+      await plugin.handle.invoke(migration.id, []);
+      await this.db.query(
+        `INSERT INTO plugin_migrations ("pluginId", version) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [plugin.manifest.id, migration.version],
+      );
+    }
+  }
+
+  private async purgePluginData(id: string) {
+    const statements = [
+      'DELETE FROM plugin_records WHERE "pluginId" = $1',
+      'DELETE FROM plugin_migrations WHERE "pluginId" = $1',
+      'DELETE FROM plugin_state WHERE "pluginId" = $1',
+      'DELETE FROM plugin_storage WHERE "pluginId" = $1',
+    ];
+    for (const statement of statements) {
+      try {
+        await this.db.query(statement, [id]);
+      } catch (error) {
+        if (!isUndefinedTable(error)) throw error;
+      }
+    }
   }
 
   private unload(id: string) {
@@ -272,11 +391,17 @@ export class PluginsService implements OnModuleInit {
       );
     }
     if (registration.kind === 'page' && registration.slug && registration.title) {
+      const screen = registration.screen === 'list' || registration.screen === 'content' || registration.screen === 'html' ? registration.screen : 'form';
       this.registry.addPage({
         pluginId,
         slug: registration.slug,
         title: registration.title,
         menuTitle: registration.menuTitle || registration.title,
+        screen,
+        collection: registration.collection,
+        postType: registration.postType,
+        columns: (registration.columns ?? []).filter((column) => column.key && column.label).slice(0, 8),
+        html: screen === 'html' ? kses(registration.html || '') : undefined,
         fields: (registration.fields ?? []).map((field) => ({
           key: field.key,
           label: field.label,
@@ -284,12 +409,53 @@ export class PluginsService implements OnModuleInit {
         })),
       });
     }
+    if (registration.kind === 'collection' && registration.schema) {
+      this.registry.addCollection(pluginId, collectionFromRegistration(registration.schema));
+    }
+    if (registration.kind === 'metabox' && registration.widgetId && registration.title) {
+      this.registry.addMetaBox({
+        pluginId,
+        id: registration.widgetId,
+        title: registration.title,
+        postTypes: (registration.postTypes ?? ['post']).filter((item) => /^[a-z0-9-]{1,40}$/.test(item)).slice(0, 12),
+        fields: (registration.fields ?? []).map((field) => ({
+          key: field.key,
+          label: field.label,
+          type: field.type === 'textarea' ? 'textarea' : 'text',
+        })),
+      });
+    }
+    if (registration.kind === 'dashboard' && registration.widgetId && registration.title) {
+      this.registry.addDashboard({
+        pluginId,
+        id: registration.widgetId,
+        title: registration.title,
+        render: () => handle.invoke(registration.id, []) as Promise<string>,
+      });
+    }
+    if (registration.kind === 'notice' && registration.message) {
+      const type = registration.noticeType === 'success' || registration.noticeType === 'warning' || registration.noticeType === 'error' ? registration.noticeType : 'info';
+      this.registry.addNotice({ pluginId, type, message: registration.message });
+    }
     if (registration.kind === 'widget' && registration.widgetId && registration.name) {
       this.registry.addWidget({
         pluginId,
         id: registration.widgetId,
         name: registration.name,
         render: (instance) => handle.invoke(registration.id, [instance]) as Promise<string>,
+      });
+    }
+    if (registration.kind === 'form' && registration.widgetId && registration.title) {
+      this.registry.addForm({
+        pluginId,
+        id: registration.widgetId,
+        title: registration.title,
+        fields: (registration.fields ?? []).map((field) => ({
+          key: field.key,
+          label: field.label,
+          type: field.type === 'textarea' ? 'textarea' : 'text',
+        })),
+        submit: (values) => handle.invoke(registration.id, [values]),
       });
     }
     if (registration.kind === 'shortcode' && registration.tag) {
@@ -300,7 +466,21 @@ export class PluginsService implements OnModuleInit {
       });
     }
     if (registration.kind === 'block' && registration.name && registration.title) {
-      this.registry.addBlock({ pluginId, name: registration.name, title: registration.title, description: registration.description });
+      this.registry.addBlock({
+        pluginId,
+        name: registration.name,
+        title: registration.title,
+        description: registration.description,
+        attributes: (registration.attributes ?? [])
+          .filter((attribute) => attribute.key)
+          .slice(0, 12)
+          .map((attribute) => ({
+            key: attribute.key,
+            type: attribute.type === 'number' || attribute.type === 'boolean' ? attribute.type : 'string',
+            label: attribute.label,
+          })),
+        render: (props) => handle.invoke(registration.id, [props]) as Promise<string>,
+      });
     }
     if (registration.kind === 'rest' && registration.method && registration.path) {
       this.registry.addRoute({
@@ -356,6 +536,12 @@ export class PluginsService implements OnModuleInit {
         throw new Error(`Plugin "${manifest.id}" has not declared the "${permission}" permission`);
       }
     };
+    const extended = await handlePluginCall(
+      { db: this.db, hooks: this.hooks, registry: this.registry, core: this.core, cron: this.cron, manifest },
+      method,
+      args,
+    );
+    if (extended !== NOT_HANDLED) return extended;
     if (method === 'hooks.doAction') {
       await this.hooks.doAction(String(args[0] ?? ''), ...((args[1] as unknown[]) ?? []));
       return null;
@@ -363,8 +549,18 @@ export class PluginsService implements OnModuleInit {
     if (method === 'hooks.applyFilters') {
       return this.hooks.applyFilters(String(args[0] ?? ''), args[1], ...((args[2] as unknown[]) ?? []));
     }
-    if (method === 'content.list' || method === 'content.get') allow('content:read');
+    if (method === 'content.list' || method === 'content.get' || method === 'content.query') allow('content:read');
     if (method === 'content.create' || method === 'content.update') allow('content:write');
+    if (method === 'content.meta') allow(args.length < 3 || args[2] === undefined ? 'content:read' : 'content:write');
+    if (method === 'content.types' || method === 'content.taxonomies') allow('modeling');
+    if (method === 'content.terms') allow(args[0] === 'list' ? 'content:read' : 'content:write');
+    if (method === 'users.list' || method === 'users.get') allow('users:read');
+    if (method === 'users.grant') allow('users:write');
+    if (method.startsWith('comments.')) allow('comments');
+    if (method === 'media.list') allow('media');
+    if (method.startsWith('cron.')) allow('cron');
+    if (method.startsWith('i18n.')) allow('i18n');
+    if (method === 'data.define' || method.startsWith('data.')) allow('data');
     if (method.startsWith('storage.')) allow('storage');
     if (method.startsWith('settings.')) allow('settings');
     if (method === 'http.fetch') allow('network:request');
@@ -389,9 +585,14 @@ export class PluginsService implements OnModuleInit {
       );
     }
     if (method === 'content.create') {
-      const input = (args[0] ?? {}) as { title?: string; type?: string; excerpt?: string };
+      const input = (args[0] ?? {}) as { title?: string; type?: string; excerpt?: string; postType?: string };
       const title = String(input.title || '').trim().slice(0, 200);
       if (!title) throw new Error('title is required');
+      const postType = typeof input.postType === 'string' && /^[a-z0-9-]{1,40}$/.test(input.postType) ? input.postType : input.type === 'PAGE' ? 'page' : 'post';
+      if (postType !== 'post' && postType !== 'page') {
+        const known = await this.db.one('SELECT slug FROM post_types WHERE slug = $1', [postType]);
+        if (!known) throw new Error('Unknown post type');
+      }
       const author = await this.db.one<{ id: string }>(
         `SELECT id FROM users WHERE role = 'ADMIN' ORDER BY "createdAt" ASC LIMIT 1`,
       );
@@ -399,11 +600,11 @@ export class PluginsService implements OnModuleInit {
       const id = randomUUID();
       const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'post'}-${id.slice(0, 8)}`;
       await this.db.query(
-        `INSERT INTO contents (id, type, status, title, slug, excerpt, blocks, "authorId", "updatedAt")
-         VALUES ($1, $2::"ContentType", 'DRAFT', $3, $4, $5, '[]'::jsonb, $6, now())`,
-        [id, input.type === 'PAGE' ? 'PAGE' : 'POST', title, slug, input.excerpt ? String(input.excerpt).slice(0, 500) : null, author.id],
+        `INSERT INTO contents (id, type, "postType", status, title, slug, excerpt, blocks, "authorId", "siteId", "updatedAt")
+         VALUES ($1, $2::"ContentType", $3, 'DRAFT', $4, $5, $6, '[]'::jsonb, $7, $8, now())`,
+        [id, input.type === 'PAGE' || postType === 'page' ? 'PAGE' : 'POST', postType, title, slug, input.excerpt ? String(input.excerpt).slice(0, 500) : null, author.id, currentSiteId()],
       );
-      return { id, slug, status: 'DRAFT' };
+      return { id, slug, status: 'DRAFT', postType };
     }
     if (method === 'content.update') {
       const input = (args[1] ?? {}) as { title?: string; excerpt?: string; status?: string };
@@ -482,12 +683,18 @@ export class PluginsService implements OnModuleInit {
       return { status: response.status, body: response.body.toString('utf8') };
     }
     if (method === 'email.send') {
-      const message = (args[0] ?? {}) as { to?: string; subject?: string; body?: string };
-      const to = String(message.to ?? '');
+      const message = (args[0] ?? {}) as { to?: string; subject?: string; body?: string; text?: string };
+      const filtered = await this.hooks.applyFilters('wp_mail', {
+        to: String(message.to ?? ''),
+        subject: String(message.subject ?? ''),
+        text: String(message.text ?? message.body ?? ''),
+      });
+      const mail = filtered && typeof filtered === 'object' ? (filtered as { to?: unknown; subject?: unknown; text?: unknown }) : {};
+      const to = String(mail.to ?? '');
       if (!/^[^\s@]+@[^\s@]+$/.test(to)) throw new Error('A valid recipient is required');
       await this.db.query(
         `INSERT INTO outbound_mail (id, "pluginId", "toAddress", subject, body) VALUES ($1, $2, $3, $4, $5)`,
-        [randomUUID(), manifest.id, to.slice(0, 200), String(message.subject ?? '').slice(0, 200), String(message.body ?? '').slice(0, 20_000)],
+        [randomUUID(), manifest.id, to.slice(0, 200), String(mail.subject ?? '').slice(0, 200), String(mail.text ?? '').slice(0, 20_000)],
       );
       return { queued: true };
     }
@@ -533,6 +740,24 @@ export class PluginsService implements OnModuleInit {
       sidebar: list(value.sidebar) as { type?: string; title?: string; text?: string }[],
       footer: list(value.footer) as { type?: string; title?: string; text?: string }[],
     };
+  }
+
+  async records(id: string, name: string) {
+    this.assertInstalled(id);
+    const manifest = this.readManifest(join(PLUGINS_DIR, id));
+    return this.bridge(manifest, 'data.find', [name, { limit: 50 }]);
+  }
+
+  async pluginContent(id: string, postType?: string) {
+    this.assertInstalled(id);
+    const manifest = this.readManifest(join(PLUGINS_DIR, id));
+    return this.bridge(manifest, 'content.query', [{ postType: postType || '', limit: 50 }]);
+  }
+
+  async createPluginContent(id: string, body: { title?: string; postType?: string }) {
+    this.assertInstalled(id);
+    const manifest = this.readManifest(join(PLUGINS_DIR, id));
+    return this.bridge(manifest, 'content.create', [{ title: body.title, postType: body.postType, type: body.postType === 'page' ? 'PAGE' : 'POST' }]);
   }
 
   async getSettings(id: string) {

@@ -10,15 +10,19 @@ import { isUndefinedColumn, isUndefinedTable } from '../db/errors';
 import { PRIMARY_SITE_ID, currentSiteId } from '../sites/site-context';
 import { ROLE_CAPABILITIES, RoleName, capabilitiesFor, type Capability } from './capabilities';
 import { hasAll, hasAny, resolveCapabilities, withNetworkAdmin } from './capability-resolve';
+import { HooksService } from '../hooks/hooks.service';
 
 const ROLE_SLUG = /^[A-Z][A-Z0-9_]{1,40}$/;
 const BUILTIN = new Set<string>(Object.keys(ROLE_CAPABILITIES));
 
 @Injectable()
 export class CapabilitiesService {
+  private capping = false;
+
   constructor(
     private db: DbService,
     private registry: CoreRegistry,
+    private hooks: HooksService,
   ) {}
 
   catalog() {
@@ -42,7 +46,16 @@ export class CapabilitiesService {
   }
 
   async allows(userId: string, capability: string) {
-    return (await this.list(userId)).includes(capability);
+    const allowed = (await this.list(userId)).includes(capability);
+    if (this.capping) return allowed;
+    this.capping = true;
+    try {
+      const next = await this.hooks.applyFilters('user_has_cap', { userId, capability, allowed });
+      if (next && typeof next === 'object' && (next as { allowed?: unknown }).allowed === false) return false;
+      return allowed;
+    } finally {
+      this.capping = false;
+    }
   }
 
   async allowsAll(userId: string, capabilities: string[]) {

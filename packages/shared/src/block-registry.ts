@@ -14,7 +14,8 @@ export type BlockEdit =
   | 'table'
   | 'container'
   | 'spacer'
-  | 'separator';
+  | 'separator'
+  | 'fields';
 
 export interface BlockAttribute {
   type: 'string' | 'number' | 'boolean';
@@ -47,6 +48,12 @@ const registry = new Map<string, BlockDefinition>();
 
 export function registerBlockType(definition: BlockDefinition) {
   if (registry.has(definition.name)) return registry.get(definition.name)!;
+  registry.set(definition.name, definition);
+  return definition;
+}
+
+/** Plugin blocks replace any previous definition with the same name. */
+export function registerDynamicBlock(definition: BlockDefinition) {
   registry.set(definition.name, definition);
   return definition;
 }

@@ -1,4 +1,5 @@
 import type { BlockNode } from './block-document';
+import { kses } from '../html/kses';
 
 export interface RenderCtx {
   parent?: string;
@@ -23,5 +24,9 @@ export function serverBlockNames() {
 
 export function renderServerBlock(block: BlockNode, ctx: RenderCtx) {
   const render = renderers.get(block.type);
-  return render ? render(block, ctx) : ctx.align(`<p>${ctx.inline(block.content)}</p>${ctx.children(block)}`, block.props);
+  if (render) return render(block, ctx);
+  if (typeof block.props?.html === 'string' && block.props.html) {
+    return `<div class="op-plugin-block">${kses(block.props.html)}</div>`;
+  }
+  return ctx.align(`<p>${ctx.inline(block.content)}</p>${ctx.children(block)}`, block.props);
 }

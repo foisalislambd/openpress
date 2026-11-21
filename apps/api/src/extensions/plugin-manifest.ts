@@ -41,6 +41,15 @@ export const PLUGIN_PERMISSIONS = [
   'widgets',
   'shortcodes',
   'blocks',
+  /** Plugin-scoped collections. Not raw SQL. */
+  'data',
+  'cron',
+  'users:read',
+  'users:write',
+  'comments',
+  'media',
+  'modeling',
+  'i18n',
   /** Accepted so older manifests still parse. The sandbox does not expose raw SQL. */
   'database',
 ] as const;
@@ -61,6 +70,8 @@ export interface PluginManifest {
   dependencies?: string[];
   /** Hosts ctx.http.fetch may call when network:request is declared. */
   allowedHosts?: string[];
+  /** When true, deleting the plugin also deletes its collections, migrations, and storage. */
+  removeData?: boolean;
 }
 
 const ID_RE = /^[a-z0-9][a-z0-9-_]*$/;
@@ -130,6 +141,9 @@ export function validatePluginManifest(manifest: PluginManifest) {
     }
   }
   const required = manifest.requires?.openpress;
+  if (manifest.removeData != null && typeof manifest.removeData !== 'boolean') {
+    throw new Error('removeData must be a boolean');
+  }
   if (required && !versionSatisfies(required)) {
     throw new Error(
       `Plugin requires OpenPress ${required}, this core is ${OPENPRESS_VERSION}`,

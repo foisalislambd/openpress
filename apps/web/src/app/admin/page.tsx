@@ -30,8 +30,20 @@ export default function DashboardPage() {
   const [saving, setSaving] = useState(false);
   const [draftError, setDraftError] = useState('');
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [pluginWidgets, setPluginWidgets] = useState<{ pluginId: string; id: string; title: string; html: string }[]>([]);
 
   useEffect(() => {
+    api<{ dashboard?: { pluginId: string; id: string; title: string }[] }>('/plugins/registry')
+      .then(async (registry) => {
+        const widgets = await Promise.all(
+          (registry.dashboard ?? []).map(async (widget) => {
+            const body = await api<{ html: string }>(`/plugins/${widget.pluginId}/dashboard/${widget.id}`).catch(() => ({ html: '' }));
+            return { ...widget, html: body.html };
+          }),
+        );
+        setPluginWidgets(widgets);
+      })
+      .catch(() => setPluginWidgets([]));
     api<User>('/auth/me')
       .then((me) => {
         setUser(me);
@@ -229,6 +241,17 @@ export default function DashboardPage() {
             ) : null}
           </div>
         </section>
+      ) : null}
+
+      {pluginWidgets.length ? (
+        <div className="mb-4 grid gap-4 md:grid-cols-2">
+          {pluginWidgets.map((widget) => (
+            <section key={`${widget.pluginId}-${widget.id}`} className="border border-[#c3c4c7] bg-white p-3">
+              <h2 className="mb-2 font-semibold">{widget.title}</h2>
+              <div dangerouslySetInnerHTML={{ __html: widget.html }} />
+            </section>
+          ))}
+        </div>
       ) : null}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">

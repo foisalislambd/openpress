@@ -128,11 +128,18 @@ function BlockView({ block }: { block: Block }) {
     case 'pluginBlock':
       return (
         <aside className="my-4 rounded border border-zinc-200 px-3 py-2 text-sm">
-          {String(block.props?.title ?? block.props?.name ?? 'Plugin block')}
+          {String(block.props?.text || block.props?.title || block.props?.name || 'Plugin block')}
         </aside>
       );
     case 'paragraph':
     default:
+      if (block.type.includes('/')) {
+        return (
+          <aside className="my-4 rounded border border-zinc-200 px-3 py-2 text-sm">
+            {String(block.props?.text || block.props?.title || '')}
+          </aside>
+        );
+      }
       return (
         <>
           <p>{inline}</p>

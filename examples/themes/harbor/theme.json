@@ -1,0 +1,22 @@
+{
+  "id": "harbor",
+  "name": "Harbor",
+  "version": "1.0.0",
+  "description": "A production-safe template theme with a header, archives, and a single template.",
+  "author": "OpenPress",
+  "engine": "template-v1",
+  "templates": ["layout", "index", "single", "page", "archive"],
+  "templateParts": ["header"],
+  "menuLocations": [{ "id": "primary", "label": "Primary" }],
+  "widgetAreas": ["sidebar", "footer"],
+  "settings": [{ "key": "tagline", "type": "string", "label": "Tagline", "default": "Notes from the harbor" }],
+  "patterns": [{ "name": "harbor/intro", "title": "Intro", "blocks": [] }],
+  "tokens": {
+    "background": "#f4f7fb",
+    "text": "#102033",
+    "accent": "#0f6e8c",
+    "font": "serif",
+    "layout": "list",
+    "maxWidth": "46rem"
+  }
+}

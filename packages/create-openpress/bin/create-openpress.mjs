@@ -8,6 +8,8 @@ export {
   pluginFiles,
   renderCompose,
   scaffoldPlugin,
+  scaffoldTheme,
+  themeFiles,
 } from '../lib/scaffold.mjs';
 
 function isExecutedDirectly() {

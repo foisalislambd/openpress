@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/client-api';
+import { registerDynamicBlock } from '@openpress/shared';
 import { BlockInspector } from './block-inspector';
 import { BlockCanvas } from './canvas';
 import { Inserter, rememberBlock } from './inserter';
@@ -66,6 +67,35 @@ export function EditorShell({
   const [sidebar, setSidebar] = useState(true);
   const [tab, setTab] = useState<'block' | 'document'>('document');
   const [focus, setFocus] = useState(false);
+
+  useEffect(() => {
+    api<{ blocks?: { name: string; title: string; description?: string; attributes?: { key: string; type?: 'string' | 'number' | 'boolean'; label?: string }[] }[] }>(
+      '/plugins/chrome',
+    )
+      .then((chrome) => {
+        for (const block of chrome.blocks ?? []) {
+          if (!block.name.includes('/')) continue;
+          const attributes: Record<string, { type: 'string' | 'number' | 'boolean'; default?: string }> = {};
+          for (const attribute of block.attributes ?? []) {
+            attributes[attribute.key] = { type: attribute.type === 'number' || attribute.type === 'boolean' ? attribute.type : 'string', default: '' };
+          }
+          registerDynamicBlock({
+            name: block.name,
+            title: block.title,
+            category: 'widgets',
+            icon: 'plugins',
+            description: block.description || block.title,
+            keywords: [block.name],
+            attributes,
+            supports: {},
+            edit: 'fields',
+            inserter: true,
+            transforms: [],
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [more, setMore] = useState(false);
   const history = useRef<CanvasBlock[][]>([]);
   const future = useRef<CanvasBlock[][]>([]);

@@ -24,6 +24,17 @@ export interface PluginRegistration {
   handle?: string;
   file?: string;
   assetKind?: 'style' | 'script';
+  screen?: string;
+  collection?: string;
+  postType?: string;
+  columns?: { key: string; label: string }[];
+  html?: string;
+  postTypes?: string[];
+  attributes?: { key: string; type?: string; label?: string }[];
+  schema?: unknown;
+  version?: string;
+  noticeType?: string;
+  message?: string;
   optionKey?: string;
   optionType?: string;
   optionGroup?: string;

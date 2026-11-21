@@ -25,6 +25,6 @@ export default definePlugin((ctx) => {
 });
 ```
 
-Plugins that OpenPress loads are still CommonJS (`module.exports = { activate }`). Compile to that, or write the plugin in JavaScript and use this package only for checking. `ctx.db` is typed as `never` because the sandbox does not expose SQL.
+Plugins that OpenPress loads are still CommonJS (`module.exports = { activate }`). Compile to that, or write the plugin in JavaScript and use this package only for checking. `ctx.db` is typed as `never` because the sandbox does not expose SQL. Structured plugin data is `ctx.data`. Core hooks are listed in `CORE_HOOKS` and in `docs/hooks.md`.
 
 Permission names match `docs/plugins.md` in the OpenPress repository.

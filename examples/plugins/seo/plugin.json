@@ -1,0 +1,9 @@
+{
+  "id": "seo",
+  "name": "OpenPress SEO",
+  "version": "1.0.0",
+  "description": "Title suffix, meta description, and a note block.",
+  "main": "index.js",
+  "requires": { "openpress": ">=1.0.0" },
+  "permissions": ["settings", "admin_menu", "blocks", "i18n"]
+}

@@ -327,6 +327,7 @@ export class ContentService {
     await this.writeFields(id, dto.fields);
     const content = await this.findOne(id);
     await this.hooks.doAction('content.created', content);
+    await this.hooks.doAction('save_post', content);
     if (status === 'PUBLISHED') await this.hooks.doAction('content.published', content);
     return content;
   }
@@ -419,6 +420,7 @@ export class ContentService {
 
     const content = await this.findOne(id);
     await this.hooks.doAction('content.updated', content);
+    await this.hooks.doAction('save_post', content);
     if (becomingPublished) await this.hooks.doAction('content.published', content);
     return content;
   }
@@ -433,6 +435,7 @@ export class ContentService {
     );
     if (!removed) throw new NotFoundException('Content not found');
     await this.hooks.doAction('content.deleted', removed);
+    await this.hooks.doAction('delete_post', removed);
     return { id };
   }
 
@@ -561,6 +564,12 @@ export class ContentService {
     if (content.status !== 'PUBLISHED' || content.visibility === 'PRIVATE') {
       throw new NotFoundException('Content not found');
     }
+    await this.hooks.doAction('template_redirect', {
+      id: content.id,
+      slug: content.slug,
+      type: content.type,
+      postType: content.postType,
+    });
     const unlocked =
       content.visibility === 'PASSWORD' &&
       verifyUnlock(this.unlockSecret, unlock, content.slug);
@@ -608,13 +617,29 @@ export class ContentService {
     const title = await this.hooks.applyFilters('the_title', filtered.title, filtered);
     const excerpt = await this.hooks.applyFilters('the_excerpt', filtered.excerpt ?? '', filtered);
     const blocks = await this.hooks.applyFilters('the_content', filtered.blocks, filtered);
+    const templateSource = filtered as unknown as { templates?: unknown };
+    const incomingTemplates = Array.isArray(templateSource.templates)
+      ? templateSource.templates.filter((item): item is string => typeof item === 'string')
+      : undefined;
+    const templated = incomingTemplates
+      ? await this.hooks.applyFilters('template_include', incomingTemplates, filtered)
+      : incomingTemplates;
+    const templates = Array.isArray(templated)
+      ? templated.filter((item): item is string => typeof item === 'string' && /^[a-z0-9-]{1,80}$/.test(item)).slice(0, 12)
+      : incomingTemplates;
     const viewOut = {
       ...filtered,
+      ...(templates ? { templates } : {}),
       title: typeof title === 'string' ? title : filtered.title,
       excerpt: typeof excerpt === 'string' ? excerpt : filtered.excerpt,
       blocks: Array.isArray(blocks) ? blocks : filtered.blocks,
     };
-    return { ...viewOut, seoHead: await this.seoHead(viewOut) };
+    const seoHead = await this.seoHead(viewOut);
+    const documentTitle = await this.hooks.applyFilters('document_title', seoHead.title, viewOut);
+    return {
+      ...viewOut,
+      seoHead: { ...seoHead, title: typeof documentTitle === 'string' ? documentTitle : seoHead.title },
+    };
   }
 
   private async filterBlocks(blocks: unknown[], user: JwtPayload, id?: string) {

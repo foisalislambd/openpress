@@ -5,6 +5,7 @@ import { ContentService } from '../content/content.service';
 import { PUBLISHED_MEDIA_MATCH } from '../content/public-media';
 import { currentSiteId } from '../sites/site-context';
 import { DbService } from '../db/db.service';
+import { HooksService } from '../hooks/hooks.service';
 
 class GraphqlDto {
   @IsString()
@@ -61,6 +62,7 @@ export class GraphqlController {
   constructor(
     private content: ContentService,
     private db: DbService,
+    private hooks: HooksService,
   ) {}
 
   @Post()
@@ -113,7 +115,8 @@ export class GraphqlController {
           [args.contentId, currentSiteId()],
         ),
     };
-    return graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
+    const result = await graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
+    return this.hooks.applyFilters('graphql_response', result);
   }
 }
 

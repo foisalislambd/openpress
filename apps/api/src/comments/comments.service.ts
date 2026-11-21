@@ -111,8 +111,10 @@ export class CommentsService {
     if (flag.commentRegistration === true && !data.authorId) {
       throw new BadRequestException('Sign in to leave a comment');
     }
+    const filteredBody = await this.hooks.applyFilters('comment_text', data.body, { contentId: data.contentId });
+    const body = typeof filteredBody === 'string' ? filteredBody : data.body;
     const status = initialCommentStatus({
-      body: data.body,
+      body,
       authenticated: Boolean(data.authorId),
       moderation: flag.commentModeration !== false,
     });
@@ -144,7 +146,7 @@ export class CommentsService {
         data.authorId ?? null,
         data.guestName ?? null,
         data.guestEmail ?? null,
-        kses(data.body),
+        kses(body),
         status,
         data.parentId ?? null,
         data.authorIp?.slice(0, 64) ?? null,
