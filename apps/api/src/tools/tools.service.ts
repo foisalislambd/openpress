@@ -10,7 +10,8 @@ import { join } from 'path';
 import { enqueue } from '../jobs/queue';
 import { FieldMapping, parseEmDash } from '../feeds/emdash';
 import { buildWxr, parseWxrBundle, WxrBundle, WxrItem } from '../feeds/wxr';
-import { isPublicHostname } from '../extensions/sandbox/plugin-sandbox';
+import { detectUpload } from '../media/upload-sniff';
+import { requestPublic } from '../security/outbound-url';
 import { SettingsService } from '../settings/settings.service';
 import { currentSiteId } from '../sites/site-context';
 
@@ -394,15 +395,13 @@ export class ToolsService {
   }
 
   private async downloadAttachment(url: string, filename: string, uploaderId: string) {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol) || !isPublicHostname(parsed.hostname)) {
-      throw new Error('refused non-public URL');
-    }
-    const response = await fetch(parsed, { redirect: 'manual', signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
+    const response = await requestPublic(url, { timeoutMs: 15_000, maxBytes: 15_000_000 });
+    if (response.status < 200 || response.status >= 300) throw new Error(`HTTP ${response.status}`);
+    const bytes = response.body;
     if (bytes.length > 15_000_000) throw new Error('larger than 15MB');
-    const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 80) || 'file';
+    const detected = detectUpload(bytes);
+    if (!detected) throw new Error('attachment type is not allowed');
+    const safe = `${filename.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 60) || 'file'}${detected.ext}`;
     const stored = `${Date.now()}-${safe}`;
     const dir = process.env.UPLOAD_DIR ?? 'uploads';
     mkdirSync(dir, { recursive: true });
@@ -412,7 +411,7 @@ export class ToolsService {
     await this.db.query(
       `INSERT INTO media (id, filename, url, "mimeType", size, "uploaderId")
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, safe, publicUrl, response.headers.get('content-type') || 'application/octet-stream', bytes.length, uploaderId],
+      [id, safe, publicUrl, detected.mime, bytes.length, uploaderId],
     );
     return publicUrl;
   }

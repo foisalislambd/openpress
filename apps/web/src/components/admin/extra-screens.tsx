@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { DragEvent, FormEvent, useEffect, useState } from 'react';
 import type { Category, Content, Paginated, SiteSettings, User } from '@openpress/shared';
-import { api, getToken } from '@/lib/client-api';
+import { api, apiFetch } from '@/lib/client-api';
 import { Button, Input, Label, Select, Textarea } from '@/components/ui';
 import { Notice, Screen, SettingsForm } from '@/components/admin/screen';
 
@@ -897,11 +897,7 @@ export function ExportScreen() {
         type="button"
         variant="secondary"
         onClick={async () => {
-          const token = getToken();
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-          const res = await fetch(`${apiUrl}/api/tools/export/wxr`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
+          const res = await apiFetch('/tools/export/wxr');
           if (!res.ok) {
             setError('WXR export failed');
             return;

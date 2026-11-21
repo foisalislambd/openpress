@@ -6,6 +6,11 @@ import '../src/db/pg-types';
 
 loadEnv();
 
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED !== 'true') {
+  console.error('Refusing to seed the demo admin in production. Set ALLOW_DEMO_SEED=true to override.');
+  process.exit(1);
+}
+
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   console.error('DATABASE_URL is not set. Copy apps/api/.env.example to apps/api/.env');

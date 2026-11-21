@@ -40,12 +40,18 @@ PORT=4000
 UPLOAD_DIR=/var/openpress/uploads
 WEB_ORIGIN=https://yourdomain.com
 NODE_ENV=production
+# Leave unset in production. Set to 1 only if you trust every installed react-v1 theme with the web server.
+# OPENPRESS_CODE_THEMES=0
 ```
+
+The API process exits on boot when `NODE_ENV=production` and `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`, or `WEB_ORIGIN` is missing or still a documented placeholder.
 
 ### Web
 
 ```env
 NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+# Same switch as the API note above. The web server is what evaluates react-v1 themes.
+OPENPRESS_CODE_THEMES=0
 ```
 
 Or same host with reverse proxy: `https://yourdomain.com` → web, `https://yourdomain.com/api` → API (requires proxy config).
@@ -79,12 +85,13 @@ Back these up or treat as deploy artifacts (re-upload zips).
 
 ## Security checklist
 
-- [ ] Change `JWT_SECRET` and `JWT_REFRESH_SECRET`
-- [ ] Set `WEB_ORIGIN` (do not leave CORS open)
-- [ ] Use HTTPS everywhere
+- [ ] Set `JWT_SECRET` and `JWT_REFRESH_SECRET` to different random strings of at least 32 characters
+- [ ] Set `WEB_ORIGIN` to the public site origin (production refuses `*` and an empty value)
+- [ ] Use HTTPS everywhere so the admin session cookie is marked Secure
 - [ ] `allowRegistration` false unless needed
+- [ ] Do not run `pnpm db:seed` against production (it refuses unless `ALLOW_DEMO_SEED=true`)
 - [ ] Strong admin passwords
-- [ ] Only install trusted plugin/theme zips
+- [ ] Only install trusted plugin/theme zips. Leave `OPENPRESS_CODE_THEMES` unset unless those themes are trusted with the web server
 - [ ] Rate limits enabled (default on)
 - [ ] Do not expose Postgres publicly
 - [ ] Keep `enabledPlugins` and internal settings non-writable via API (built-in)
@@ -102,13 +109,15 @@ Either:
 - **Web** — standard Next.js scaling; ISR cache is 10s on public API fetches
 - **DB** — single PostgreSQL; connection pool via `pg`
 
-## Docker (future)
+## Docker
 
-Current repo includes `docker-compose.yml` for **Postgres only**. Full container images for API/web are not shipped yet — build your own Dockerfile per app or use Node on a VM.
+`docker-compose.yml` starts Postgres for local development. `docker-compose.prod.yml` builds the API, worker, and web images. It reads `JWT_SECRET` and `JWT_REFRESH_SECRET` from the environment and does not embed a default. Postgres is health-checked, and the API exposes `GET /api/health`.
+
+Released images are also published to GHCR. Pin them from `VERSION.md`, or print a Compose file with `node packages/create-openpress/bin/create-openpress.mjs compose <version>`.
 
 ## Health checks
 
-- API: `GET /api/settings` should return 200
+- API: `GET /api/health` returns `{ "ok": true }` when Postgres answers
 - Web: `GET /` should return 200
 
 ## Logs

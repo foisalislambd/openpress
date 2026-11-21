@@ -5,6 +5,7 @@ import { PasswordGate } from '@/components/password-gate';
 import { getComments, getPublicContentBySlug, getSettings } from '@/lib/api';
 import { resolveTheme } from '@/lib/themes';
 import { renderTemplate } from '@/lib/templates';
+import { jsonForScript } from '@/lib/safe-html';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -70,7 +71,7 @@ export default async function ContentPage({ params }: Props) {
   return (
     <>
       {content.seoHead ? (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(content.seoHead.jsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonForScript(content.seoHead.jsonLd) }} />
       ) : null}
       {renderTemplate(theme, content.templates ?? [], fallback, { settings, content, comments })}
     </>

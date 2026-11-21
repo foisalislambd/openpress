@@ -88,7 +88,7 @@ describe('plugin sandbox', () => {
     );
     writeFileSync(
       join(dir, 'index.js'),
-      `function activate(ctx) {
+      `async function activate(ctx) {
         ctx.hooks.addFilter('the_title', (title) => title + '!');
         let fsBlocked = false;
         let httpBlocked = false;
@@ -96,7 +96,9 @@ describe('plugin sandbox', () => {
         try { require('fs').readFileSync('/etc/passwd'); } catch (error) { fsBlocked = /blocked|ACCESS_DENIED|denied/i.test(String(error)); }
         try { require('http').get('http://example.com'); } catch (error) { httpBlocked = /blocked/i.test(String(error)); }
         try { fetch('https://example.com'); } catch (error) { fetchBlocked = /blocked/i.test(String(error)); }
-        ctx.hooks.addFilter('sandbox_report', () => ({ fsBlocked, httpBlocked, fetchBlocked }));
+        let importBlocked = false;
+        try { await import('node:fs'); } catch (error) { importBlocked = /blocked|denied|ACCESS_DENIED/i.test(String(error)); }
+        ctx.hooks.addFilter('sandbox_report', () => ({ fsBlocked, httpBlocked, fetchBlocked, importBlocked }));
       }
       module.exports = { activate };`,
     );
@@ -122,10 +124,12 @@ describe('plugin sandbox', () => {
         fsBlocked: boolean;
         httpBlocked: boolean;
         fetchBlocked: boolean;
+        importBlocked: boolean;
       };
       assert.equal(report.fsBlocked, true);
       assert.equal(report.httpBlocked, true);
       assert.equal(report.fetchBlocked, true);
+      assert.equal(report.importBlocked, true);
       assert.deepEqual(calls, []);
     } finally {
       handle.dispose();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BLOCK_CATEGORIES, getBlockTypes, type BlockDefinition } from '@openpress/shared';
 import { api } from '@/lib/client-api';
 import { WpIcon } from './wp-icons';
@@ -31,14 +31,10 @@ export function Inserter({ onInsert }: { onInsert: (type: string) => void }) {
     .map((name) => blocks.find((block) => block.name === name))
     .filter((block): block is BlockDefinition => Boolean(block));
   const needle = query.trim().toLowerCase();
-  const filtered = useMemo(
-    () =>
-      blocks.filter((block) => {
-        if (!needle) return true;
-        return [block.title, block.description, ...block.keywords, block.name].join(' ').toLowerCase().includes(needle);
-      }),
-    [blocks, needle],
-  );
+  const filtered = blocks.filter((block) => {
+    if (!needle) return true;
+    return [block.title, block.description, ...block.keywords, block.name].join(' ').toLowerCase().includes(needle);
+  });
 
   useEffect(() => {
     if (tab !== 'patterns') return;

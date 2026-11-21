@@ -2,9 +2,14 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: openpress
-      POSTGRES_PASSWORD: openpress
-      POSTGRES_DB: openpress
+      POSTGRES_USER: ${POSTGRES_USER:-openpress}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openpress}
+      POSTGRES_DB: ${POSTGRES_DB:-openpress}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     volumes:
       - pgdata:/var/lib/postgresql/data
   redis:
@@ -14,12 +19,13 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     environment:
-      DATABASE_URL: postgresql://openpress:openpress@postgres:5432/openpress
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openpress}:${POSTGRES_PASSWORD:-openpress}@postgres:5432/${POSTGRES_DB:-openpress}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: change-me
-      JWT_REFRESH_SECRET: change-me-too
-      WEB_ORIGIN: http://localhost:3000
-      API_PUBLIC_URL: http://localhost:4000
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random string of at least 32 characters}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET to a different random string of at least 32 characters}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:4000}
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_ORIGIN: http://localhost:3000
       PORT: 4000
@@ -38,21 +44,30 @@ services:
       # GITHUB_CLIENT_SECRET: ""
       # SMTP_HOST: ""
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "4000:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
   worker:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     command: ["node", "dist/worker.js"]
     environment:
-      DATABASE_URL: postgresql://openpress:openpress@postgres:5432/openpress
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openpress}:${POSTGRES_PASSWORD:-openpress}@postgres:5432/${POSTGRES_DB:-openpress}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: change-me
-      JWT_REFRESH_SECRET: change-me-too
-      WEB_ORIGIN: http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random string of at least 32 characters}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET to a different random string of at least 32 characters}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       STORAGE_DRIVER: local
       S3_ENDPOINT: ""
       S3_BUCKET: ""
@@ -61,8 +76,10 @@ services:
       S3_PUBLIC_URL: ""
       S3_FORCE_PATH_STYLE: "true"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
   web:
     build:
       context: .
@@ -70,9 +87,16 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:4000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   pgdata:

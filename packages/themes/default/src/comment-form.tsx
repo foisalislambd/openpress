@@ -14,7 +14,9 @@ export function CommentForm({ contentId, closed }: { contentId: string; closed?:
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    setSignedIn(Boolean(window.localStorage.getItem('op_token')));
+    fetch(`${API_URL}/api/auth/me`, { credentials: 'include', headers: { 'X-OpenPress-Client': 'web' } })
+      .then((res) => setSignedIn(res.ok))
+      .catch(() => setSignedIn(false));
   }, []);
 
   if (closed) {
@@ -27,17 +29,23 @@ export function CommentForm({ contentId, closed }: { contentId: string; closed?:
     setError('');
     setMessage('');
     try {
-      const token = window.localStorage.getItem('op_token');
+      const csrfRes = await fetch(`${API_URL}/api/auth/csrf`, {
+        credentials: 'include',
+        headers: { 'X-OpenPress-Client': 'web' },
+      });
+      const csrf = csrfRes.ok ? ((await csrfRes.json()) as { csrfToken?: string }).csrfToken : undefined;
       const res = await fetch(`${API_URL}/api/comments`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-OpenPress-Client': 'web',
+          ...(csrf ? { 'X-OpenPress-CSRF': csrf } : {}),
         },
         body: JSON.stringify({
           contentId,
-          guestName: token ? undefined : name,
-          guestEmail: token ? undefined : email || undefined,
+          guestName: signedIn ? undefined : name,
+          guestEmail: signedIn ? undefined : email || undefined,
           body,
         }),
       });

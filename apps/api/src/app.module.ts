@@ -30,6 +30,7 @@ import { MenusModule } from './menus/menus.module';
 import { RewriteModule } from './rewrite/rewrite.module';
 import { WidgetsModule } from './widgets/widgets.module';
 import { SitesModule } from './sites/sites.module';
+import { CsrfGuard } from './auth/csrf.guard';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { SitesModule } from './sites/sites.module';
     AppPasswordMiddleware,
     ApiKeyMiddleware,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
   ],
 })
 export class AppModule implements NestModule {

@@ -293,10 +293,11 @@ export function renderCompose(version) {
   api:
     image: ghcr.io/foisalislambd/openpress-api:${version}
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgresql://openpress:openpress@postgres:5432/openpress
-      JWT_SECRET: change-me
-      JWT_REFRESH_SECRET: change-me-too
-      WEB_ORIGIN: http://localhost:3000
+      JWT_SECRET: \${JWT_SECRET:?Set JWT_SECRET to a random string of at least 32 characters}
+      JWT_REFRESH_SECRET: \${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET to a different random string of at least 32 characters}
+      WEB_ORIGIN: \${WEB_ORIGIN:-http://localhost:3000}
       PORT: 4000
     depends_on:
       - postgres

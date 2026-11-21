@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { User } from '@openpress/shared';
 import { AdminShell } from '@/components/admin/shell';
-import { api, clearTokens, getToken } from '@/lib/client-api';
+import { api, clearTokens } from '@/lib/client-api';
 
 export default function AdminLayout({
   children,
@@ -18,10 +18,6 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (isLogin) return;
-    if (!getToken()) {
-      router.replace('/admin/login');
-      return;
-    }
     api<User>('/auth/me')
       .then(setUser)
       .catch(() => {

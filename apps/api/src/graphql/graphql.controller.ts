@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 import { buildSchema, graphql } from 'graphql';
 import { ContentService } from '../content/content.service';
@@ -64,6 +64,9 @@ export class GraphqlController {
 
   @Post()
   async query(@Body() body: GraphqlDto) {
+    if (!body.query || body.query.length > 12_000 || braceDepth(body.query) > 8) {
+      throw new BadRequestException('Query is empty or too expensive');
+    }
     const root = {
       posts: async (args: { page?: number; perPage?: number; search?: string }) => {
         const result = await this.content.findAll(
@@ -107,6 +110,18 @@ export class GraphqlController {
     };
     return graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
   }
+}
+
+function braceDepth(source: string) {
+  let depth = 0;
+  let max = 0;
+  for (const char of source) {
+    if (char === '{') {
+      depth += 1;
+      if (depth > max) max = depth;
+    } else if (char === '}') depth = Math.max(0, depth - 1);
+  }
+  return max;
 }
 
 function mapPost(item: { id: string; title: string; slug: string; excerpt?: string | null; status: string; permalink?: string; type: string }) {

@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { execFile } from 'child_process';
-import { unlink } from 'fs/promises';
+import { open, rename, unlink } from 'fs/promises';
 import { promisify } from 'util';
-import { basename, extname, join } from 'path';
+import { basename, extname, join, resolve, sep } from 'path';
 import sharp from 'sharp';
 import { DbService } from '../db/db.service';
 import { newId } from '../db/ids';
@@ -13,6 +13,7 @@ import { publishObject, publicUrlFor, removeObject, storageDriver } from './stor
 import { currentSiteId } from '../sites/site-context';
 import { buildMediaQuery, MediaQueryInput } from './media-query';
 import { pdfPreviewArgs } from './pdf-preview';
+import { detectUpload } from './upload-sniff';
 
 const execFileAsync = promisify(execFile);
 
@@ -108,6 +109,7 @@ export class MediaService {
   }
 
   async create(file: Express.Multer.File, uploaderId: string, alt?: string) {
+    await this.acceptUpload(file);
     const id = newId();
     await this.db.query(
       `INSERT INTO media (
@@ -119,7 +121,7 @@ export class MediaService {
     if (!queued) await this.regenerate(id);
     else if (storageDriver() === 's3') {
       const url = await publishObject(file.filename, file.path, file.mimetype);
-      await this.db.query('UPDATE media SET url = $2 WHERE id = $1', [id, url]);
+      await this.db.query('UPDATE media SET url = $2 WHERE id = $1 AND "siteId" = $3', [id, url, currentSiteId()]);
     }
     return this.findOne(id);
   }
@@ -144,10 +146,10 @@ export class MediaService {
       sets.push(`"focalY" = $${params.length}`);
     }
     if (sets.length === 0) throw new BadRequestException('Nothing to update');
-    params.push(id);
+    params.push(id, currentSiteId());
     const media = await this.db.one(
       `UPDATE media SET ${sets.join(', ')}
-       WHERE id = $${params.length}
+       WHERE id = $${params.length - 1} AND "siteId" = $${params.length}
        RETURNING id, filename, url, "mimeType", size, width, height, alt, caption, sizes, "uploaderId", "createdAt"`,
       params,
     );
@@ -157,8 +159,8 @@ export class MediaService {
 
   async transform(id: string, input: { rotate?: number; flip?: 'horizontal' | 'vertical'; width?: number; height?: number }) {
     const media = await this.db.one<{ filename: string; mimeType: string; sizes: Record<string, SizeFile> }>(
-      'SELECT filename, "mimeType", sizes FROM media WHERE id = $1',
-      [id],
+      'SELECT filename, "mimeType", sizes FROM media WHERE id = $1 AND "siteId" = $2',
+      [id, currentSiteId()],
     );
     if (!media) throw new NotFoundException('Media not found');
     if (!RASTER.has(media.mimeType)) throw new BadRequestException('Only raster images can be edited');
@@ -184,8 +186,8 @@ export class MediaService {
 
   async regenerate(id: string) {
     const media = await this.db.one<{ filename: string; mimeType: string; sizes: Record<string, SizeFile> }>(
-      'SELECT filename, "mimeType", sizes FROM media WHERE id = $1',
-      [id],
+      'SELECT filename, "mimeType", sizes FROM media WHERE id = $1 AND "siteId" = $2',
+      [id, currentSiteId()],
     );
     if (!media) throw new NotFoundException('Media not found');
     const path = this.filePath(media.filename);
@@ -195,7 +197,7 @@ export class MediaService {
     const fileStat = await stat(path).catch(() => null);
     await this.db.query(
       `UPDATE media SET url = $2, width = $3, height = $4, sizes = $5::jsonb, size = COALESCE($6, size), "storageKey" = $7
-       WHERE id = $1`,
+       WHERE id = $1 AND "siteId" = $8`,
       [
         id,
         derived.url,
@@ -204,6 +206,7 @@ export class MediaService {
         JSON.stringify(derived.sizes),
         fileStat?.size ?? null,
         media.filename,
+        currentSiteId(),
       ],
     );
     return this.findOne(id);
@@ -218,8 +221,8 @@ export class MediaService {
       height: number | null;
       sizes: Record<string, SizeFile>;
     }>(
-      'SELECT id, filename, "mimeType", width, height, sizes FROM media WHERE id = $1',
-      [id],
+      'SELECT id, filename, "mimeType", width, height, sizes FROM media WHERE id = $1 AND "siteId" = $2',
+      [id, currentSiteId()],
     );
     if (!media) throw new NotFoundException('Media not found');
     if (!RASTER.has(media.mimeType) || !media.width || !media.height) {
@@ -237,9 +240,9 @@ export class MediaService {
     const updated = await this.db.one(
       `UPDATE media
        SET width = $2, height = $3, sizes = $4::jsonb, size = $5
-       WHERE id = $1
+       WHERE id = $1 AND "siteId" = $6
        RETURNING id, filename, url, "mimeType", size, width, height, alt, caption, sizes, "uploaderId", "createdAt"`,
-      [id, derived.width, derived.height, JSON.stringify(derived.sizes), fileStat.size],
+      [id, derived.width, derived.height, JSON.stringify(derived.sizes), fileStat.size, currentSiteId()],
     );
     return updated;
   }
@@ -409,9 +412,36 @@ export class MediaService {
     }
   }
 
+  private async acceptUpload(file: Express.Multer.File) {
+    const handle = await open(file.path, 'r');
+    const head = Buffer.alloc(32);
+    try {
+      await handle.read(head, 0, 32, 0);
+    } finally {
+      await handle.close();
+    }
+    const detected = detectUpload(head);
+    if (!detected) {
+      await unlink(file.path).catch(() => undefined);
+      throw new BadRequestException('File contents are not an allowed image, audio, video, or PDF');
+    }
+    const nextName = `${basename(file.filename, '.bin')}${detected.ext}`;
+    const nextPath = this.filePath(nextName);
+    if (nextPath !== file.path) await rename(file.path, nextPath);
+    file.filename = nextName;
+    file.path = nextPath;
+    file.mimetype = detected.mime;
+  }
+
   private filePath(filename: string) {
-    const uploadDir = process.env.UPLOAD_DIR ?? 'uploads';
-    return join(process.cwd(), uploadDir, filename);
+    const safe = basename(filename);
+    if (!safe || safe !== filename || safe === '.' || safe === '..') {
+      throw new BadRequestException('Invalid media filename');
+    }
+    const root = resolve(process.cwd(), process.env.UPLOAD_DIR ?? 'uploads');
+    const target = resolve(root, safe);
+    if (target !== root && !target.startsWith(root + sep)) throw new BadRequestException('Invalid media filename');
+    return target;
   }
 }
 

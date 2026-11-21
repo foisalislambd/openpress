@@ -70,7 +70,9 @@ export function EditorShell({
   const history = useRef<CanvasBlock[][]>([]);
   const future = useRef<CanvasBlock[][]>([]);
   const blocksRef = useRef(blocks);
-  blocksRef.current = blocks;
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
 
   function commit(recipe: (current: CanvasBlock[]) => CanvasBlock[]) {
     setBlocks((current) => {

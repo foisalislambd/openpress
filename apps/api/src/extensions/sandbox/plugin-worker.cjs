@@ -6,6 +6,7 @@
  */
 const Module = require('module');
 const path = require('path');
+const { registerHooks } = require('node:module');
 
 const BLOCKED = new Set([
   'fs',
@@ -30,6 +31,13 @@ function blocked(id) {
   return BLOCKED.has(name) || name.startsWith('fs/') || name.startsWith('node:fs');
 }
 
+const originalLoad = Module._load;
+Module._load = function sandboxLoad(request) {
+  if (blocked(request)) {
+    throw new Error(`Sandbox blocked require("${request}")`);
+  }
+  return originalLoad.apply(this, arguments);
+};
 const originalRequire = Module.prototype.require;
 Module.prototype.require = function sandboxRequire(id) {
   if (blocked(id)) {
@@ -37,6 +45,23 @@ Module.prototype.require = function sandboxRequire(id) {
   }
   return originalRequire.apply(this, arguments);
 };
+
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.startsWith('node:') && blocked(url.slice('node:'.length))) {
+      throw new Error(`Sandbox blocked import("${url}")`);
+    }
+    return nextLoad(url, context);
+  },
+});
+
+for (const name of ['binding', 'dlopen', '_linkedBinding']) {
+  if (typeof process[name] === 'function') {
+    process[name] = () => {
+      throw new Error(`Sandbox blocked process.${name}`);
+    };
+  }
+}
 
 if (typeof process.getBuiltinModule === 'function') {
   const builtin = process.getBuiltinModule.bind(process);
