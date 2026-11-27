@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 14px sans-serif; margin: 8px; }
+      input { width: 100%; box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    <label>Note <input id="text" aria-label="SEO note text" /></label>
+    <script>
+      window.onOpenPressBlock = function (attributes) {
+        document.getElementById('text').value = attributes.text || '';
+      };
+      document.getElementById('text').addEventListener('input', function (event) {
+        window.openpress.setAttributes({ text: event.target.value });
+      });
+    </script>
+  </body>
+</html>

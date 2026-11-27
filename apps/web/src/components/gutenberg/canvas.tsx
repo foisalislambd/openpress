@@ -5,6 +5,8 @@ import { getBlockType } from '@openpress/shared';
 import { BlockToolbar } from './block-toolbar';
 import { SlashMenu } from './inserter';
 import { textOf, type CanvasBlock } from './tree';
+import { IsolatedFrame } from '@/components/admin/isolated-frame';
+import { blockOwner } from './block-owners';
 
 export function BlockCanvas({
   blocks,
@@ -165,6 +167,36 @@ function BlockFrame(props: {
           ) : null}
         </div>
       ) : null}
+      {edit === 'fields' ? (
+        <div className="op-gb-panel">
+          {Object.entries(definition?.attributes ?? {}).map(([key, attribute]) => (
+            <label key={key} className="op-gb-field">
+              {attributeLabel(key)}
+              <input
+                type={attribute.type === 'number' ? 'number' : 'text'}
+                value={String(block.props[key] ?? attribute.default ?? '')}
+                onChange={(event) =>
+                  props.onProps(block.id, {
+                    ...block.props,
+                    [key]: attribute.type === 'number' ? Number(event.target.value) : event.target.value,
+                  })
+                }
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+      {edit === 'app' ? (
+        <IsolatedFrame
+          title={`${definition?.title ?? block.type} editor`}
+          pluginId={blockOwner(block.type)}
+          src={`/api/plugins/block-editor?name=${encodeURIComponent(block.type)}`}
+          className="min-h-40 w-full border border-[#c3c4c7] bg-white"
+          attributes={block.props}
+          allowedKeys={Object.keys(definition?.attributes ?? {})}
+          onAttributes={(next) => props.onProps(block.id, { ...block.props, ...next })}
+        />
+      ) : null}
       {edit === 'separator' ? <hr /> : null}
       {edit === 'spacer' ? <div style={{ height: Number(block.props.height ?? 48), background: 'repeating-linear-gradient(45deg,#f0f0f0,#f0f0f0 6px,#fff 6px,#fff 12px)' }} /> : null}
       {edit === 'html' ? (
@@ -240,6 +272,10 @@ function MediaPreview({ block }: { block: CanvasBlock }) {
     );
   }
   return <p style={{ color: '#757575' }}>{url || 'Add a URL in the block settings.'}</p>;
+}
+
+function attributeLabel(key: string) {
+  return key.charAt(0).toUpperCase() + key.slice(1);
 }
 
 function TableGrid({ block, onProps }: { block: CanvasBlock; onProps: (props: CanvasBlock['props']) => void }) {

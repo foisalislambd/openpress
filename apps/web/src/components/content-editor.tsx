@@ -13,9 +13,11 @@ import { EditorShell } from '@/components/gutenberg/editor-shell';
 export function ContentEditor({
   type,
   contentId,
+  postType: initialPostType,
 }: {
   type: 'POST' | 'PAGE';
   contentId?: string;
+  postType?: string;
 }) {
   const router = useRouter();
   const base = type === 'POST' ? '/admin/posts' : '/admin/pages';
@@ -35,6 +37,8 @@ export function ContentEditor({
   const [seoImage, setSeoImage] = useState('');
   const [locale, setLocale] = useState('en');
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [postType, setPostType] = useState(initialPostType || (type === 'PAGE' ? 'page' : 'post'));
+  const [metaBoxes, setMetaBoxes] = useState<{ id: string; title: string; postTypes: string[]; fields: { key: string; label: string; type?: string }[] }[]>([]);
   const [coverImage, setCoverImage] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -86,6 +90,7 @@ export function ContentEditor({
           setCommentStatus(c.commentStatus ?? 'open');
           setScheduledAt(c.scheduledAt ? c.scheduledAt.slice(0, 16) : '');
           setMeta(c.meta ?? []);
+          if (c.postType) setPostType(c.postType);
           setLoaded(true);
           api<{ title: string; blocks: unknown[]; excerpt?: string | null; updatedAt: string } | null>(
             `/content/${contentId}/autosave`,
@@ -100,6 +105,12 @@ export function ContentEditor({
         .catch(() => setError('Failed to load content'));
     }
   }, [contentId]);
+
+  useEffect(() => {
+    api<{ metaBoxes?: { id: string; title: string; postTypes: string[]; fields: { key: string; label: string; type?: string }[] }[] }>('/plugins/chrome')
+      .then((chrome) => setMetaBoxes(chrome.metaBoxes ?? []))
+      .catch(() => setMetaBoxes([]));
+  }, []);
 
   useEffect(() => {
     if (!contentId || !loaded) return;
@@ -143,7 +154,7 @@ export function ContentEditor({
       },
       locale,
       fields: fieldValues,
-      postType: type === 'PAGE' ? 'page' : 'post',
+      postType,
       coverImage: coverImage || undefined,
       categoryIds,
       tagIds,
@@ -355,6 +366,25 @@ export function ContentEditor({
               </div>
             </div>
           ) : null}
+          {metaBoxes
+            .filter((box) => box.postTypes.includes(postType) || box.postTypes.includes(type === 'PAGE' ? 'page' : 'post'))
+            .map((box) => (
+              <div key={box.id} className="border border-[#c3c4c7] bg-white">
+                <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">{box.title}</h2>
+                <div className="space-y-2 p-3">
+                  {box.fields.map((field) => (
+                    <label key={field.key} className="block text-[13px]">
+                      {field.label}
+                      <Input
+                        className="mt-1"
+                        value={fieldValues[field.key] ?? ''}
+                        onChange={(event) => setFieldValues({ ...fieldValues, [field.key]: event.target.value })}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
           <div className="border border-[#c3c4c7] bg-white">
             <h2 className="border-b border-[#c3c4c7] bg-[#f6f7f7] px-3 py-2">Custom fields</h2>
             <div className="space-y-2 p-3 text-[13px]">

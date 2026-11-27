@@ -1,0 +1,9 @@
+{
+  "id": "books",
+  "name": "Books",
+  "version": "1.0.0",
+  "description": "A custom post type, genre taxonomy, ISBN meta box, and a daily recount.",
+  "main": "index.js",
+  "requires": { "openpress": ">=1.0.0" },
+  "permissions": ["modeling", "content:read", "content:write", "admin_menu", "cron", "graphql"]
+}

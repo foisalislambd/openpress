@@ -189,6 +189,7 @@ export {
   getBlockType,
   getBlockTypes,
   registerBlockType,
+  registerDynamicBlock,
 } from './block-registry';
 export type { BlockAttribute, BlockCategory, BlockDefinition, BlockEdit } from './block-registry';
 export { formatSiteDate, weekStartsOnName } from './site-date';

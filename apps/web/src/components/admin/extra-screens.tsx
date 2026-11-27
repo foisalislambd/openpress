@@ -46,16 +46,34 @@ export function UpdatesScreen() {
 
 export function CustomizeScreen() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [themeSettings, setThemeSettings] = useState<{ key: string; label?: string; default?: string }[]>([]);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    api<SiteSettings>('/settings').then(setSettings).catch(() => {});
+    api<SiteSettings>('/settings')
+      .then(async (loaded) => {
+        setSettings(loaded);
+        if (!loaded.activeTheme || loaded.activeTheme === 'default') return;
+        const theme = await api<{ settings?: { key: string; label?: string; default?: string }[] }>(
+          `/themes/installed/${loaded.activeTheme}`,
+        );
+        setThemeSettings(theme.settings ?? []);
+      })
+      .catch(() => {});
   }, []);
 
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!settings) return;
-    await api('/settings', { method: 'PUT', body: JSON.stringify(settings) });
+    await api('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        siteTitle: settings.siteTitle,
+        siteDescription: settings.siteDescription,
+        themeMods: settings.themeMods,
+        additionalCss: settings.additionalCss,
+      }),
+    });
     setSaved(true);
   }
 
@@ -115,6 +133,22 @@ export function CustomizeScreen() {
               })
             }
           />
+          {themeSettings.map((setting) => (
+            <div key={setting.key}>
+              <Label>{setting.label || setting.key}</Label>
+              <Input
+                className="mb-3"
+                value={String((settings?.themeMods as Record<string, unknown> | undefined)?.[setting.key] ?? setting.default ?? '')}
+                onChange={(e) =>
+                  settings &&
+                  setSettings({
+                    ...settings,
+                    themeMods: { ...((settings.themeMods as object) ?? {}), [setting.key]: e.target.value },
+                  })
+                }
+              />
+            </div>
+          ))}
           <Label>Additional CSS</Label>
           <Textarea
             className="mb-3 font-mono"
@@ -139,7 +173,7 @@ type MenuNode = {
   children?: MenuNode[];
 };
 type MenuRecord = { id: string; name: string; items: MenuNode[] };
-type MenuList = { menus: MenuRecord[]; locations: { primary: string | null; footer: string | null } };
+type MenuList = { menus: MenuRecord[]; locations: Record<string, string | null> };
 type MenuRow = { id: string; title: string; url: string; parentId: string | null; depth: number };
 
 function menuRows(items: MenuNode[], depth = 0): MenuRow[] {
@@ -151,7 +185,11 @@ function menuRows(items: MenuNode[], depth = 0): MenuRow[] {
 
 export function MenusScreen() {
   const [menus, setMenus] = useState<MenuRecord[]>([]);
-  const [locations, setLocations] = useState<{ primary: string | null; footer: string | null }>({ primary: null, footer: null });
+  const [locations, setLocations] = useState<Record<string, string | null>>({ primary: null, footer: null });
+  const [catalog, setCatalog] = useState<{ id: string; label: string }[]>([
+    { id: 'primary', label: 'Primary menu' },
+    { id: 'footer', label: 'Footer menu' },
+  ]);
   const [menuId, setMenuId] = useState('');
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('/');
@@ -170,6 +208,15 @@ export function MenusScreen() {
   }
 
   useEffect(load, []);
+  useEffect(() => {
+    api<{ activeTheme?: string }>('/settings')
+      .then(async (settings) => {
+        if (!settings.activeTheme || settings.activeTheme === 'default') return;
+        const theme = await api<{ menuLocations?: { id: string; label: string }[] }>(`/themes/installed/${settings.activeTheme}`);
+        if (theme.menuLocations?.length) setCatalog(theme.menuLocations);
+      })
+      .catch(() => {});
+  }, []);
 
   const menu = menus.find((item) => item.id === menuId) ?? menus[0];
   const rows = menu ? menuRows(menu.items) : [];
@@ -269,32 +316,21 @@ export function MenusScreen() {
       <div className="op-postbox mt-4">
         <h2 className="px-3 py-2">Menu locations</h2>
         <div className="space-y-2 p-3 text-[13px]">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={Boolean(menu) && locations.primary === menu?.id}
-              onChange={(event) => {
-                api('/menus/locations', {
-                  method: 'PUT',
-                  body: JSON.stringify({ ...locations, primary: event.target.checked ? menu?.id ?? null : null }),
-                }).then(load);
-              }}
-            />
-            Primary menu
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={Boolean(menu) && locations.footer === menu?.id}
-              onChange={(event) => {
-                api('/menus/locations', {
-                  method: 'PUT',
-                  body: JSON.stringify({ ...locations, footer: event.target.checked ? menu?.id ?? null : null }),
-                }).then(load);
-              }}
-            />
-            Footer menu
-          </label>
+          {catalog.map((location) => (
+            <label key={location.id} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={Boolean(menu) && locations[location.id] === menu?.id}
+                onChange={(event) => {
+                  api('/menus/locations', {
+                    method: 'PUT',
+                    body: JSON.stringify({ locations: { [location.id]: event.target.checked ? menu?.id ?? null : null } }),
+                  }).then(load);
+                }}
+              />
+              {location.label}
+            </label>
+          ))}
         </div>
       </div>
     </Screen>
@@ -1303,7 +1339,7 @@ export function PrivacySettings() {
 }
 
 type WidgetItem = { id: string; type: string; title: string; text?: string };
-type WidgetAreas = { sidebar: WidgetItem[]; footer: WidgetItem[] };
+type WidgetAreas = Record<string, WidgetItem[]>;
 
 const WIDGET_TYPES = [
   { type: 'search', title: 'Search' },
@@ -1317,7 +1353,8 @@ export function WidgetsScreen() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [areas, setAreas] = useState<WidgetAreas>({ sidebar: [], footer: [] });
   const [saved, setSaved] = useState(false);
-  const [area, setArea] = useState<'sidebar' | 'footer'>('sidebar');
+  const [area, setArea] = useState('sidebar');
+  const [areaIds, setAreaIds] = useState<string[]>(['sidebar', 'footer']);
   const [pluginWidgets, setPluginWidgets] = useState<{ type: string; title: string }[]>([]);
 
   useEffect(() => {
@@ -1326,23 +1363,43 @@ export function WidgetsScreen() {
         setPluginWidgets((registry.widgets ?? []).map((widget) => ({ type: widget.type, title: widget.name }))),
       )
       .catch(() => setPluginWidgets([]));
-    api<SiteSettings>('/settings')
-      .then((loaded) => {
-        setSettings(loaded);
-        const stored = loaded.widgets as WidgetAreas | undefined;
-        setAreas({
-          sidebar: Array.isArray(stored?.sidebar) ? stored.sidebar : [],
-          footer: Array.isArray(stored?.footer) ? stored.footer : [],
-        });
-      })
-      .catch(() => {});
+    let cancelled = false;
+    async function load() {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const loaded = await api<SiteSettings>('/settings');
+          if (cancelled) return;
+          setSettings(loaded);
+          const stored = (loaded.widgets ?? {}) as WidgetAreas;
+          const next: WidgetAreas = { sidebar: [], footer: [] };
+          for (const [key, value] of Object.entries(stored)) {
+            if (Array.isArray(value)) next[key] = value;
+          }
+          setAreas(next);
+          if (loaded.activeTheme && loaded.activeTheme !== 'default') {
+            const theme = await api<{ widgetAreas?: string[] }>(`/themes/installed/${loaded.activeTheme}`);
+            if (cancelled) return;
+            const ids = theme.widgetAreas?.length ? theme.widgetAreas : ['sidebar', 'footer'];
+            setAreaIds(ids);
+            setArea(ids[0] || 'sidebar');
+          }
+          return;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function save(next: WidgetAreas = areas) {
     if (!settings) return;
     const updated = await api<SiteSettings>('/settings', {
       method: 'PUT',
-      body: JSON.stringify({ ...settings, widgets: next }),
+      body: JSON.stringify({ widgets: next }),
     });
     setSettings(updated);
     setAreas(next);
@@ -1352,7 +1409,7 @@ export function WidgetsScreen() {
   return (
     <Screen
       title="Widgets"
-      help="Add widgets to the sidebar or footer, then save. Titles and text widgets stay in site settings."
+      help="Add widgets to a theme area, then save. Titles and text widgets stay in site settings."
     >
       {saved ? <Notice kind="success">Widgets saved.</Notice> : null}
       <div className="op-split">
@@ -1370,7 +1427,7 @@ export function WidgetsScreen() {
                     save({
                       ...areas,
                       [area]: [
-                        ...areas[area],
+                        ...(areas[area] ?? []),
                         { id: `${widget.type}-${Date.now()}`, type: widget.type, title: widget.title, text: '' },
                       ],
                     })
@@ -1384,14 +1441,15 @@ export function WidgetsScreen() {
         </div>
         <div>
           <div className="op-tablenav">
-            <Select value={area} onChange={(e) => setArea(e.target.value as 'sidebar' | 'footer')}>
-              <option value="sidebar">Sidebar</option>
-              <option value="footer">Footer</option>
+            <Select value={area} onChange={(e) => setArea(e.target.value)}>
+              {areaIds.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
             </Select>
           </div>
-          {areas[area].length === 0 ? <p>This area has no widgets.</p> : null}
+          {(areas[area] ?? []).length === 0 ? <p>This area has no widgets.</p> : null}
           <div className="space-y-3">
-            {areas[area].map((widget, index) => (
+            {(areas[area] ?? []).map((widget, index) => (
               <div key={widget.id} className="op-postbox">
                 <h2 className="flex items-center justify-between px-3 py-2">
                   {widget.title}
@@ -1401,7 +1459,7 @@ export function WidgetsScreen() {
                     onClick={() =>
                       save({
                         ...areas,
-                        [area]: areas[area].filter((_, i) => i !== index),
+                        [area]: (areas[area] ?? []).filter((_, i) => i !== index),
                       })
                     }
                   >
@@ -1413,7 +1471,7 @@ export function WidgetsScreen() {
                   <Input
                     value={widget.title}
                     onChange={(e) => {
-                      const list = areas[area].map((item, i) =>
+                      const list = (areas[area] ?? []).map((item, i) =>
                         i === index ? { ...item, title: e.target.value } : item,
                       );
                       setAreas({ ...areas, [area]: list });
@@ -1427,7 +1485,7 @@ export function WidgetsScreen() {
                         rows={3}
                         value={widget.text ?? ''}
                         onChange={(e) => {
-                          const list = areas[area].map((item, i) =>
+                          const list = (areas[area] ?? []).map((item, i) =>
                             i === index ? { ...item, text: e.target.value } : item,
                           );
                           setAreas({ ...areas, [area]: list });

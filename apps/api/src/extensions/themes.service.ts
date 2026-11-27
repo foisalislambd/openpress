@@ -17,6 +17,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { join, resolve } from 'path';
+import { mergeThemeManifest } from './theme-merge';
 
 export interface ThemeManifestFile {
   id: string;
@@ -25,13 +26,22 @@ export interface ThemeManifestFile {
   description?: string;
   author?: string;
   // runtime-v1: design-token theme (theme.json + style.css)
-  // react-v1:   full-code React theme (own components, bundled on upload)
-  engine: 'runtime-v1' | 'react-v1';
+  // template-v1: HTML templates with escaped {{values}}. Safe in production.
+  // react-v1: full-code React theme. Production requires OPENPRESS_CODE_THEMES=1.
+  engine: 'runtime-v1' | 'template-v1' | 'react-v1';
   tokens?: Record<string, string>;
   entry?: string;
   /** npm packages a react-v1 theme imports. Installed only when THEME_INSTALL_DEPS=true. */
   dependencies?: Record<string, string>;
   templates?: string[];
+  /** Another installed theme id. Missing templates are read from the parent. */
+  parent?: string;
+  templateParts?: string[];
+  menuLocations?: { id: string; label: string }[];
+  widgetAreas?: string[];
+  settings?: { key: string; type?: string; label?: string; default?: string }[];
+  patterns?: { name: string; title: string; blocks?: unknown[] }[];
+  styles?: { block: string; name: string; label: string }[];
 }
 
 export const THEMES_STORE_DIR = resolve(process.cwd(), 'themes-store');
@@ -54,6 +64,17 @@ export class InstalledThemesService implements OnModuleInit {
           existsSync(join(THEMES_STORE_DIR, d.name, 'theme.json')),
       )
       .map((d) => this.manifest(d.name));
+  }
+
+  resolved(id: string): ThemeManifestFile & { updatedAt: number } {
+    const child = this.manifest(id);
+    if (!child.parent || child.parent === id) return child;
+    try {
+      const parent = this.manifest(child.parent);
+      return { ...mergeThemeManifest(child, parent), updatedAt: child.updatedAt };
+    } catch {
+      return child;
+    }
   }
 
   manifest(id: string): ThemeManifestFile & { updatedAt: number } {
@@ -129,6 +150,25 @@ export class InstalledThemesService implements OnModuleInit {
     return existsSync(file) ? readFileSync(file, 'utf8') : '';
   }
 
+  readTemplate(id: string, name: string) {
+    if (!/^[a-z0-9][a-z0-9-]{0,60}$/.test(name)) throw new BadRequestException('Invalid template name');
+    const html = this.lookupTemplate(id, name, 0);
+    if (html == null) throw new NotFoundException('Template not found');
+    return { name, html: stripActiveHtml(html) };
+  }
+
+  private lookupTemplate(id: string, name: string, depth: number): string | null {
+    if (depth > 2 || !ID_RE.test(id)) return null;
+    const root = join(THEMES_STORE_DIR, id);
+    for (const relative of [`templates/${name}.html`, `parts/${name}.html`]) {
+      const file = join(root, relative);
+      if (resolve(file).startsWith(resolve(root)) && existsSync(file)) return readFileSync(file, 'utf8');
+    }
+    const manifest = this.manifest(id);
+    if (!manifest.parent || manifest.parent === id) return null;
+    return this.lookupTemplate(manifest.parent, name, depth + 1);
+  }
+
   bundle(id: string): string {
     const manifest = this.manifest(id);
     if (manifest.engine !== 'react-v1') {
@@ -182,11 +222,18 @@ export class InstalledThemesService implements OnModuleInit {
         'theme.json must contain "name" and "version"',
       );
     }
-    if (manifest.engine === 'runtime-v1') {
-      if (!manifest.tokens || typeof manifest.tokens !== 'object') {
+    if (manifest.engine === 'runtime-v1' || manifest.engine === 'template-v1') {
+      if (manifest.engine === 'runtime-v1' && (!manifest.tokens || typeof manifest.tokens !== 'object')) {
         throw new BadRequestException(
           'runtime-v1 themes need a "tokens" object in theme.json',
         );
+      }
+      if (manifest.parent && !ID_RE.test(manifest.parent)) {
+        throw new BadRequestException('parent must be a theme id');
+      }
+      const names = [...(manifest.templates ?? []), ...(manifest.templateParts ?? [])];
+      if (names.some((name) => typeof name !== 'string' || !/^[a-z0-9][a-z0-9-]{0,60}$/.test(name))) {
+        throw new BadRequestException('Template names must be lowercase');
       }
     } else if (manifest.engine === 'react-v1') {
       if (manifest.entry && manifest.entry.includes('..')) {
@@ -197,10 +244,19 @@ export class InstalledThemesService implements OnModuleInit {
       }
     } else {
       throw new BadRequestException(
-        'theme.json "engine" must be "runtime-v1" (token theme) or "react-v1" (code theme)',
+        'theme.json "engine" must be "runtime-v1", "template-v1", or "react-v1"',
       );
     }
   }
+}
+
+function stripActiveHtml(html: string) {
+  return html
+    .replace(/\u0000/g, '')
+    .replace(/<\s*(script|iframe|object|embed)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|iframe|object|embed)\b[^>]*\/?\s*>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, '');
 }
 
 function plainPackages(value: Record<string, string>) {

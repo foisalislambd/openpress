@@ -1,0 +1,10 @@
+{
+  "id": "harbor-child",
+  "name": "Harbor Child",
+  "version": "1.0.0",
+  "description": "Child of Harbor. Overrides the layout and inherits templates, patterns, and styles.",
+  "author": "OpenPress",
+  "engine": "template-v1",
+  "parent": "harbor",
+  "templates": ["layout"]
+}

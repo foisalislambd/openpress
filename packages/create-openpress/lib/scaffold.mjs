@@ -332,18 +332,60 @@ export function pluginFiles(id) {
         description: `${title} plugin`,
         main: 'index.js',
         requires: { openpress: `>=${version}` },
-        permissions: ['shortcodes'],
+        permissions: ['shortcodes', 'admin_menu'],
       },
       null,
       2,
     )}\n`,
     'index.js': `function activate(ctx) {
+  ctx.hooks.addAction('init', () => {
+    ctx.logger.log('${title} ready');
+  });
+  ctx.admin.addMenuPage({
+    slug: 'settings',
+    title: '${title}',
+    menuTitle: '${title}',
+    fields: [{ key: 'greeting', label: 'Greeting', type: 'text' }],
+  });
   ctx.shortcodes.add('${id.replace(/-/g, '_')}', () => '${title}');
 }
 
 module.exports = { activate };
 `,
   };
+}
+
+export function themeFiles(id) {
+  if (!/^[a-z0-9][a-z0-9-_]*$/.test(id)) {
+    throw new CliError('Theme id must be lowercase and start with a letter or number.');
+  }
+  const title = id.replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return {
+    'theme.json': `${JSON.stringify(
+      {
+        id,
+        name: title,
+        version: '1.0.0',
+        description: `${title} theme`,
+        engine: 'template-v1',
+        templates: ['layout', 'index', 'single', 'page', 'archive'],
+        menuLocations: [{ id: 'primary', label: 'Primary' }],
+        widgetAreas: ['sidebar'],
+      },
+      null,
+      2,
+    )}\n`,
+    'style.css': `body { font-family: Georgia, serif; }\n`,
+    'templates/layout.html': `<header><h1>{{site.title}}</h1></header>\n<main>{{yield}}</main>\n`,
+    'templates/index.html': `{{#posts}}<p><a href="{{url}}">{{title}}</a></p>{{/posts}}\n`,
+    'templates/single.html': `<article><h1>{{title}}</h1>{{yield}}</article>\n`,
+    'templates/page.html': `<article><h1>{{title}}</h1>{{yield}}</article>\n`,
+    'templates/archive.html': `<h1>{{title}}</h1>\n{{#posts}}<p><a href="{{url}}">{{title}}</a></p>{{/posts}}\n`,
+  };
+}
+
+export function scaffoldTheme(id, dir, force = false) {
+  writeNew(dir, themeFiles(id), force);
 }
 
 export function writeNew(dir, files, force) {
@@ -500,6 +542,7 @@ The npm package name is provisional and is not claimed to be available.
 Usage
   create-openpress <directory> [options]
   create-openpress plugin <id> [directory]
+  create-openpress theme <id> [directory]
   create-openpress compose [version]
   create-openpress --help
   create-openpress --version
@@ -525,6 +568,11 @@ or seeding. The default is to install, and not to migrate or seed.
 Plugin
   create-openpress plugin <id> [directory]
   --force                Replace plugin.json or index.js if that file exists
+
+Theme
+  create-openpress theme <id> [directory]
+  --force                Replace theme.json, style.css, or a template if that file exists
+  Writes a template-v1 theme. It does not run JavaScript.
 
 compose
   Prints a Docker Compose file for ghcr.io images pinned to a version.
@@ -593,12 +641,12 @@ export function parseArgs(argv) {
     if (flags.databaseUrl !== undefined) throw new CliError('compose does not take --database-url.');
     return { command: 'compose', composeVersion: second, flags };
   }
-  if (first === 'plugin') {
-    if (!second || rest.length > 0) throw new CliError('Usage: create-openpress plugin <id> [directory]');
+  if (first === 'plugin' || first === 'theme') {
+    if (!second || rest.length > 0) throw new CliError(`Usage: create-openpress ${first} <id> [directory]`);
     if (flags.migrate || flags.seed || flags.skipInstall || flags.skipEnv || flags.install || flags.databaseUrl) {
-      throw new CliError('plugin does not take project setup options.');
+      throw new CliError(`${first} does not take project setup options.`);
     }
-    return { command: 'plugin', pluginId: second, directory: third, force: flags.force, flags };
+    return { command: first, pluginId: second, directory: third, force: flags.force, flags };
   }
   if (third !== undefined || rest.length > 0 || second !== undefined) {
     throw new CliError('Pass one project directory. Example: create-openpress ./my-site --yes');
@@ -960,10 +1008,11 @@ export async function main(argv = process.argv.slice(2), io = defaultIo(), extra
     io.stdout(renderCompose(args.composeVersion || readOwnVersion()));
     return;
   }
-  if (args.command === 'plugin') {
+  if (args.command === 'plugin' || args.command === 'theme') {
     const dir = resolve(args.directory || args.pluginId);
-    scaffoldPlugin(args.pluginId, dir, args.force);
-    io.log(`Plugin scaffold written to ${dir}`);
+    if (args.command === 'theme') scaffoldTheme(args.pluginId, dir, args.force);
+    else scaffoldPlugin(args.pluginId, dir, args.force);
+    io.log(`${args.command === 'theme' ? 'Theme' : 'Plugin'} scaffold written to ${dir}`);
     return;
   }
   const plan = await resolveScaffoldPlan(

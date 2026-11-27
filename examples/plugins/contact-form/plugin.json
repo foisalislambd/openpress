@@ -1,0 +1,10 @@
+{
+  "id": "contact-form",
+  "name": "Contact Form",
+  "version": "1.0.0",
+  "description": "Stores form entries in a plugin collection and lists them in admin.",
+  "main": "index.js",
+  "requires": { "openpress": ">=1.0.0" },
+  "permissions": ["data", "admin_menu", "shortcodes", "rest", "email:send"],
+  "removeData": true
+}

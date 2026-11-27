@@ -20,13 +20,18 @@ export class MailService implements OnModuleInit {
   }
 
   async send(to: string, subject: string, body: string) {
+    const filtered = await this.hooks.applyFilters('wp_mail', { to, subject, text: body });
+    const mail = filtered && typeof filtered === 'object' ? (filtered as { to?: unknown; subject?: unknown; text?: unknown }) : {};
+    const nextTo = typeof mail.to === 'string' ? mail.to : to;
+    const nextSubject = typeof mail.subject === 'string' ? mail.subject : subject;
+    const nextBody = typeof mail.text === 'string' ? mail.text : body;
     const id = newId();
     await this.db.query(
       `INSERT INTO mail_queue (id, "toAddress", subject, body, status) VALUES ($1, $2, $3, $4, 'QUEUED')`,
-      [id, to, subject, body],
+      [id, nextTo, nextSubject, nextBody],
     );
     const host = process.env.SMTP_HOST;
-    if (!host || !to) {
+    if (!host || !nextTo) {
       return { id, status: 'QUEUED' as const };
     }
     try {
@@ -41,9 +46,9 @@ export class MailService implements OnModuleInit {
       });
       await transport.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER || 'openpress@localhost',
-        to,
-        subject,
-        text: body,
+        to: nextTo,
+        subject: nextSubject,
+        text: nextBody,
       });
       await this.db.query(`UPDATE mail_queue SET status = 'SENT' WHERE id = $1`, [id]);
       return { id, status: 'SENT' as const };

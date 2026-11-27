@@ -3,6 +3,8 @@ import { IsArray, IsBoolean, IsObject, IsOptional, IsString, MinLength } from 'c
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireAnyCap, RequireCaps } from '../auth/capabilities.guard';
 import { ModelingService } from './modeling.service';
+import { SettingsService } from '../settings/settings.service';
+import { InstalledThemesService } from '../extensions/themes.service';
 
 class PostTypeDto {
   @IsString()
@@ -125,7 +127,11 @@ class PatternDto {
 @UseGuards(JwtAuthGuard, CapabilitiesGuard)
 @RequireAnyCap('edit_others_posts', 'manage_options')
 export class ModelingController {
-  constructor(private modeling: ModelingService) {}
+  constructor(
+    private modeling: ModelingService,
+    private settings: SettingsService,
+    private themes: InstalledThemesService,
+  ) {}
 
   @Get('post-types')
   postTypes() {
@@ -206,8 +212,25 @@ export class ModelingController {
   }
 
   @Get('patterns')
-  patterns() {
-    return this.modeling.listPatterns();
+  async patterns() {
+    const stored = await this.modeling.listPatterns();
+    const settings = await this.settings.getAll();
+    const themeId = String(settings.activeTheme || '');
+    if (!themeId || themeId === 'default') return stored;
+    let manifest: { id: string; patterns?: { name: string; title: string; blocks?: unknown[] }[] };
+    try {
+      manifest = this.themes.resolved(themeId);
+    } catch {
+      return stored;
+    }
+    const extras = (manifest.patterns ?? []).map((pattern) => ({
+      id: `theme:${manifest.id}:${pattern.name.replace(/[^a-z0-9/-]+/gi, '')}`,
+      title: pattern.title,
+      content: Array.isArray(pattern.blocks) ? pattern.blocks : [],
+      synced: false,
+      source: 'theme',
+    }));
+    return [...extras, ...stored];
   }
 
   @Post('patterns')

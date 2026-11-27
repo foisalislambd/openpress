@@ -158,6 +158,10 @@ const ctx = {
       allow('content:read');
       return rpc('content.get', [id]);
     },
+    query: (query) => {
+      allow('content:read');
+      return rpc('content.query', [query || {}]);
+    },
     create: (input) => {
       allow('content:write');
       return rpc('content.create', [input || {}]);
@@ -165,6 +169,142 @@ const ctx = {
     update: (id, input) => {
       allow('content:write');
       return rpc('content.update', [id, input || {}]);
+    },
+    meta: {
+      get: (id, key) => {
+        allow('content:read');
+        return rpc('content.meta', [id, key]);
+      },
+      set: (id, key, value) => {
+        allow('content:write');
+        return rpc('content.meta', [id, key, value]);
+      },
+      delete: (id, key) => {
+        allow('content:write');
+        return rpc('content.meta', [id, key, null]);
+      },
+    },
+    types: {
+      register: (def) => {
+        allow('modeling');
+        return rpc('content.types', [def || {}]);
+      },
+    },
+    taxonomies: {
+      register: (def) => {
+        allow('modeling');
+        return rpc('content.taxonomies', [def || {}]);
+      },
+    },
+    terms: {
+      list: (taxonomy) => {
+        allow('content:read');
+        return rpc('content.terms', ['list', { taxonomy }]);
+      },
+      create: (input) => {
+        allow('content:write');
+        return rpc('content.terms', ['create', input || {}]);
+      },
+      set: (contentId, termIds) => {
+        allow('content:write');
+        return rpc('content.terms', ['set', { contentId, termIds }]);
+      },
+    },
+  },
+  data: {
+    define: (schema) => {
+      allow('data');
+      track('collection', { name: schema && schema.name, schema });
+      return rpc('data.define', [schema]);
+    },
+    insert: (name, values) => {
+      allow('data');
+      return rpc('data.insert', [name, values || {}]);
+    },
+    find: (name, query) => {
+      allow('data');
+      return rpc('data.find', [name, query || {}]);
+    },
+    get: (name, id) => {
+      allow('data');
+      return rpc('data.get', [name, id]);
+    },
+    update: (name, id, values) => {
+      allow('data');
+      return rpc('data.update', [name, id, values || {}]);
+    },
+    remove: (name, id) => {
+      allow('data');
+      return rpc('data.remove', [name, id]);
+    },
+    count: (name, query) => {
+      allow('data');
+      return rpc('data.count', [name, query || {}]);
+    },
+  },
+  migrations: {
+    add: (version, fn) => {
+      allow('data');
+      track('migration', { version: String(version || '') }, fn);
+    },
+  },
+  lifecycle: {
+    onInstall: (fn) => track('lifecycle', { event: 'install' }, fn),
+    onDeactivate: (fn) => track('lifecycle', { event: 'deactivate' }, fn),
+    onUninstall: (fn) => track('lifecycle', { event: 'uninstall' }, fn),
+  },
+  users: {
+    list: (query) => {
+      allow('users:read');
+      return rpc('users.list', [query || {}]);
+    },
+    get: (id) => {
+      allow('users:read');
+      return rpc('users.get', [id]);
+    },
+    grant: (userId, capability) => {
+      allow('users:write');
+      return rpc('users.grant', [userId, capability]);
+    },
+  },
+  comments: {
+    list: (query) => {
+      allow('comments');
+      return rpc('comments.list', [query || {}]);
+    },
+    create: (input) => {
+      allow('comments');
+      return rpc('comments.create', [input || {}]);
+    },
+    moderate: (input) => {
+      allow('comments');
+      return rpc('comments.moderate', [input || {}]);
+    },
+  },
+  media: {
+    list: (query) => {
+      allow('media');
+      return rpc('media.list', [query || {}]);
+    },
+  },
+  cron: {
+    schedule: (input) => {
+      allow('cron');
+      return rpc('cron.schedule', [input || {}]);
+    },
+    unschedule: (hook) => {
+      allow('cron');
+      return rpc('cron.unschedule', [hook]);
+    },
+  },
+  i18n: {
+    t: (message, locale) => {
+      allow('i18n');
+      return rpc('i18n.t', [{ message, locale }]);
+    },
+    load: (pack) => {
+      allow('i18n');
+      return rpc('i18n.load', [pack || {}]);
     },
   },
   storage: {
@@ -251,7 +391,30 @@ const ctx = {
         title: page.title,
         menuTitle: page.menuTitle || page.title,
         fields: page.fields || [],
+        screen: page.screen || 'form',
+        collection: page.collection,
+        postType: page.postType,
+        columns: page.columns || [],
+        html: typeof page.html === 'string' ? page.html.slice(0, 20000) : '',
+        entry: typeof page.entry === 'string' ? page.entry.slice(0, 120) : '',
       });
+    },
+    addMetaBox: (box) => {
+      allow('admin_menu');
+      track('metabox', {
+        widgetId: box.id,
+        title: box.title,
+        postTypes: box.postTypes || ['post'],
+        fields: box.fields || [],
+      });
+    },
+    addDashboardWidget: (widget) => {
+      allow('admin_menu');
+      track('dashboard', { widgetId: widget.id, title: widget.title }, widget.render);
+    },
+    notice: (notice) => {
+      allow('admin_menu');
+      track('notice', { noticeType: notice.type || 'info', message: String(notice.message || '').slice(0, 300) });
     },
   },
   widgets: {
@@ -266,17 +429,52 @@ const ctx = {
       track('shortcode', { tag }, render);
     },
   },
+  forms: {
+    register: (form) => {
+      allow('rest');
+      track('form', { widgetId: form.id, title: form.title || form.id, fields: form.fields || [] }, form.onSubmit);
+    },
+  },
   blocks: {
     register: (block) => {
       allow('blocks');
-      track('block', { name: block.name, title: block.title, description: block.description });
+      track(
+        'block',
+        {
+          name: block.name,
+          title: block.title,
+          description: block.description,
+          attributes: Array.isArray(block.attributes) ? block.attributes.slice(0, 12) : [],
+          editor: typeof block.editor === 'string' ? block.editor.slice(0, 120) : '',
+        },
+        block.render,
+      );
     },
   },
   rest: {
-    route: (method, routePath, handler) => {
+    route: (method, routePath, handler, options) => {
       allow('rest');
       const normalized = routePath.startsWith('/') ? routePath : `/${routePath}`;
-      track('rest', { method, path: normalized }, handler);
+      track('rest', { method, path: normalized, auth: Boolean(options && options.auth) }, handler);
+    },
+  },
+  graphql: {
+    type: (definition) => {
+      allow('graphql');
+      track('graphql-type', { sdl: String(definition || '').slice(0, 2000) });
+    },
+    query: (name, returns, fn) => {
+      allow('graphql');
+      track('graphql-field', { role: 'query', name: String(name || ''), returns: String(returns || '') }, fn);
+    },
+    mutation: (name, args, returns, fn) => {
+      allow('graphql');
+      track('graphql-field', {
+        role: 'mutation',
+        name: String(name || ''),
+        args: String(args || ''),
+        returns: String(returns || ''),
+      }, fn);
     },
   },
   assets: {

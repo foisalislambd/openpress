@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, Matches } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { WidgetsService } from './widgets.service';
 
 class WidgetDto {
-  @IsIn(['sidebar', 'footer'])
-  area!: 'sidebar' | 'footer';
+  @Matches(/^[a-z][a-z0-9-]{0,30}$/)
+  area!: string;
 
   @IsString()
   type!: string;
@@ -30,8 +30,8 @@ class WidgetPatchDto {
   text?: string;
 
   @IsOptional()
-  @IsIn(['sidebar', 'footer'])
-  area?: 'sidebar' | 'footer';
+  @Matches(/^[a-z][a-z0-9-]{0,30}$/)
+  area?: string;
 }
 
 @Controller('widgets')

@@ -13,10 +13,12 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { createReadStream, existsSync } from 'fs';
 import { normalize, resolve } from 'path';
 import { Request, Response } from 'express';
@@ -28,6 +30,10 @@ import { ExtensionRegistry } from './extension-registry';
 import { PluginsService } from './plugins.service';
 import { WidgetsService } from '../widgets/widgets.service';
 import { InstalledThemesService } from './themes.service';
+import { HooksService } from '../hooks/hooks.service';
+import { sanitizeFooterHtml, sanitizeHeadHtml } from './head-html';
+import { isolatedAppCsp } from './isolated-app';
+import { ACCESS_COOKIE, readCookie } from '../auth/session-cookie';
 
 const zipUpload = FileInterceptor('file', {
   storage: memoryStorage(),
@@ -40,6 +46,8 @@ export class PluginsController {
     private plugins: PluginsService,
     private registry: ExtensionRegistry,
     private widgets: WidgetsService,
+    private hooks: HooksService,
+    private jwt: JwtService,
   ) {}
 
   @Get()
@@ -57,17 +65,25 @@ export class PluginsController {
       menus: this.registry.adminPages(),
       blocks: this.registry.blocksForEditor(),
       widgets: this.registry.widgetTypes(),
+      metaBoxes: this.registry.listMetaBoxes(),
+      notices: this.registry.listNotices(),
+      dashboard: this.registry.dashboardWidgets(),
     };
   }
 
   @Get('chrome')
   async chrome() {
     const rendered = await this.widgets.renderPublic();
+    const head = await this.hooks.applyFilters('wp_head', [] as string[]);
+    const footer = await this.hooks.applyFilters('wp_footer', [] as string[]);
     return {
       assets: this.registry.assetsForSite(),
       blocks: this.registry.blocksForEditor(),
       widgets: rendered.widgets,
       areas: rendered.areas,
+      metaBoxes: this.registry.listMetaBoxes(),
+      head: sanitizeHeadHtml(head),
+      footer: sanitizeFooterHtml(footer),
     };
   }
 
@@ -85,6 +101,44 @@ export class PluginsController {
     createReadStream(target).pipe(res);
   }
 
+  @Post(':id/forms/:formId')
+  async submitForm(@Param('id') id: string, @Param('formId') formId: string, @Body() body: unknown) {
+    const form = this.registry.form(id, formId);
+    if (!form) throw new NotFoundException('Form not found');
+    const source = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    const values: Record<string, string> = {};
+    for (const field of form.fields) {
+      const value = source[field.key];
+      if (typeof value !== 'string') continue;
+      values[field.key] = value.slice(0, field.type === 'textarea' ? 5000 : 500);
+    }
+    return form.submit(values);
+  }
+
+  @Get('block-editor')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('edit_posts')
+  blockEditor(@Query('name') name: string | undefined, @Res() res: Response) {
+    const block = this.registry.blockByName(String(name || ''));
+    if (!block?.editor) throw new NotFoundException('Block editor not found');
+    res.setHeader('Content-Security-Policy', isolatedAppCsp(process.env.WEB_ORIGIN));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type('html').send(this.plugins.isolatedDocument(block.pluginId, block.editor));
+  }
+
+  @Get(':id/app/:slug')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  app(@Param('id') id: string, @Param('slug') slug: string, @Res() res: Response) {
+    const page = this.registry.page(id, slug);
+    if (!page || page.screen !== 'app' || !page.entry) throw new NotFoundException('Plugin screen not found');
+    res.setHeader('Content-Security-Policy', isolatedAppCsp(process.env.WEB_ORIGIN));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.type('html').send(this.plugins.isolatedDocument(id, page.entry));
+  }
+
   @All(':id/rest/*path')
   async rest(
     @Param('id') id: string,
@@ -94,9 +148,52 @@ export class PluginsController {
     @Req() req: Request,
   ) {
     const routePath = `/${(Array.isArray(path) ? path.join('/') : path).replace(/^\/+/, '')}`;
-    const result = await this.registry.route(id, req.method, routePath, query, body);
-    if (result === null) throw new NotFoundException('Plugin route not found');
-    return result;
+    const route = this.registry.matchRoute(id, req.method, routePath);
+    if (!route) throw new NotFoundException('Plugin route not found');
+    if (route.auth && !(await this.sessionUser(req))) throw new UnauthorizedException('Sign in required');
+    return route.handler({ query, body });
+  }
+
+  private async sessionUser(req: Request) {
+    const header = req.header('authorization') ?? '';
+    const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const token = bearer || readCookie(req, ACCESS_COOKIE);
+    if (!token) return null;
+    try {
+      return await this.jwt.verifyAsync(token);
+    } catch {
+      return null;
+    }
+  }
+
+  @Get(':id/collections/:name')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  records(@Param('id') id: string, @Param('name') name: string) {
+    return this.plugins.records(id, name);
+  }
+
+  @Get(':id/content')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  pluginContent(@Param('id') id: string, @Query('postType') postType?: string) {
+    return this.plugins.pluginContent(id, postType);
+  }
+
+  @Post(':id/content')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('activate_plugins')
+  createPluginContent(@Param('id') id: string, @Body() body: { title?: string; postType?: string }) {
+    return this.plugins.createPluginContent(id, body);
+  }
+
+  @Get(':id/dashboard/:widgetId')
+  @UseGuards(JwtAuthGuard, CapabilitiesGuard)
+  @RequireCaps('read')
+  async dashboard(@Param('id') id: string, @Param('widgetId') widgetId: string) {
+    const html = await this.registry.renderDashboard(id, widgetId);
+    if (html == null) throw new NotFoundException('Dashboard widget not found');
+    return { html };
   }
 
   @Get(':id/settings/:slug')
@@ -183,7 +280,12 @@ export class InstalledThemesController {
 
   @Get('installed/:id')
   manifest(@Param('id') id: string) {
-    return this.themes.manifest(id);
+    return this.themes.resolved(id);
+  }
+
+  @Get('installed/:id/template')
+  template(@Param('id') id: string, @Query('name') name?: string) {
+    return this.themes.readTemplate(id, name || 'index');
   }
 
   @Get('installed/:id/style.css')

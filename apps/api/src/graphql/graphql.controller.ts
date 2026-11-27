@@ -1,10 +1,16 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, Req } from '@nestjs/common';
 import { IsObject, IsOptional, IsString } from 'class-validator';
-import { buildSchema, graphql } from 'graphql';
+import { buildSchema, graphql, GraphQLSchema } from 'graphql';
+import { Request } from 'express';
+import { JwtService } from '@nestjs/jwt';
 import { ContentService } from '../content/content.service';
 import { PUBLISHED_MEDIA_MATCH } from '../content/public-media';
 import { currentSiteId } from '../sites/site-context';
 import { DbService } from '../db/db.service';
+import { HooksService } from '../hooks/hooks.service';
+import { ExtensionRegistry } from '../extensions/extension-registry';
+import { clampGraphqlValue, compilePluginGraphql } from '../extensions/plugin-graphql';
+import { ACCESS_COOKIE, readCookie } from '../auth/session-cookie';
 
 class GraphqlDto {
   @IsString()
@@ -15,7 +21,7 @@ class GraphqlDto {
   variables?: Record<string, unknown>;
 }
 
-const schema = buildSchema(`
+const CORE_TYPES = `
   type Post {
     id: ID!
     title: String!
@@ -46,25 +52,29 @@ const schema = buildSchema(`
     parentId: String
     authorName: String
   }
-  type Query {
-    posts(page: Int, perPage: Int, search: String): PostList!
-    post(slug: String!): Post
-    media(limit: Int): [MediaItem!]!
-    categories: [Term!]!
-    tags: [Term!]!
-    comments(contentId: String!): [Comment!]!
-  }
-`);
+`;
+
+const CORE_QUERY = `
+  posts(page: Int, perPage: Int, search: String): PostList!
+  post(slug: String!): Post
+  media(limit: Int): [MediaItem!]!
+  categories: [Term!]!
+  tags: [Term!]!
+  comments(contentId: String!): [Comment!]!
+`;
 
 @Controller('graphql')
 export class GraphqlController {
   constructor(
     private content: ContentService,
     private db: DbService,
+    private hooks: HooksService,
+    private registry: ExtensionRegistry,
+    private jwt: JwtService,
   ) {}
 
   @Post()
-  async query(@Body() body: GraphqlDto) {
+  async query(@Body() body: GraphqlDto, @Req() req: Request) {
     if (!body.query || body.query.length > 12_000 || braceDepth(body.query) > 8) {
       throw new BadRequestException('Query is empty or too expensive');
     }
@@ -113,8 +123,47 @@ export class GraphqlController {
           [args.contentId, currentSiteId()],
         ),
     };
-    return graphql({ schema, source: body.query ?? '', rootValue: root, variableValues: body.variables });
+    const user = await this.sessionUser(req);
+    const extensions = this.registry.graphqlExtensions();
+    const compiled = compilePluginGraphql(extensions.types, extensions.fields);
+    const built = this.schemaFor(compiled);
+    for (const field of compiled.fields) {
+      const resolver = extensions.fields.find((item) => item.role === field.role && item.name === field.name);
+      if (!resolver) continue;
+      root[field.name] = async (args: Record<string, unknown>) => {
+        if (field.role === 'mutation' && !user) throw new Error('Sign in required');
+        return clampGraphqlValue(await resolver.resolve(args ?? {}));
+      };
+    }
+    const result = await graphql({ schema: built, source: body.query ?? '', rootValue: root, variableValues: body.variables });
+    return this.hooks.applyFilters('graphql_response', result);
   }
+
+  private schemaFor(compiled: ReturnType<typeof compilePluginGraphql>): GraphQLSchema {
+    const mutations = compiled.mutations.length ? `type Mutation { ${compiled.mutations.join('\n')} }` : '';
+    const source = `${schemaSource()}\n${compiled.types}\ntype Query { ${CORE_QUERY}\n${compiled.queries.join('\n')} }\n${mutations}`;
+    try {
+      return buildSchema(source);
+    } catch {
+      return buildSchema(`${schemaSource()}\ntype Query { ${CORE_QUERY} }`);
+    }
+  }
+
+  private async sessionUser(req: Request) {
+    const header = req.header('authorization') ?? '';
+    const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const token = bearer || readCookie(req, ACCESS_COOKIE);
+    if (!token) return null;
+    try {
+      return await this.jwt.verifyAsync(token);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function schemaSource() {
+  return CORE_TYPES;
 }
 
 function braceDepth(source: string) {

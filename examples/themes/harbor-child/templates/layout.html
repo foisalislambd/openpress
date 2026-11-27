@@ -1,0 +1,9 @@
+<header class="harbor-header">
+  <p class="harbor-child">Child harbor</p>
+  <h1>{{site.title}}</h1>
+  <p class="harbor-tagline">{{mods.tagline}}</p>
+  <nav class="harbor-nav">{{#menus.primary}}<a href="{{url}}">{{title}}</a> {{/menus.primary}}</nav>
+</header>
+<main class="harbor-main">{{yield}}</main>
+<aside class="harbor-sidebar">{{#widgets.sidebar}}<p class="harbor-widget">{{title}}</p>{{/widgets.sidebar}}</aside>
+<footer class="harbor-footer"><p>{{site.title}}</p></footer>

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
-import { Allow, IsArray, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { Allow, IsArray, IsIn, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CapabilitiesGuard, RequireCaps } from '../auth/capabilities.guard';
 import { MenusService } from './menus.service';
@@ -56,6 +56,10 @@ class LocationsDto {
   @IsOptional()
   @IsString()
   footer?: string | null;
+
+  @IsOptional()
+  @IsObject()
+  locations?: Record<string, string | null>;
 }
 
 @Controller('menus')
@@ -71,7 +75,11 @@ export class MenusController {
 
   @Put('locations')
   locations(@Body() dto: LocationsDto) {
-    return this.menus.setLocations(dto);
+    return this.menus.setLocations({
+      ...(dto.locations ?? {}),
+      ...(dto.primary !== undefined ? { primary: dto.primary } : {}),
+      ...(dto.footer !== undefined ? { footer: dto.footer } : {}),
+    });
   }
 
   @Patch('items/:itemId')

@@ -35,14 +35,19 @@ function Layout({ settings, pages, children }: ThemeLayoutProps) {
   const footerItems = itemsFor(settings, 'footer', pages);
   const chrome = (settings.pluginChrome ?? {}) as {
     assets?: { href: string; kind: 'style' | 'script'; handle: string }[];
+    head?: string[];
+    footer?: string[];
     widgets?: { footer?: string[]; sidebar?: string[] };
     areas?: {
       sidebar?: { id: string; title: string; text?: string; items?: { label: string; href: string }[]; form?: { action: string; name: string; placeholder: string } }[];
       footer?: { id: string; title: string; text?: string; items?: { label: string; href: string }[]; form?: { action: string; name: string; placeholder: string } }[];
     };
   };
-  return (
+    return (
     <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      {chrome.head?.map((tag, index) => (
+        <span key={`head-${index}`} dangerouslySetInnerHTML={{ __html: tag }} />
+      ))}
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4">
           <a href="/" className="inline-flex items-center gap-2 text-lg font-extrabold tracking-tight">
@@ -117,6 +122,11 @@ function Layout({ settings, pages, children }: ThemeLayoutProps) {
             ))}
           </nav>
         ) : null}
+        {chrome.footer?.map((text) => (
+          <p key={text} className="mb-2">
+            {text}
+          </p>
+        ))}
         {chrome.widgets?.footer?.map((html) => (
           <p key={html} className="mb-2">
             {html}

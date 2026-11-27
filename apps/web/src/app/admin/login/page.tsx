@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState, useSyncExternalStore } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { OpenPressMark } from '@/components/brand/openpress-mark';
 import { api, setTokens } from '@/lib/client-api';
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [ticket, setTicket] = useState('');
   const [code, setCode] = useState('');
   const [providers, setProviders] = useState<{ google?: boolean; github?: boolean }>({});
+  const ready = useHydrated();
 
   useEffect(() => {
     api<{ google?: boolean; github?: boolean }>('/auth/oauth/providers').then(setProviders).catch(() => {});
@@ -102,7 +103,7 @@ export default function LoginPage() {
           <p className="op-login-submit">
             <button
               type="submit"
-              disabled={loading}
+              disabled={!ready || loading}
               style={{
                 float: 'right',
                 minHeight: 32,
@@ -161,5 +162,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function useHydrated() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
   );
 }

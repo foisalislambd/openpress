@@ -2,6 +2,7 @@ import type { ThemeDefinition } from '@openpress/shared';
 import defaultTheme from '@openpress/theme-default';
 import { buildRuntimeTheme, RuntimeThemeManifest } from './runtime-theme';
 import { loadCodeTheme } from './code-theme';
+import { buildTemplateTheme } from './template-theme';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -22,9 +23,13 @@ export async function resolveTheme(id: string): Promise<ThemeDefinition> {
         RuntimeThemeManifest,
         'engine'
       > & {
-        engine: 'runtime-v1' | 'react-v1';
+        engine: 'runtime-v1' | 'react-v1' | 'template-v1';
+        templates?: string[];
         updatedAt: number;
       };
+      if (manifest.engine === 'template-v1') {
+        return buildTemplateTheme(manifest);
+      }
       if (manifest.engine === 'react-v1') {
         const theme = await loadCodeTheme(
           manifest.id,

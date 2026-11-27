@@ -336,6 +336,7 @@ export function AdminShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pending, setPending] = useState(0);
   const [pluginPages, setPluginPages] = useState<{ pluginId: string; slug: string; menuTitle: string }[]>([]);
+  const [pluginNotices, setPluginNotices] = useState<{ type: string; message: string }[]>([]);
   const routeKey = `${pathname}#${hash}`;
   const [seenRoute, setSeenRoute] = useState(routeKey);
   if (seenRoute !== routeKey) {
@@ -357,8 +358,11 @@ export function AdminShell({
         .catch(() => {});
     }
     if (user.role === 'ADMIN' || user.capabilities?.includes('activate_plugins')) {
-      api<{ menus: { pluginId: string; slug: string; menuTitle: string }[] }>('/plugins/registry')
-        .then((registry) => setPluginPages(registry.menus))
+      api<{ menus: { pluginId: string; slug: string; menuTitle: string }[]; notices?: { type: string; message: string }[] }>('/plugins/registry')
+        .then((registry) => {
+          setPluginPages(registry.menus);
+          setPluginNotices(registry.notices ?? []);
+        })
         .catch(() => setPluginPages([]));
     }
   }, [pathname, user.role]);
@@ -451,7 +455,14 @@ export function AdminShell({
       </aside>
 
       <div className={cn('flex min-h-screen flex-col pt-8', folded ? 'md:pl-9' : 'md:pl-40')}>
-        <div className="op-screen flex-1 px-5 py-2">{children}</div>
+        <div className="op-screen flex-1 px-5 py-2">
+          {pluginNotices.map((notice) => (
+            <p key={`${notice.type}-${notice.message}`} className="op-notice" role="status">
+              {notice.message}
+            </p>
+          ))}
+          {children}
+        </div>
         <footer className="mt-8 flex items-center justify-between px-5 py-4 text-[13px] text-[#50575e]">
           <span>Thank you for creating with OpenPress.</span>
           <span>Version 0.1.0</span>

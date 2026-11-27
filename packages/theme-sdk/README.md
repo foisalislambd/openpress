@@ -1,6 +1,6 @@
 # @openpress/theme-sdk
 
-TypeScript types for an OpenPress `theme.json`. Use it while authoring a `runtime-v1` token theme or a `react-v1` theme. OpenPress still installs themes from a zip upload.
+TypeScript types for an OpenPress `theme.json`. Use it while authoring a `runtime-v1` token theme, a `template-v1` HTML theme, or a `react-v1` theme. `renderThemeTemplate` escapes `{{values}}` and does not run code. OpenPress still installs themes from a zip upload.
 
 ```bash
 npm install -D @openpress/theme-sdk

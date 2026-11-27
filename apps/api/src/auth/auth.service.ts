@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   ConflictException,
   ForbiddenException,
@@ -12,6 +13,7 @@ import { isUniqueViolation } from '../db/errors';
 import { newId } from '../db/ids';
 import { AuditService } from '../platform/audit.service';
 import { CapabilitiesService } from './capabilities.service';
+import { HooksService } from '../hooks/hooks.service';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { hashRefreshToken } from './refresh-token';
 
@@ -38,6 +40,7 @@ export class AuthService {
     private jwt: JwtService,
     private audit: AuditService,
     private caps: CapabilitiesService,
+    private hooks: HooksService,
     config: ConfigService,
   ) {
     this.refreshSecret =
@@ -96,16 +99,24 @@ export class AuthService {
       throw error;
     }
     if (!user) throw new ConflictException('Email already registered');
+    await this.hooks.doAction('user_register', { id: user.id, email: user.email, role: user.role });
     return this.issueTokens(user.id, user.email, user.role);
   }
 
   async login(dto: LoginDto, meta?: SessionMeta) {
+    const gate = await this.hooks.applyFilters('authenticate', { email: dto.email, ok: true });
+    if (gate && typeof gate === 'object' && (gate as { ok?: unknown }).ok === false) {
+      await this.audit.record('auth.login_failed', { email: dto.email });
+      await this.hooks.doAction('wp_login_failed', { email: dto.email });
+      throw new UnauthorizedException('Invalid credentials');
+    }
     const user = await this.db.one<AuthUser>(
       'SELECT id, email, role, "passwordHash" FROM users WHERE email = $1',
       [dto.email],
     );
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       await this.audit.record('auth.login_failed', { email: dto.email });
+      await this.hooks.doAction('wp_login_failed', { email: dto.email });
       throw new UnauthorizedException('Invalid credentials');
     }
     const totp = await this.db.one<{ enabled: boolean }>(
@@ -120,6 +131,7 @@ export class AuthService {
       return { mfaRequired: true as const, ticket };
     }
     await this.audit.record('auth.login', { email: user.email }, user.id);
+    await this.hooks.doAction('wp_login', { id: user.id, email: user.email, role: user.role });
     return this.issueTokens(user.id, user.email, user.role, meta);
   }
 
@@ -133,6 +145,7 @@ export class AuthService {
     if (payload.purpose !== 'mfa') throw new UnauthorizedException('Sign-in expired. Enter your password again.');
     if (!(await verify(payload.sub, code))) throw new UnauthorizedException('That code did not match');
     await this.audit.record('auth.login', { email: payload.email, mfa: true }, payload.sub);
+    await this.hooks.doAction('wp_login', { id: payload.sub, email: payload.email, role: payload.role });
     return this.issueTokens(payload.sub, payload.email, payload.role, meta);
   }
 
@@ -180,6 +193,7 @@ export class AuthService {
          WHERE id = $1 AND "userId" = $2 AND "revokedAt" IS NULL`,
         [payload.sid, payload.sub],
       );
+      await this.hooks.doAction('wp_logout', { userId: payload.sub });
     }
   }
 
@@ -275,10 +289,13 @@ export class AuthService {
     const payload = { sub, email, role, sid, purpose: 'access' as const };
     return {
       accessToken: this.jwt.sign(payload),
-      refreshToken: this.jwt.sign(payload, {
-        secret: this.refreshSecret,
-        expiresIn: '7d' as const,
-      }),
+      refreshToken: this.jwt.sign(
+        { ...payload, purpose: 'refresh' as const, jti: randomBytes(16).toString('hex') },
+        {
+          secret: this.refreshSecret,
+          expiresIn: '7d' as const,
+        },
+      ),
       user: { id: sub, email, role },
     };
   }

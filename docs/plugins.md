@@ -61,8 +61,21 @@ hello-logger/
 | `assets` | `ctx.assets.enqueueStyle` / `enqueueScript` |
 | `widgets` | `ctx.widgets.register` |
 | `shortcodes` | `ctx.shortcodes.add` |
-| `blocks` | `ctx.blocks.register` |
-| `database` | Parsed for older manifests. `ctx.db` throws. Use `content:read` / `content:write` |
+| `blocks` | `ctx.blocks.register` with attributes, an optional isolated editor HTML file, and a server render function |
+| `data` | `ctx.data` collections and `ctx.migrations`. Not raw SQL |
+| `cron` | `ctx.cron.schedule` / `unschedule`. The fired hook is `<plugin-id>.<hook>` |
+| `users:read` | `ctx.users.list` / `get`. Password hashes and sessions are not included |
+| `users:write` | `ctx.users.grant` for a capability this plugin registered. Core admin capabilities are refused |
+| `comments` | `ctx.comments.list`, `create` (pending), and `moderate` |
+| `media` | `ctx.media.list` |
+| `modeling` | `ctx.content.types.register` and `ctx.content.taxonomies.register` |
+| `i18n` | `ctx.i18n.load` and `ctx.i18n.t` for this plugin's text domain |
+| `graphql` | `ctx.graphql.type`, `query`, and `mutation`. Resolvers run in the sandbox. Mutations require a signed-in session |
+| `database` | Parsed for older manifests. `ctx.db` throws. Use `data` or `content:*` |
+
+An admin screen with `screen: "app"` and `entry` points at an HTML file in the plugin. OpenPress serves that file inside an iframe with `sandbox="allow-scripts"` and without `allow-same-origin`. The document is an opaque origin, so it cannot read `op_access` or `op_csrf`. Its content security policy sets `connect-src 'none'`, so the bundle cannot call the API itself. `window.openpress.call(method, path, body)` posts a message to the admin page. The admin page checks the message came from that iframe and repeats it, with the session cookie and CSRF header, to a REST route this plugin registered. A route passed `{ auth: true }` rejects anonymous callers.
+
+A block `editor` file uses the same iframe. `window.openpress.setAttributes` sends attribute changes. `window.onOpenPressBlock` receives the current attributes. The public page uses the block's `render` function. Returned HTML is sanitized.
 
 Hooks do not require a permission. Each plugin runs in its own Node process with the permission model (filesystem outside the plugin directory is denied) and sealed `fetch`, `http`, and `fs` requires. Actions and filters still use `addAction` and `addFilter`; the parent runs them by RPC. A hook that runs longer than 30 seconds is killed without taking down the API. Memory is capped at 128MB.
 
@@ -183,6 +196,45 @@ module.exports = { activate };
 ```
 
 Permissions: `admin_menu`, `shortcodes`. The page is `/admin/plugin/<id>/hello`. Saved values live in the `plugin:<id>` settings row and only include declared field keys.
+
+## Getting started
+
+```bash
+node packages/create-openpress/bin/create-openpress.mjs plugin my-plugin ./my-plugin
+```
+
+That writes `plugin.json` and `index.js`. Zip the folder and upload it from Admin → Plugins. Examples in this repo:
+
+| Example | What it proves |
+|---------|----------------|
+| `examples/plugins/seo` | Settings screen, `document_title`, `the_excerpt`, `wp_head`, and a block with an editor field |
+| `examples/plugins/contact-form` | A collection, migration, admin list, and a form whose submit handler stores entries |
+| `examples/plugins/books` | Custom post type, taxonomy, meta box, content screen, and a daily cron hook |
+
+Apply `apps/api/db/migrations/010_plugin_platform.sql` with `pnpm db:migrate` before using collections or migrations.
+
+`ctx.db` always throws. A collection is a named set of fields. Filters are objects (`{ status: 'new' }` or `{ email: { contains: 'ada' } }`). Field names that are not in the schema are rejected, and they are never pasted into SQL as identifiers.
+
+Admin screens:
+
+- `screen: 'form'` saves the declared fields into this plugin's settings.
+- `screen: 'list'` renders a table from a collection.
+- `screen: 'content'` lists and creates drafts of a post type. Open `/admin/posts/new?postType=book` for the block editor.
+- `screen: 'html'` is shown in a sandboxed frame with scripts removed.
+- `addMetaBox` adds fields to the post editor. Keys are saved as content meta.
+- `addDashboardWidget` and `notice` show on the dashboard and admin shell.
+- `forms.register` builds the form HTML in core. A shortcode may return `{{form:id}}`. Core posts the values to the submit handler. The default theme escapes block text, so place the form where HTML is rendered or call the REST route.
+
+`user_has_cap` may deny a capability. It cannot grant one the user does not already have. Grant plugin-owned capabilities with `ctx.users.grant`.
+
+Hooks that core fires are listed in [hooks.md](hooks.md).
+
+Optional exports and registrations:
+
+- `ctx.lifecycle.onInstall`, `onDeactivate`, `onUninstall`
+- `ctx.migrations.add('1.1.0', fn)` runs once per version, in version order
+- `dependencies` in `plugin.json` names plugin ids that must be active first
+- `removeData: true` deletes collections, migration rows, and storage when the plugin is deleted
 
 ## Lifecycle
 

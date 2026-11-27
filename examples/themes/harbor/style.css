@@ -1,0 +1,5 @@
+.harbor-header, .harbor-main, .harbor-footer { max-width: 46rem; margin: 0 auto; }
+.harbor-header { padding: 2rem 1rem 1rem; }
+.harbor-main { padding: 0 1rem 3rem; }
+.harbor-mark { letter-spacing: 0.14em; text-transform: uppercase; color: #0f6e8c; }
+a { color: #0f6e8c; }

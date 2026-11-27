@@ -22,13 +22,9 @@ export class WidgetsService {
 
   async list() {
     const rows = await this.instances();
-    return {
-      types: this.types(),
-      areas: {
-        sidebar: rows.filter((row) => row.area === 'sidebar'),
-        footer: rows.filter((row) => row.area === 'footer'),
-      },
-    };
+    const areas: Record<string, typeof rows> = { sidebar: [], footer: [] };
+    for (const row of rows) (areas[row.area] ??= []).push(row);
+    return { types: this.types(), areas };
   }
 
   async create(input: { area: string; type: string; title?: string; text?: string }) {
@@ -91,7 +87,7 @@ export class WidgetsService {
       'SELECT name, slug FROM categories WHERE "siteId" = $1 ORDER BY name ASC LIMIT 20',
       [currentSiteId()],
     );
-    const render = async (area: 'sidebar' | 'footer') => {
+    const render = async (area: string) => {
       const views: WidgetView[] = [];
       for (const row of source.filter((item) => item.area === area)) {
         const core = coreWidgetView(row, { posts, categories });
@@ -111,33 +107,32 @@ export class WidgetsService {
       }
       return views;
     };
-    const sidebar = await render('sidebar');
-    const footer = await render('footer');
-    return {
-      areas: { sidebar, footer },
-      widgets: {
-        sidebar: sidebar.map(widgetPlainText),
-        footer: footer.map(widgetPlainText),
-      },
-    };
+    const names = [...new Set(['sidebar', 'footer', ...source.map((row) => row.area)])];
+    const areas: Record<string, WidgetView[]> = {};
+    const widgets: Record<string, string[]> = {};
+    for (const name of names) {
+      areas[name] = await render(name);
+      widgets[name] = areas[name].map(widgetPlainText);
+    }
+    return { areas, widgets };
   }
 
   async importSettings(value: unknown) {
     if (!value || typeof value !== 'object') return;
-    const record = value as { sidebar?: unknown; footer?: unknown };
+    const record = value as Record<string, unknown>;
     await this.db.tx(async (sql) => {
-      await sql.query('DELETE FROM widget_instances');
-      for (const area of ['sidebar', 'footer'] as const) {
-        const items = Array.isArray(record[area]) ? record[area] : [];
+      await sql.query('DELETE FROM widget_instances WHERE "siteId" = $1', [currentSiteId()]);
+      for (const [area, raw] of Object.entries(record)) {
+        if (!/^[a-z][a-z0-9-]{0,30}$/.test(area) || !Array.isArray(raw)) continue;
         let position = 0;
-        for (const item of items) {
+        for (const item of raw) {
           if (!item || typeof item !== 'object') continue;
           const row = item as { type?: string; title?: string; text?: string };
           const type = String(row.type ?? 'text');
           if (!isCoreWidget(type) && !type.includes('/')) continue;
           await sql.query(
-            `INSERT INTO widget_instances (id, area, type, position, settings) VALUES ($1, $2, $3, $4, $5::jsonb)`,
-            [newId(), area, type, position, JSON.stringify(sanitizeWidgetSettings(type, { title: row.title ?? '', text: row.text ?? '' }))],
+            `INSERT INTO widget_instances (id, area, type, position, settings, "siteId") VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+            [newId(), area, type, position, JSON.stringify(sanitizeWidgetSettings(type, { title: row.title ?? '', text: row.text ?? '' })), currentSiteId()],
           );
           position += 1;
         }
@@ -164,7 +159,7 @@ export class WidgetsService {
   }
 
   private async instances() {
-    return this.db.query<{ id: string; area: 'sidebar' | 'footer'; type: string; position: number; settings: Record<string, unknown> }>(
+    return this.db.query<{ id: string; area: string; type: string; position: number; settings: Record<string, unknown> }>(
       'SELECT id, area, type, position, settings FROM widget_instances WHERE "siteId" = $1 ORDER BY position ASC',
       [currentSiteId()],
     );
@@ -200,16 +195,20 @@ export class WidgetsService {
 }
 
 function areaOf(value: string) {
-  if (value === 'sidebar' || value === 'footer') return value;
-  throw new BadRequestException('Widget area must be sidebar or footer');
+  if (!/^[a-z][a-z0-9-]{0,30}$/.test(value)) throw new BadRequestException('Widget area must be a lowercase id');
+  return value;
 }
 
-function project(areas: { sidebar: { type: string; settings: Record<string, unknown> }[]; footer: { type: string; settings: Record<string, unknown> }[] }) {
+function project(areas: Record<string, { type: string; settings: Record<string, unknown> }[]>) {
   const map = (items: { type: string; settings: Record<string, unknown> }[]) =>
     items.map((item) => ({
       type: item.type,
       title: String(item.settings.title ?? ''),
       text: String(item.settings.text ?? ''),
     }));
-  return { sidebar: map(areas.sidebar), footer: map(areas.footer) };
+  const projected: Record<string, { type: string; title: string; text: string }[]> = {};
+  for (const [area, items] of Object.entries(areas)) projected[area] = map(items);
+  if (!projected.sidebar) projected.sidebar = [];
+  if (!projected.footer) projected.footer = [];
+  return projected;
 }
